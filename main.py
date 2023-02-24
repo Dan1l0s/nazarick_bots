@@ -12,6 +12,7 @@ FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
 queue = []  
+temp_context = None
 skip_flag = False
 playing_flag = False
 vcs = {}
@@ -37,18 +38,26 @@ async def help(ctx):
 @bot.slash_command(description="Plays a song from youtube (paste URL or type a query)")
 async def play(ctx, url: str):
     global voice
-    voice = disnake.utils.get(bot.voice_clients, guild = ctx.guild)
-    channel = ctx.author.voice.channel
+    global temp_context
+    temp_context = ctx
+    voice = disnake.utils.get(bot.voice_clients, guild = temp_context.guild)
+    channel = temp_context.author.voice.channel
     if channel:
         if voice and voice.is_connected():
             await voice.move_to(channel)
         else:
             voice = await channel.connect()
             if not voice and not voice.is_connected():
-                return await ctx.response.send_message('Seems like your channel is unavailable :c')
+                return await temp_context.response.send_message('Seems like your channel is unavailable :c')
             
-        queue.append(url)
-        await ctx.send(f"Added to queue!")
+        with YoutubeDL(YTDL_OPTIONS) as ytdl:
+            if "https://" in url:
+                info = ytdl.extract_info(url, download=False)
+            else:
+                info = ytdl.extract_info(f"ytsearch:{url}", download=False)['entries'][0]
+        title = info['title']
+        queue.append(info)
+        await temp_context.send(f"{title} was added to queue!")
         global playing_flag
         global skip_flag
         vcs[voice.guild.id] = voice
@@ -60,32 +69,28 @@ async def play(ctx, url: str):
                     if len(queue) == 0:
                         playing_flag = False
                         skip_flag = False
-                        vcs[ctx.guild.id].stop()
-                        await vcs[ctx.guild.id].disconnect()
+                        vcs[temp_context.guild.id].stop()
+                        await vcs[temp_context.guild.id].disconnect()
                         break
-                    with YoutubeDL(YTDL_OPTIONS) as ytdl:
-                        if "https://" in queue[0]:
-                            info = ytdl.extract_info(queue[0], download=False)
-                        else:
-                            info = ytdl.extract_info(f"ytsearch:{queue[0]}", download=False)[
-                                'entries'][0]
-                    link = info.get("url", None)
-                    title = info['title']
 
-                    vcs[ctx.guild.id].play(disnake.FFmpegPCMAudio(executable="E:\\Study\\discord\\bot_script\\ffmpeg\\ffmpeg.exe", source=link, **FFMPEG_OPTIONS))
-                    await ctx.send(f"Now playing: {title}")
+                    link = queue[0].get("url", None)
+                    title = queue[0]['title']
+
+                    vcs[temp_context.guild.id].play(disnake.FFmpegPCMAudio(executable="E:\\Study\\discord\\bot_script\\ffmpeg\\ffmpeg.exe", source=link, **FFMPEG_OPTIONS))
+                    await temp_context.channel.send(f"Now playing: {title}")
                     while (voice.is_playing() or voice.is_paused()) and not skip_flag:
-                        await asyncio.sleep(2)
-                        
+                        await asyncio.sleep(1)
+
                     if (not voice.is_playing() and not voice.is_paused()) or skip_flag:
                         if (skip_flag):
-                            vcs[ctx.guild.id].stop()
+                            vcs[temp_context.guild.id].stop()
                             skip_flag = False
                         queue.pop(0)
+                        await asyncio.sleep(1)
             except:
                 pass
     else:
-        await ctx.send(f"Please, connect a voice channel")
+        await temp_context.send(f"Please, connect a voice channel")
 
 
 @bot.slash_command(description="Pauses current song")
