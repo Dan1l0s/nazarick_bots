@@ -14,6 +14,7 @@ FFMPEG_OPTIONS = {
 queue = []  
 temp_context = None
 skip_flag = False
+repeat_flag = False
 playing_flag = False
 vcs = {}
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(), activity=disnake.Game(name="/help"))
@@ -67,6 +68,7 @@ async def play(ctx, url: str):
                 playing_flag = True
                 while True:
                     if len(queue) == 0:
+                        repeat_flag = False
                         playing_flag = False
                         skip_flag = False
                         vcs[temp_context.guild.id].stop()
@@ -85,6 +87,8 @@ async def play(ctx, url: str):
                         if (skip_flag):
                             vcs[temp_context.guild.id].stop()
                             skip_flag = False
+                        if (repeat_flag):
+                            queue.insert(0, queue[0])
                         queue.pop(0)
                         await asyncio.sleep(1)
             except:
@@ -109,6 +113,16 @@ async def resume(ctx: disnake.AppCmdInter):
         await ctx.send("Player resumed!")
     except Exception as err:
         await ctx.send("There's nothing to play!")
+
+@bot.slash_command(description="Repeats current song")
+async def repeat(ctx: disnake.AppCmdInter):
+    global repeat_flag
+    if repeat_flag:
+        repeat_flag = False
+        await ctx.send("Repeat mode is off!")
+    else:
+        repeat_flag = True
+        await ctx.send("Repeat mode is on!")
 
 
 @bot.slash_command(description="Clears queue and disconnects bot")
