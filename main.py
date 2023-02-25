@@ -5,8 +5,8 @@ from yt_dlp import YoutubeDL
 from disnake.ext import commands
 
 
-YTDL_OPTIONS = {'format': 'bestaudio/best',
-                'simulate': 'True', 'key': 'FFmpegExtractAudio'}
+YTDL_OPTIONS = {'format': 'bestaudio/best', 'noplaylist': True,
+                'simulate': True, 'key': 'FFmpegExtractAudio', 'forceduration': True}
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
@@ -14,6 +14,7 @@ FFMPEG_OPTIONS = {
 queue = []
 temp_context = None
 skip_flag = False
+curr_duration = {}
 repeat_flag = False
 playing_flag = False
 
@@ -77,7 +78,7 @@ async def help(ctx):
 
 @bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
 async def play(ctx, url: str):
-    global voice, temp_context
+    global voice, temp_context, curr_duration
     temp_context = ctx
     voice = disnake.utils.get(bot.voice_clients, guild=temp_context.guild)
     channel = temp_context.author.voice.channel
@@ -101,14 +102,15 @@ async def play(ctx, url: str):
         title = info['title']
         queue.append(info)
         await temp_context.send(f"{title} was added to queue!")
-        global playing_flag, skip_flag
+        global playing_flag, skip_flag, repeat_flag
         vcs[voice.guild.id] = voice
-
         if not playing_flag:
             try:
                 playing_flag = True
                 while True:
+                    print(f"queue size:{len(queue)}")
                     if len(queue) == 0:
+                        print("out of queue!")
                         repeat_flag = False
                         playing_flag = False
                         skip_flag = False
@@ -121,17 +123,15 @@ async def play(ctx, url: str):
                     vcs[temp_context.guild.id].play(disnake.FFmpegPCMAudio(
                         executable="E:\\Study\\discord\\bot_script\\ffmpeg\\ffmpeg.exe", source=link, **FFMPEG_OPTIONS))
                     await temp_context.channel.send(f"Now playing: {title}")
-                    while (voice.is_playing() or voice.is_paused()) and not skip_flag:
+                    while ((voice.is_playing() or voice.is_paused()) and not skip_flag):
                         await asyncio.sleep(1)
 
-                    if (not voice.is_playing() and not voice.is_paused()) or skip_flag:
-                        if (skip_flag):
-                            vcs[temp_context.guild.id].stop()
-                            skip_flag = False
-                        if (repeat_flag):
-                            queue.insert(0, queue[0])
-                        queue.pop(0)
-                        await asyncio.sleep(1)
+                    if skip_flag:
+                        vcs[temp_context.guild.id].stop()
+                        skip_flag = False
+                    if repeat_flag:
+                        queue.insert(0, queue[0])
+                    queue.pop(0)
             except:
                 pass
     else:
