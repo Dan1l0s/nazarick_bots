@@ -108,13 +108,12 @@ async def play(ctx, url: str):
             try:
                 playing_flag = True
                 while True:
-                    print(f"queue size:{len(queue)}")
                     if len(queue) == 0:
-                        print("out of queue!")
                         repeat_flag = False
                         playing_flag = False
                         skip_flag = False
                         await vcs[temp_context.guild.id].disconnect()
+                        await temp_context.channel.send("Finished playing music!")
                         break
 
                     link = queue[0].get("url", None)
