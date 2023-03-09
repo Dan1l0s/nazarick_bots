@@ -50,6 +50,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
             perms = tmp_channel.overwrites_for(member)
         except:
             pass
+        await tmp_channel.edit(bitrate=384000)
         perms.view_channel = True
         perms.manage_permissions = True
         perms.manage_channels = True
