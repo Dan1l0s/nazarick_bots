@@ -13,17 +13,15 @@ FFMPEG_OPTIONS = {
 
 queue = []
 temp_context = None
+
 skip_flag = False
 repeat_flag = False
 playing_flag = False
 
-categories_ids = {'Nazarick': 1012127570260668416}
-
+voice = None
 vcs = {}
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
-
-voice = None
 
 
 @bot.event
@@ -38,7 +36,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
     if after.channel and after.channel.name == "Создать приват":
         guild = member.guild
         category = disnake.utils.get(
-            guild.categories, id=categories_ids[guild.name])
+            guild.categories, id=config.categories_ids[guild.name])
 
         tmp_channel = await category.create_voice_channel(name=possible_channel_name)
         perms = tmp_channel.overwrites_for(member.guild.default_role)
@@ -59,6 +57,19 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
         if "'s private" in before.channel.name:
             if len(before.channel.members) == 0:
                 await before.channel.delete()
+
+
+@bot.slash_command(description="Allows admin to fix voice channels' bitrate")
+async def bitrate(ctx):
+    if ctx.guild.id not in config.admin_ids or ctx.author.id not in config.admin_ids[ctx.guild.id]:
+        return await ctx.response.send_message("Unauthorized access, you are not admin!")
+    await ctx.response.send_message("Processing...")
+    guild = ctx.guild
+    for channel in guild.voice_channels:
+        await channel.edit(bitrate=384000)
+    await ctx.edit_original_response("Done!")
+    await asyncio.sleep(5)
+    await ctx.delete_original_response()
 
 
 @bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
