@@ -1,6 +1,7 @@
 import disnake
 import asyncio
 import config
+import helpers
 import math
 from yt_dlp import YoutubeDL
 from disnake.ext import commands
@@ -62,7 +63,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
 
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")
 async def bitrate(ctx):
-    if ctx.guild.id not in config.admin_ids or ctx.author.id not in config.admin_ids[ctx.guild.id]:
+    if not helpers.is_admin(ctx):
         return await ctx.response.send_message("Unauthorized access, you are not admin!")
     await ctx.response.send_message("Processing...")
     guild = ctx.guild
