@@ -1,6 +1,7 @@
 import disnake
 import asyncio
 import config
+import math
 from yt_dlp import YoutubeDL
 from disnake.ext import commands
 
@@ -11,7 +12,7 @@ YTDL_OPTIONS = {'format': 'bestaudio/best', 'noplaylist': True,
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
-queue = []
+songs_queue = []
 temp_context = None
 
 skip_flag = False
@@ -96,7 +97,7 @@ async def play(ctx, url: str):
                 info = ytdl.extract_info(f"ytsearch:{url}", download=False)[
                     'entries'][0]
         title = info['title']
-        queue.append(info)
+        songs_queue.append(info)
         await temp_context.response.send_message(f"{title} was added to queue!")
         global playing_flag, skip_flag, repeat_flag
         vcs[voice.guild.id] = voice
@@ -104,7 +105,7 @@ async def play(ctx, url: str):
             try:
                 playing_flag = True
                 while True:
-                    if len(queue) == 0:
+                    if len(songs_queue) == 0:
                         repeat_flag = False
                         playing_flag = False
                         skip_flag = False
@@ -112,8 +113,8 @@ async def play(ctx, url: str):
                         await temp_context.channel.send_message("Finished playing music!")
                         break
 
-                    link = queue[0].get("url", None)
-                    title = queue[0]['title']
+                    link = songs_queue[0].get("url", None)
+                    title = songs_queue[0]['title']
 
                     vcs[temp_context.guild.id].play(disnake.FFmpegPCMAudio(
                         executable="E:\\Study\\discord\\bot_script\\ffmpeg\\ffmpeg.exe", source=link, **FFMPEG_OPTIONS))
@@ -125,8 +126,8 @@ async def play(ctx, url: str):
                         vcs[temp_context.guild.id].stop()
                         skip_flag = False
                     if repeat_flag:
-                        queue.insert(0, queue[0])
-                    queue.pop(0)
+                        songs_queue.insert(0, songs_queue[0])
+                    songs_queue.pop(0)
             except:
                 pass
     else:
@@ -169,7 +170,7 @@ async def repeat(ctx: disnake.AppCmdInter):
 async def stop(ctx: disnake.AppCmdInter):
     try:
         global repeat_flag, playing_flag, skip_flag
-        queue.clear()
+        songs_queue.clear()
         repeat_flag = False
         playing_flag = False
         skip_flag = False
@@ -183,11 +184,24 @@ async def stop(ctx: disnake.AppCmdInter):
 @bot.slash_command(description="Skips current song")
 async def skip(ctx: disnake.AppCmdInter):
     global skip_flag
-    if len(queue) > 0:
+    if len(songs_queue) > 0:
         skip_flag = True
         await ctx.send("Skipped current track!")
     else:
         await ctx.send("I am not playing anything!")
+
+
+@bot.slash_command(description="Shows current queue")
+async def queue(ctx):
+    if len(songs_queue) > 0:
+        cnt = 1
+        ans = "Queue:"
+        for track in songs_queue:
+            ans += f"\n{cnt}) {track['title']}, duration: {math.floor(track['duration']/60)}m{track['duration']- math.floor(track['duration']/60)*60}s"
+            cnt += 1
+        await ctx.response.send_message(ans)
+    else:
+        await ctx.response.send_message("I am not playing anything!")
 
 
 @bot.slash_command(description="Reviews list of commands")
