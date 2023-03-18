@@ -6,27 +6,29 @@ import math
 from yt_dlp import YoutubeDL
 from disnake.ext import commands
 
-songs_queue = []
-temp_context = None
-
-skip_flag = False
-repeat_flag = False
-playing_flag = False
-
-voice = None
+songs_queue = {}
+curr_ctx = {}
 vcs = {}
+
+skip_flag = {}
+repeat_flag = {}
+playing_flag = {}
+
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
 
 
 @bot.event
 async def on_ready():
-    print("Bot is turned on")
+    print("Bot is on")
 
 
 @bot.event
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-    member_nick = ((str)(member))[slice(0, -5)]
+    if member.nick:
+        member_nick = member.nick
+    else:
+        member_nick = member.name
     possible_channel_name = f"{member_nick}'s private"
 
     if after.channel and after.channel.name == "Создать приват":
@@ -74,74 +76,99 @@ async def bitrate(ctx):
 
 @bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
 async def play(ctx, url: str):
-    global voice, temp_context
 
-    temp_context = ctx
+    curr_ctx[ctx.guild.id] = ctx
 
-    voice = disnake.utils.get(bot.voice_clients, guild=temp_context.guild)
-    channel = temp_context.author.voice.channel
+    voice = disnake.utils.get(bot.voice_clients, guild=ctx.guild)
+    channel = ctx.author.voice.channel
     if not channel:
         return await ctx.response.send_message("You're not connected to a voice channel!")
 
-    if not voice or not voice.is_connected():
+    if not voice:
         voice = await channel.connect()
-    elif vcs[voice.guild.id].channel and channel != vcs[voice.guild.id].channel:
+    elif vcs[voice.guild.id].channel and channel != vcs[voice.guild.id].channel and len(vcs[voice.guild.id].channel.members) > 1:
         if not helpers.is_admin(ctx):
-            return await temp_context.response.send_message("I'm already playing in another channel D:")
+            return await ctx.response.send_message("I'm already playing in another channel D:")
         else:
-            await temp_context.channel.send_message("Yes, my master :D #################################################################")
+            await ctx.channel.send("Yes, my master..")
+            playing_flag[ctx.guild.id] = False
+            repeat_flag[ctx.guild.id] = False
+
+            vcs[ctx.guild.id].stop()
+            songs_queue[ctx.guild.id].clear()
             await voice.move_to(channel)
+    elif vcs[voice.guild.id].channel != channel:
+        repeat_flag[ctx.guild.id] = False
+        playing_flag[ctx.guild.id] = False
+        songs_queue[ctx.guild.id].clear()
 
-    if not voice or not voice.is_connected():
-        return await temp_context.response.send_message('Seems like your channel is unavailable :c')
+        vcs[ctx.guild.id].stop()
+        await voice.move_to(channel)
 
-    await temp_context.response.send_message('Adding to queue...')
+    if not voice:
+        return await ctx.response.send_message('Seems like your channel is unavailable :c')
+
+    await ctx.response.send_message('Adding to queue...')
+
+    vcs[ctx.guild.id] = voice
 
     with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
         if "https://" in url:
             info = ytdl.extract_info(url, download=False)
+            print(info)
         else:
             info = ytdl.extract_info(f"ytsearch:{url}", download=False)[
                 'entries'][0]
 
-    songs_queue.append(info)
-    await temp_context.edit_original_response(f"{info['title']} was added to queue!")
+    if ctx.guild.id not in songs_queue:
+        songs_queue[ctx.guild.id] = []
+    songs_queue[ctx.guild.id].append(info)
+    await ctx.edit_original_response(f"{info['title']} was added to queue!")
 
-    global playing_flag, skip_flag, repeat_flag
+    if ctx.guild.id not in skip_flag:
+        skip_flag[ctx.guild.id] = False
 
-    vcs[voice.guild.id] = voice
-    if not playing_flag:
+    if ctx.guild.id not in repeat_flag:
+        repeat_flag[ctx.guild.id] = False
+
+    if ctx.guild.id not in playing_flag:
+        playing_flag[ctx.guild.id] = False
+
+    if not playing_flag[ctx.guild.id]:
         try:
-            playing_flag = True
-            while True:
-                if len(songs_queue) == 0:
-                    repeat_flag = False
-                    playing_flag = False
-                    skip_flag = False
-                    await vcs[temp_context.guild.id].disconnect()
-                    await temp_context.channel.send_message("Finished playing music!")
+            playing_flag[ctx.guild.id] = True
+            while playing_flag[ctx.guild.id]:
+                if len(songs_queue[ctx.guild.id]) == 0:
+                    repeat_flag[ctx.guild.id] = False
+                    playing_flag[ctx.guild.id] = False
+                    skip_flag[ctx.guild.id] = False
+                    await vcs[ctx.guild.id].disconnect()
+                    await curr_ctx[ctx.guild.id].channel.send_message("Finished playing music!")
                     break
 
-                link = songs_queue[0].get("url", None)
-                title = songs_queue[0]['title']
+                link = songs_queue[ctx.guild.id][0].get("url", None)
+                title = songs_queue[ctx.guild.id][0]['title']
 
-                vcs[temp_context.guild.id].play(disnake.FFmpegPCMAudio(
+                vcs[ctx.guild.id].play(disnake.FFmpegPCMAudio(
                     executable="E:\\Study\\discord\\bot_script\\ffmpeg\\ffmpeg.exe", source=link, **config.FFMPEG_OPTIONS))
-                await temp_context.channel.send(f"Now playing: {title}")
-                while ((voice.is_playing() or voice.is_paused()) and not skip_flag):
+                await curr_ctx[ctx.guild.id].channel.send(f"Now playing: {title}")
+
+                while ((voice.is_playing() or voice.is_paused()) and not skip_flag[ctx.guild.id]):
                     await asyncio.sleep(1)
 
-                if skip_flag:
-                    vcs[temp_context.guild.id].stop()
-                    skip_flag = False
-                if repeat_flag:
-                    songs_queue.insert(0, songs_queue[0])
-                songs_queue.pop(0)
-        except:
+                if skip_flag[ctx.guild.id]:
+                    vcs[ctx.guild.id].stop()
+                    skip_flag[ctx.guild.id] = False
+
+                if repeat_flag[ctx.guild.id]:
+                    songs_queue[ctx.guild.id].insert(
+                        0, songs_queue[ctx.guild.id][0])
+                songs_queue[ctx.guild.id].pop(0)
+        except Exception as e:
             pass
 
 
-@bot.slash_command(description="Pauses/resumes player")
+@ bot.slash_command(description="Pauses/resumes player")
 async def pause(ctx: disnake.AppCmdInter):
     try:
         if vcs[ctx.guild.id].is_paused():
@@ -158,27 +185,25 @@ async def pause(ctx: disnake.AppCmdInter):
 
 @ bot.slash_command(description="Repeats current song")
 async def repeat(ctx: disnake.AppCmdInter):
-    global repeat_flag, playing_flag
-    if not playing_flag:
+    if not playing_flag[ctx.guild.id]:
         await ctx.send("I am not playing anything!")
         return
-    if repeat_flag:
-        repeat_flag = False
+    if repeat_flag[ctx.guild.id]:
+        repeat_flag[ctx.guild.id] = False
         await ctx.send("Repeat mode is off!")
     else:
-        repeat_flag = True
+        repeat_flag[ctx.guild.id] = True
         await ctx.send("Repeat mode is on!")
 
 
 @ bot.slash_command(description="Clears queue and disconnects bot")
 async def stop(ctx: disnake.AppCmdInter):
-    global repeat_flag, playing_flag, skip_flag
     try:
-        songs_queue.clear()
+        songs_queue[ctx.guild.id].clear()
 
-        repeat_flag = False
-        playing_flag = False
-        skip_flag = False
+        repeat_flag[ctx.guild.id] = False
+        playing_flag[ctx.guild.id] = False
+        skip_flag[ctx.guild.id] = False
 
         vcs[ctx.guild.id].stop()
         await vcs[ctx.guild.id].disconnect()
@@ -190,28 +215,31 @@ async def stop(ctx: disnake.AppCmdInter):
 
 @ bot.slash_command(description="Skips current song")
 async def skip(ctx: disnake.AppCmdInter):
-    global skip_flag
 
-    if len(songs_queue) > 0:
-        skip_flag = True
-        await ctx.send("Skipped current track!")
-
-    else:
+    try:
+        if len(songs_queue[ctx.guild.id]) > 0:
+            skip_flag[ctx.guild.id] = True
+            await ctx.send("Skipped current track!")
+        else:
+            await ctx.send("I am not playing anything!")
+    except Exception as err:
         await ctx.send("I am not playing anything!")
 
 
 @ bot.slash_command(description="Shows current queue")
 async def queue(ctx):
-    if len(songs_queue) > 0:
-        cnt = 1
-        ans = "Queue:"
+    try:
+        if len(songs_queue[ctx.guild.id]) > 0:
+            cnt = 1
+            ans = "Queue:"
+            for track in songs_queue[ctx.guild.id]:
+                ans += f"\n{cnt}) {track['title']}, duration: {math.floor(track['duration']/60)}m{track['duration']- math.floor(track['duration']/60)*60}s"
+                cnt += 1
 
-        for track in songs_queue:
-            ans += f"\n{cnt}) {track['title']}, duration: {math.floor(track['duration']/60)}m{track['duration']- math.floor(track['duration']/60)*60}s"
-            cnt += 1
-
-        await ctx.response.send_message(ans)
-    else:
+            await ctx.response.send_message(ans)
+        else:
+            await ctx.response.send_message("I am not playing anything!")
+    except Exception as err:
         await ctx.response.send_message("I am not playing anything!")
 
 
