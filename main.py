@@ -25,7 +25,7 @@ async def on_ready():
 @bot.event
 async def on_audit_log_entry_create(entry):
     print(
-        f"AUDIT_LOG: {entry.user} did {entry.action} to {entry.target} at {datetime.datetime.now()}")
+        f"{datetime.datetime.now()} : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}")
 
 
 @bot.event
@@ -133,7 +133,8 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
     songs_queue[ctx.guild.id].append(info)
 
-    print(f"PLAY: Added {info['title']} to queue at {datetime.datetime.now()} with duration of {helpers.get_duration(songs_queue[ctx.guild.id][0]['duration'])}")
+    print(
+        f"{datetime.datetime.now()} : PLAY: Added {info['title']} to queue with duration of {helpers.get_duration(songs_queue[ctx.guild.id][0]['duration'])}")
 
     if ctx.guild.id not in skip_flag:
         skip_flag[ctx.guild.id] = False
@@ -160,7 +161,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                 await songs_queue[ctx.guild.id][0]['original_message'].delete()
                 await curr_ctx[ctx.guild.id].channel.send("", embed=embed)
                 print(
-                    f"PLAY: Playing {songs_queue[ctx.guild.id][0]['title']} at {datetime.datetime.now()} in vc: {vcs[ctx.guild.id].channel}")
+                    f"{datetime.datetime.now()} : PLAY: Playing {songs_queue[ctx.guild.id][0]['title']} in vc: {vcs[ctx.guild.id].channel}")
                 while ((voice.is_playing() or voice.is_paused()) and not skip_flag[ctx.guild.id]):
                     await asyncio.sleep(1)
 
@@ -193,7 +194,7 @@ async def pause(ctx: disnake.AppCmdInter):
             await ctx.send("Player paused!")
 
     except Exception as err:
-        print("ERROR:", err)
+        print(f"{datetime.datetime.now()} : ERROR :", err)
         await ctx.send("I am not playing anything!")
 
 
@@ -221,7 +222,7 @@ async def stop(ctx: disnake.AppCmdInter):
 
         vcs[ctx.guild.id].stop()
         print(
-            f"STOP: finished playing at {vcs[ctx.guild.id].channel} at {datetime.datetime.now()}")
+            f"{datetime.datetime.now()} : STOP : finished playing at {vcs[ctx.guild.id].channel}")
         await vcs[ctx.guild.id].disconnect()
         await ctx.send("DJ decided to stop!")
 
@@ -237,12 +238,12 @@ async def skip(ctx: disnake.AppCmdInter):
         if len(songs_queue[ctx.guild.id]) > 0:
             skip_flag[ctx.guild.id] = True
             print(
-                f"SKIP: skipped track at {vcs[ctx.guild.id].channel} at {datetime.datetime.now()}")
+                f"{datetime.datetime.now()} : SKIP: skipped track at {vcs[ctx.guild.id].channel}")
             await ctx.send("Skipped current track!")
         else:
             await ctx.send("I am not playing anything!")
     except Exception as err:
-        print("ERROR:", err)
+        print(f"{datetime.datetime.now()} : ERROR :", err)
         await ctx.send("I am not playing anything!")
 
 
@@ -260,7 +261,7 @@ async def queue(ctx):
         else:
             await ctx.send("I am not playing anything!")
     except Exception as err:
-        print("ERROR:", err)
+        print(f"{datetime.datetime.now()} : ERROR :", err)
         await ctx.send("I am not playing anything!")
 
 
@@ -272,7 +273,7 @@ async def wrong(ctx: disnake.AppCmdInter):
             songs_queue[ctx.guild.id].pop(-1)
             await ctx.send(f"Removed {title} from queue!")
     except Exception as err:
-        print("ERROR:", err)
+        print(f"{datetime.datetime.now()} : ERROR :", err)
         await ctx.send("I am not playing anything!")
 
 
