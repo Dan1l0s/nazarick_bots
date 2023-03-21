@@ -276,6 +276,7 @@ async def wrong(ctx: disnake.AppCmdInter):
         print(f"{datetime.datetime.now()} : ERROR :", err)
         await ctx.send("I am not playing anything!")
 
+#sugma
 
 @ bot.slash_command(description="Reviews list of commands")
 async def help(ctx: disnake.AppCmdInter):
