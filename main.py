@@ -1,10 +1,11 @@
 import disnake
 import datetime
 import asyncio
-import config
-import helpers
 from yt_dlp import YoutubeDL
 from disnake.ext import commands
+
+import config
+import helpers
 
 songs_queue = {}
 curr_ctx = {}
@@ -64,9 +65,8 @@ async def bitrate(ctx):
     if not helpers.is_admin(ctx):
         return await ctx.send("Unauthorized access, you are not admin!")
     await ctx.send("Processing...")
-    guild = ctx.guild
 
-    for channel in guild.voice_channels:
+    for channel in ctx.guild.voice_channels:
         await channel.edit(bitrate=384000)
 
     await ctx.edit_original_response("Done!")
@@ -80,17 +80,18 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
     curr_ctx[ctx.guild.id] = ctx
 
     voice = ctx.guild.voice_client
+
     try:
-        channel = ctx.author.voice.channel
-        if not channel:
+        user_channel = ctx.author.voice.channel
+        if not user_channel:
             return await ctx.send("You're not connected to a voice channel!")
     except:
         return await ctx.send("You're not connected to a voice channel!")
 
     if not voice:
-        voice = await channel.connect()
+        voice = await user_channel.connect()
 
-    elif vcs[ctx.guild.id].channel and channel != vcs[ctx.guild.id].channel and len(vcs[ctx.guild.id].channel.members) > 1:
+    elif vcs[ctx.guild.id].channel and user_channel != vcs[ctx.guild.id].channel and len(vcs[ctx.guild.id].channel.members) > 1:
         if not helpers.is_admin(ctx):
             return await ctx.send("I'm already playing in another channel D:")
 
@@ -100,14 +101,14 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
             vcs[ctx.guild.id].stop()
             songs_queue[ctx.guild.id].clear()
-            await voice.move_to(channel)
+            await voice.move_to(user_channel)
 
-    elif vcs[ctx.guild.id].channel != channel:
+    elif vcs[ctx.guild.id].channel != user_channel:
         repeat_flag[ctx.guild.id] = False
         songs_queue[ctx.guild.id].clear()
 
         vcs[ctx.guild.id].stop()
-        await voice.move_to(channel)
+        await voice.move_to(user_channel)
 
     if not voice:
         return await ctx.send('Seems like your channel is unavailable :c')
@@ -127,9 +128,8 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
         songs_queue[ctx.guild.id] = []
 
     embed = helpers.song_embed_builder(ctx, info, "Song was added to queue!")
-    message = await ctx.edit_original_response("", embed=embed)
 
-    info['original_message'] = message
+    info['original_message'] = await ctx.edit_original_response("", embed=embed)
 
     songs_queue[ctx.guild.id].append(info)
 
