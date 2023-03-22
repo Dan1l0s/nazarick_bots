@@ -1,11 +1,15 @@
 import disnake
-import datetime
 import asyncio
 from yt_dlp import YoutubeDL
 from disnake.ext import commands
 
 import config
 import helpers
+from logger import *
+
+# GilmartinR Logger Branch Version 1.1.0
+# 1.1.0 - Using the logger.py file to log to the console using functions
+# Removed Datetime import, as it is in logger.py
 
 songs_queue = {}
 curr_ctx = {}
@@ -20,13 +24,11 @@ bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 
 @bot.event
 async def on_ready():
-    print("Bot is on")
-
+    log_enabled()   #Added 'Bot is On' to logs.txt 
 
 @bot.event
 async def on_audit_log_entry_create(entry):
-    print(
-        f"{datetime.datetime.now()} : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}")
+    log_audit_logged(entry)    #Added audit_logs to logs.txt
 
 
 @bot.event
@@ -133,8 +135,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
     songs_queue[ctx.guild.id].append(info)
 
-    print(
-        f"{datetime.datetime.now()} : PLAY: Added {info['title']} to queue with duration of {helpers.get_duration(songs_queue[ctx.guild.id][0]['duration'])}")
+    log_song_added(info, songs_queue, ctx)    #Added songs to logs.txt
 
     if ctx.guild.id not in skip_flag:
         skip_flag[ctx.guild.id] = False
@@ -160,8 +161,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                     ctx, songs_queue[ctx.guild.id][0], "Playing this song!")
                 await songs_queue[ctx.guild.id][0]['original_message'].delete()
                 await curr_ctx[ctx.guild.id].channel.send("", embed=embed)
-                print(
-                    f"{datetime.datetime.now()} : PLAY: Playing {songs_queue[ctx.guild.id][0]['title']} in vc: {vcs[ctx.guild.id].channel}")
+                log_playing_song(songs_queue, ctx, vcs)    #Added playing songs to logs.txt
                 while ((voice.is_playing() or voice.is_paused()) and not skip_flag[ctx.guild.id]):
                     await asyncio.sleep(1)
 
@@ -194,7 +194,7 @@ async def pause(ctx: disnake.AppCmdInter):
             await ctx.send("Player paused!")
 
     except Exception as err:
-        print(f"{datetime.datetime.now()} : ERROR :", err)
+        log_err(err)    #Added error logs to logs.txt
         await ctx.send("I am not playing anything!")
 
 
@@ -221,13 +221,12 @@ async def stop(ctx: disnake.AppCmdInter):
         skip_flag[ctx.guild.id] = False
 
         vcs[ctx.guild.id].stop()
-        print(
-            f"{datetime.datetime.now()} : STOP : finished playing at {vcs[ctx.guild.id].channel}")
+        log_finished_playing(vcs, ctx)    #Added finished playing to logs.txt
         await vcs[ctx.guild.id].disconnect()
         await ctx.send("DJ decided to stop!")
 
     except Exception as err:
-        print("ERROR:", err)
+        log_err
         await ctx.send("I am not playing anything!")
 
 
@@ -237,13 +236,12 @@ async def skip(ctx: disnake.AppCmdInter):
     try:
         if len(songs_queue[ctx.guild.id]) > 0:
             skip_flag[ctx.guild.id] = True
-            print(
-                f"{datetime.datetime.now()} : SKIP: skipped track at {vcs[ctx.guild.id].channel}")
+            log_skip(vcs,ctx)   #Added skip to logs.txt
             await ctx.send("Skipped current track!")
         else:
             await ctx.send("I am not playing anything!")
     except Exception as err:
-        print(f"{datetime.datetime.now()} : ERROR :", err)
+        log_err(err)
         await ctx.send("I am not playing anything!")
 
 
@@ -261,7 +259,7 @@ async def queue(ctx):
         else:
             await ctx.send("I am not playing anything!")
     except Exception as err:
-        print(f"{datetime.datetime.now()} : ERROR :", err)
+        log_err(err)
         await ctx.send("I am not playing anything!")
 
 
@@ -273,10 +271,8 @@ async def wrong(ctx: disnake.AppCmdInter):
             songs_queue[ctx.guild.id].pop(-1)
             await ctx.send(f"Removed {title} from queue!")
     except Exception as err:
-        print(f"{datetime.datetime.now()} : ERROR :", err)
+        log_err(err)
         await ctx.send("I am not playing anything!")
-
-#sugma
 
 @ bot.slash_command(description="Reviews list of commands")
 async def help(ctx: disnake.AppCmdInter):
