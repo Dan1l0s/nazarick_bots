@@ -7,9 +7,7 @@ import config
 import helpers
 from logger import *
 
-# GilmartinR Logger Branch Version 1.1.0
-# 1.1.0 - Using the logger.py file to log to the console using functions
-# Removed Datetime import, as it is in logger.py
+# 1.1.1 - Testing methods from logger.py
 
 songs_queue = {}
 curr_ctx = {}
@@ -21,14 +19,15 @@ repeat_flag = {}
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
 
+log = logger("logs", vcs, songs_queue)
 
 @bot.event
 async def on_ready():
-    log_enabled()   #Added 'Bot is On' to logs.txt 
+    log.enabled()  #Added 'Bot is On' to logs.txt 
 
 @bot.event
 async def on_audit_log_entry_create(entry):
-    log_audit_logged(entry)    #Added audit_logs to logs.txt
+    log.logged(entry)    #Added audit_logs to logs.txt
 
 
 @bot.event
@@ -135,7 +134,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
     songs_queue[ctx.guild.id].append(info)
 
-    log_song_added(info, songs_queue, ctx)    #Added songs to logs.txt
+    log.added(info, ctx)    #Added songs to logs.txt
 
     if ctx.guild.id not in skip_flag:
         skip_flag[ctx.guild.id] = False
@@ -161,7 +160,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                     ctx, songs_queue[ctx.guild.id][0], "Playing this song!")
                 await songs_queue[ctx.guild.id][0]['original_message'].delete()
                 await curr_ctx[ctx.guild.id].channel.send("", embed=embed)
-                log_playing_song(songs_queue, ctx, vcs)    #Added playing songs to logs.txt
+                log.playing(ctx)    #Added playing songs to logs.txt
                 while ((voice.is_playing() or voice.is_paused()) and not skip_flag[ctx.guild.id]):
                     await asyncio.sleep(1)
 
@@ -194,7 +193,7 @@ async def pause(ctx: disnake.AppCmdInter):
             await ctx.send("Player paused!")
 
     except Exception as err:
-        log_err(err)    #Added error logs to logs.txt
+        log.error(err)    #Added error logs to logs.txt
         await ctx.send("I am not playing anything!")
 
 
@@ -221,12 +220,12 @@ async def stop(ctx: disnake.AppCmdInter):
         skip_flag[ctx.guild.id] = False
 
         vcs[ctx.guild.id].stop()
-        log_finished_playing(vcs, ctx)    #Added finished playing to logs.txt
+        log.finished(ctx)    #Added finished playing to logs.txt
         await vcs[ctx.guild.id].disconnect()
         await ctx.send("DJ decided to stop!")
 
     except Exception as err:
-        log_err
+        log.err(err)
         await ctx.send("I am not playing anything!")
 
 
@@ -236,12 +235,12 @@ async def skip(ctx: disnake.AppCmdInter):
     try:
         if len(songs_queue[ctx.guild.id]) > 0:
             skip_flag[ctx.guild.id] = True
-            log_skip(vcs,ctx)   #Added skip to logs.txt
+            log.skip(ctx)   #Added skip to logs.txt
             await ctx.send("Skipped current track!")
         else:
             await ctx.send("I am not playing anything!")
     except Exception as err:
-        log_err(err)
+        log.err(err)
         await ctx.send("I am not playing anything!")
 
 
@@ -259,7 +258,7 @@ async def queue(ctx):
         else:
             await ctx.send("I am not playing anything!")
     except Exception as err:
-        log_err(err)
+        log.err(err)
         await ctx.send("I am not playing anything!")
 
 
@@ -271,7 +270,7 @@ async def wrong(ctx: disnake.AppCmdInter):
             songs_queue[ctx.guild.id].pop(-1)
             await ctx.send(f"Removed {title} from queue!")
     except Exception as err:
-        log_err(err)
+        log.err(err)
         await ctx.send("I am not playing anything!")
 
 @ bot.slash_command(description="Reviews list of commands")
