@@ -19,7 +19,7 @@ repeat_flag = {}
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
 
-log = logger("logs", vcs, songs_queue)
+log = logger(vcs, songs_queue)
 
 @bot.event
 async def on_ready():
