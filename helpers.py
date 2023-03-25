@@ -1,6 +1,7 @@
 import config
 import disnake
 import datetime
+import os
 
 
 def is_admin(ctx):
