@@ -183,8 +183,8 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                     songs_queue[ctx.guild.id].pop(0)
                 else:
                     break
-        except Exception as e:
-            print("ERROR:", e)
+        except Exception as err:
+            log.error(err)
             pass
 
 
