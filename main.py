@@ -5,7 +5,9 @@ from disnake.ext import commands
 
 import config
 import helpers
+import embedder
 from logger import *
+from embedder import *
 
 
 songs_queue = {}
@@ -18,7 +20,7 @@ bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
 
 log = logger(songs_queue)
-
+embedder = embed()
 
 @bot.event
 async def on_ready():
@@ -28,6 +30,7 @@ async def on_ready():
 @bot.event
 async def on_audit_log_entry_create(entry):
     log.logged(entry)
+    await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=embedder.action(entry))
 
 
 @bot.event
@@ -37,10 +40,13 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
 
     if before.channel and after.channel:
         log.switched(member, before, after)
+        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
     elif before.channel:
         log.disconnected(member, before)
+        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
     else:
         log.connected(member, after)
+        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
 
     if after.channel and after.channel.name == "Создать приват":
         guild = member.guild
@@ -163,7 +169,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
                 voice.play(disnake.FFmpegPCMAudio(
                     source=link, **config.FFMPEG_OPTIONS))
-                embed = helpers.song_embed_builder(
+                embed = embedder.songs(
                     ctx, songs_queue[ctx.guild.id][0], "Playing this song!")
                 await songs_queue[ctx.guild.id][0]['original_message'].delete()
                 await curr_ctx[ctx.guild.id].channel.send("", embed=embed)
@@ -184,7 +190,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                 else:
                     break
         except Exception as err:
-            log.error(err)
+            log.error(err,ctx.guild)
             pass
 
 
