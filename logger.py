@@ -33,7 +33,7 @@ class logger:
         abs_path = self.get_path(entry.user.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(datetime.datetime.now().strftime("%H:%M:%S") +
-                f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n")
+                f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
         f.close()
 
     def added(self, ctx):
@@ -76,6 +76,13 @@ class logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} left VC {before.channel.name}\n")
+        f.close()
+
+    def voice_update(self, member):
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} updated their voice state\n")
         f.close()
 
     def get_path(self, dir_name: str):
