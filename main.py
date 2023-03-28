@@ -39,8 +39,12 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
     possible_channel_name = f"{member_nick}'s private"
 
     if before.channel and after.channel:
-        log.switched(member, before, after)
-        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
+        if before.channel.id != after.channel.id:
+            log.switched(member, before, after)
+            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
+        else:
+            log.voice_update(member)
+            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.voice_update(member))
     elif before.channel:
         log.disconnected(member, before)
         await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
