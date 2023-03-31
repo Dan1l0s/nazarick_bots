@@ -48,23 +48,6 @@ def get_duration(duration):
     return ans
 
 
-def song_embed_builder(ctx, info, text):
-    embed = disnake.Embed(
-        title=info['title'],
-        url=info['webpage_url'],
-        description=text,
-        color=disnake.Colour.from_rgb(0, 0, 0),
-        timestamp=datetime.datetime.now())
-
-    embed.set_author(name=info['uploader'])
-    embed.set_thumbnail(url=f"https://img.youtube.com/vi/{info['id']}/0.jpg")
-    embed.add_field(name="*Duration*",
-                    value=get_duration(info['duration']), inline=True)
-    embed.add_field(name="*Requested by*",
-                    value=get_nickname(ctx.author), inline=True)
-    return embed
-
-
 async def radio_message(ctx):
     url = "http://anison.fm/status.php?widget=true"
     name = ""
@@ -72,10 +55,11 @@ async def radio_message(ctx):
         response = urlopen(url)
         data_json = json.loads(response.read())
         duration = data_json["duration"] - 13
-        if re.search("151; (.+?)</span>", data_json['on_air']).group(1) == name:
+        new_name = re.search("151; (.+?)</span>", data_json['on_air']).group(1)
+        if new_name == name:
             await asyncio.sleep(duration - 1)
             continue
-        name = re.search("151; (.+?)</span>", data_json['on_air']).group(1)
+        name = new_name
         anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
-        await ctx.channel.send(f"Now playing: {anime} - {name}")
+        await ctx.channel.send(f"Now playing: ***{name}*** from ***{anime}***")
         await asyncio.sleep(duration - 1)

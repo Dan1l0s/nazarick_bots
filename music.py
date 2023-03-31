@@ -19,19 +19,20 @@ repeat_flag = {}
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
 
-log = logger(songs_queue)
+log = logger(songs_queue, False)
 embedder = embed()
 
 
 @bot.event
 async def on_ready():
+    print(f"Bot is logged as {bot.user}")
     log.enabled(bot)
 
 
 @bot.event
 async def on_audit_log_entry_create(entry):
     log.logged(entry)
-    await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=embedder.action(entry))
+    # await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=embedder.action(entry))
 
 
 @bot.event
@@ -42,16 +43,16 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
     if before.channel and after.channel:
         if before.channel.id != after.channel.id:
             log.switched(member, before, after)
-            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
+            # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
         else:
             log.voice_update(member)
-            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.voice_update(member))
+            # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.voice_update(member))
     elif before.channel:
         log.disconnected(member, before)
-        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
+        # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
     else:
         log.connected(member, after)
-        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
+        # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
 
     if after.channel and after.channel.name == "Создать приват":
         guild = member.guild
@@ -134,8 +135,6 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
     await ctx.send('Searching...')
 
-    voice = voice
-
     with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
         if "https://" in url:
             info = ytdl.extract_info(url, download=False)
@@ -146,7 +145,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
     if ctx.guild.id not in songs_queue:
         songs_queue[ctx.guild.id] = []
 
-    embed = helpers.song_embed_builder(ctx, info, "Song was added to queue!")
+    embed = embedder.songs(ctx, info, "Song was added to queue!")
 
     info['original_message'] = await ctx.edit_original_response("", embed=embed)
 
@@ -310,14 +309,4 @@ async def clear(ctx: disnake.AppCmdInter, amount: int):
         return await ctx.delete_original_response()
     return await ctx.send(f"Unathorized attempt to clear messages!")
 
-
-@bot.slash_command(description="Plays anime radio...")
-async def radio(ctx):
-    channel = ctx.author.voice.channel
-    voice = await channel.connect()
-    await ctx.send("Connected and playing anime songs from anison.fm!")
-    voice.play(disnake.FFmpegPCMAudio(
-        source="https://pool.anison.fm/AniSonFM(128)", **config.FFMPEG_OPTIONS))
-    await helpers.radio_message(ctx)
-
-bot.run(config.pandora_token)
+bot.run(config.music_token)
