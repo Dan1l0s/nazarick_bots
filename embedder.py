@@ -1,15 +1,17 @@
 import disnake
 import datetime
 import helpers
+import config
 
 
 class embed:
-    def songs(self, ctx, info, text):  # BLACK
+    def songs(self, ctx, info, text):
         embed = disnake.Embed(
             title=info['title'],
             url=info['webpage_url'],
             description=text,
-            color=disnake.Colour.from_rgb(0, 0, 0),
+            color=disnake.Colour.from_rgb(
+                *config.embed_colors["songs"]),
             timestamp=datetime.datetime.now())
 
         embed.set_author(name=info['uploader'])
@@ -21,54 +23,58 @@ class embed:
                         value=helpers.get_nickname(ctx.author), inline=True)
         return embed
 
-    def action(self, entry):  # White or SkyBlue
+    def action(self, entry):
         if "member" in f'{entry.action}':
             embed = disnake.Embed(
                 description=f'**{entry.user.mention} did `{entry.action}` to `{entry.target}`**'.replace(
                     'AuditLogAction.', ''),
-                color=disnake.Colour.from_rgb(255, 255, 255),
+                color=disnake.Colour.from_rgb(
+                    *config.embed_colors["member_action"]),
                 timestamp=datetime.datetime.now())
         else:
             embed = disnake.Embed(
                 description=f'**{entry.user.mention} did `{entry.action}` to `{entry.target}`**'.replace(
                     'AuditLogAction.', ''),
-                color=disnake.Colour.from_rgb(160, 220, 255),
+                color=disnake.Colour.from_rgb(
+                    *config.embed_colors["other_action"]),
                 timestamp=datetime.datetime.now())
         embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
-    def switched(self, member, before, after):  # Pink
+    def switched(self, member, before, after):
         embed = disnake.Embed(
             description=f'**{member.mention} switched from `{before.channel.name}` to `{after.channel.name}`**',
-            color=disnake.Colour.from_rgb(255, 180, 255),
+            color=disnake.Colour.from_rgb(
+                *config.embed_colors["switched_vc"]),
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
-    def connected(self, member, after):  # Green
+    def connected(self, member, after):
         embed = disnake.Embed(
             description=f"**{member.mention} connected to `{after.channel.name}`**",
-            color=disnake.Colour.from_rgb(0, 255, 0),
+            color=disnake.Colour.from_rgb(*config.embed_colors["joined_vc"]),
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
-    def disconnected(self, member, before):  # Red
+    def disconnected(self, member, before):
         embed = disnake.Embed(
             description=f'**{member.mention} disconnected from `{before.channel.name}`**',
-            color=disnake.Colour.from_rgb(255, 0, 0),
+            color=disnake.Colour.from_rgb(*config.embed_colors["left_vc"]),
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
-    def voice_update(self, member):  # Yellow
+    def voice_update(self, member):
         embed = disnake.Embed(
             description=f'**{member.mention} updated voice state**',
-            color=disnake.Colour.from_rgb(255, 255, 0),
+            color=disnake.Colour.from_rgb(
+                *config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
