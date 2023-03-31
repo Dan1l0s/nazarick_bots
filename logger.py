@@ -17,13 +17,13 @@ class logger:
             datetime.datetime.now().strftime("%H:%M:%S") + " : ERROR :" + err)
         f.close()
 
-    def skip(self, ctx):
+    def skip(self, inter):
         if not self.state:
             return
-        abs_path = self.get_path(ctx.guild.name)
+        abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track at {ctx.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track at {inter.guild.voice_client.channel}\n")
         f.close()
 
     def enabled(self, bot):
@@ -45,31 +45,31 @@ class logger:
                 f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
         f.close()
 
-    def added(self, ctx):
+    def added(self, inter):
         if not self.state:
             return
-        abs_path = self.get_path(ctx.guild.name)
+        abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {self.songs_queue[ctx.guild.id][-1]['title']} to queue with duration of {helpers.get_duration(self.songs_queue[ctx.guild.id][-1]['duration'])}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {self.songs_queue[inter.guild.id][-1]['title']} to queue with duration of {helpers.get_duration(self.songs_queue[inter.guild.id][-1]['duration'])}\n")
         f.close()
 
-    def playing(self, ctx):
+    def playing(self, inter):
         if not self.state:
             return
-        abs_path = self.get_path(ctx.guild.name)
+        abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {self.songs_queue[ctx.guild.id][0]['title']} in VC: {ctx.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {self.songs_queue[inter.guild.id][0]['title']} in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
-    def finished(self, ctx):
+    def finished(self, inter):
         if not self.state:
             return
-        abs_path = self.get_path(ctx.guild.name)
+        abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {ctx.guild.name} / {ctx.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {inter.guild.name} / {inter.guild.voice_client.channel}\n")
         f.close()
 
     def switched(self, member, before, after):

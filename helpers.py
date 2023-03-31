@@ -48,10 +48,10 @@ def get_duration(duration):
     return ans
 
 
-async def radio_message(ctx):
+async def radio_message(inter, voice):
     url = "http://anison.fm/status.php?widget=true"
     name = ""
-    while True:
+    while voice.is_playing():
         response = urlopen(url)
         data_json = json.loads(response.read())
         duration = data_json["duration"] - 13
@@ -61,5 +61,5 @@ async def radio_message(ctx):
             continue
         name = new_name
         anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
-        await ctx.channel.send(f"Now playing: ***{name}*** from ***{anime}***")
+        await inter.channel.send(f"Now playing: ***{name}*** from ***{anime}***")
         await asyncio.sleep(duration - 1)

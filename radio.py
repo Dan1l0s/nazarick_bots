@@ -41,12 +41,12 @@ async def radio(inter):
     if not voice:
         return await inter.send('Seems like your channel is unavailable :c')
 
-    await inter.send('Now playing anison.fm!')
+    await inter.send('Now playing ANISON.FM!')
 
     if not voice.is_playing():
         voice.play(disnake.FFmpegPCMAudio(
             source=config.radio_url, **config.FFMPEG_OPTIONS))
-        await helpers.radio_message(inter)
+        await helpers.radio_message(inter, voice)
 
 
 @bot.slash_command(description="Stops current playback")

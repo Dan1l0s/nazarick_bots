@@ -5,7 +5,7 @@ import config
 
 
 class embed:
-    def songs(self, ctx, info, text):
+    def songs(self, inter, info, text):
         embed = disnake.Embed(
             title=info['title'],
             url=info['webpage_url'],
@@ -20,7 +20,7 @@ class embed:
         embed.add_field(name="*Duration*",
                         value=helpers.get_duration(info['duration']), inline=True)
         embed.add_field(name="*Requested by*",
-                        value=helpers.get_nickname(ctx.author), inline=True)
+                        value=helpers.get_nickname(inter.author), inline=True)
         return embed
 
     def action(self, entry):
