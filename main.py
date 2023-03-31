@@ -5,7 +5,9 @@ from disnake.ext import commands
 
 import config
 import helpers
+import embedder
 from logger import *
+from embedder import *
 
 
 songs_queue = {}
@@ -18,6 +20,7 @@ bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Game(name="/help"))
 
 log = logger(songs_queue)
+embedder = embed()
 
 
 @bot.event
@@ -28,6 +31,7 @@ async def on_ready():
 @bot.event
 async def on_audit_log_entry_create(entry):
     log.logged(entry)
+    await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=embedder.action(entry))
 
 
 @bot.event
@@ -36,12 +40,18 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
     possible_channel_name = f"{member_nick}'s private"
 
     if before.channel and after.channel:
-        if before.channel != after.channel:
+        if before.channel.id != after.channel.id:
             log.switched(member, before, after)
+            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
+        else:
+            log.voice_update(member)
+            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.voice_update(member))
     elif before.channel:
         log.disconnected(member, before)
+        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
     else:
         log.connected(member, after)
+        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
 
     if after.channel and after.channel.name == "Создать приват":
         guild = member.guild
@@ -164,7 +174,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
 
                 voice.play(disnake.FFmpegPCMAudio(
                     source=link, **config.FFMPEG_OPTIONS))
-                embed = helpers.song_embed_builder(
+                embed = embedder.songs(
                     ctx, songs_queue[ctx.guild.id][0], "Playing this song!")
                 if songs_queue[ctx.guild.id][0]['original_message']:
                     await songs_queue[ctx.guild.id][0]['original_message'].delete()
