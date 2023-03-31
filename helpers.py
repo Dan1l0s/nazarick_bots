@@ -1,7 +1,10 @@
 import config
 import disnake
+from urllib.request import urlopen
+import json
+import re
+import asyncio
 import datetime
-import os
 
 
 def is_admin(ctx):
@@ -60,3 +63,19 @@ def song_embed_builder(ctx, info, text):
     embed.add_field(name="*Requested by*",
                     value=get_nickname(ctx.author), inline=True)
     return embed
+
+
+async def radio_message(ctx):
+    url = "http://anison.fm/status.php?widget=true"
+    name = ""
+    while True:
+        response = urlopen(url)
+        data_json = json.loads(response.read())
+        duration = data_json["duration"] - 13
+        if re.search("151; (.+?)</span>", data_json['on_air']).group(1) == name:
+            await asyncio.sleep(duration - 1)
+            continue
+        name = re.search("151; (.+?)</span>", data_json['on_air']).group(1)
+        anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
+        await ctx.channel.send(f"Now playing: {anime} - {name}")
+        await asyncio.sleep(duration - 1)

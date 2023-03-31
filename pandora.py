@@ -36,7 +36,8 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
     possible_channel_name = f"{member_nick}'s private"
 
     if before.channel and after.channel:
-        log.switched(member, before, after)
+        if before.channel != after.channel:
+            log.switched(member, before, after)
     elif before.channel:
         log.disconnected(member, before)
     else:
@@ -165,7 +166,8 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                     source=link, **config.FFMPEG_OPTIONS))
                 embed = helpers.song_embed_builder(
                     ctx, songs_queue[ctx.guild.id][0], "Playing this song!")
-                await songs_queue[ctx.guild.id][0]['original_message'].delete()
+                if songs_queue[ctx.guild.id][0]['original_message']:
+                    await songs_queue[ctx.guild.id][0]['original_message'].delete()
                 await curr_ctx[ctx.guild.id].channel.send("", embed=embed)
                 log.playing(ctx)
                 while ((voice.is_playing() or voice.is_paused()) and not skip_flag[ctx.guild.id]):
@@ -175,7 +177,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                     voice.stop()
                     skip_flag[ctx.guild.id] = False
 
-                if repeat_flag[ctx.guild.id]:
+                elif repeat_flag[ctx.guild.id]:
                     songs_queue[ctx.guild.id].insert(
                         0, songs_queue[ctx.guild.id][0])
 
@@ -184,7 +186,7 @@ async def play(ctx, url: str = commands.Param(description='Type a query or paste
                 else:
                     break
         except Exception as err:
-            log.error(err)
+            log.error(err, ctx.guild)
             pass
 
 
@@ -289,4 +291,23 @@ async def help(ctx: disnake.AppCmdInter):
     await ctx.send(embed=disnake.Embed(color=0, description="Type /play to order a song (use URL from YT or just type the song's name)\nType /stop to stop playback\nType /pause to pause or resume playback\nType /repeat to repeat current track\nType /queue to get current list of songs"))
 
 
-bot.run(config.token)
+@ bot.slash_command(description="Clears custom amount of messages")
+async def clear(ctx: disnake.AppCmdInter, amount: int):
+    if helpers.is_admin(ctx):
+        await ctx.channel.purge(limit=amount+1)
+        await ctx.send(f"Cleared {amount} messages")
+        await asyncio.sleep(5)
+        return await ctx.delete_original_response()
+    return await ctx.send(f"Unathorized attempt to clear messages!")
+
+
+@bot.slash_command(description="Plays anime radio...")
+async def radio(ctx):
+    channel = ctx.author.voice.channel
+    voice = await channel.connect()
+    await ctx.send("Connected and playing anime songs from anison.fm!")
+    voice.play(disnake.FFmpegPCMAudio(
+        source="https://pool.anison.fm/AniSonFM(128)", **config.FFMPEG_OPTIONS))
+    await helpers.radio_message(ctx)
+
+bot.run(config.pandora_token)
