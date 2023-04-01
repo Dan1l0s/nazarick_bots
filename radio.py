@@ -5,7 +5,7 @@ import config
 import helpers
 
 bot = commands.InteractionBot(intents=disnake.Intents.all(
-), activity=disnake.Game(name="/radio"))
+), activity=disnake.Activity(name="/radio", type=disnake.ActivityType.listening))
 
 
 @bot.event

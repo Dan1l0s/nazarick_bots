@@ -1,14 +1,11 @@
-import disnake
-import asyncio
-from yt_dlp import YoutubeDL
 from disnake.ext import commands
-
-import config
-import helpers
-import embedder
+from yt_dlp import YoutubeDL
+import asyncio
+import disnake
 from logger import *
 from embedder import *
-
+import helpers
+import config
 
 songs_queue = {}
 curr_inter = {}
@@ -17,7 +14,7 @@ skip_flag = {}
 repeat_flag = {}
 
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
-), activity=disnake.Game(name="/help"))
+), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
 
 log = logger(songs_queue, False)
 embedder = embed()

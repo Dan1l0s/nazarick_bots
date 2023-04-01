@@ -1,10 +1,8 @@
 import config
-import disnake
 from urllib.request import urlopen
 import json
 import re
 import asyncio
-import datetime
 
 
 def is_admin(ctx):
