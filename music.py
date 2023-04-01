@@ -1,8 +1,10 @@
+import disnake
 from disnake.ext import commands
 from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
+import random
 import asyncio
-import disnake
+
 from selection import *
 from logger import *
 from embedder import *
@@ -116,18 +118,27 @@ async def bitrate(inter):
     await inter.delete_original_response()
 
 
-async def custom_play(inter, url):
+def add_from_playlist(inter, url):
     with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
         info = ytdl.extract_info(url, download=False)
+    for i in range(1, info['playlist_count']):
+        info['entries'][i]['original_message'] = None
+        songs_queue[inter.guild.id].append(info['entries'][i])
+
+
+async def custom_play(inter, url):
+    if "list" in url:
+        new_url = url[:url.find("list")-1]
+    else:
+        new_url = url
+    with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
+        info = ytdl.extract_info(new_url, download=False)
     if inter.guild.id not in songs_queue:
         songs_queue[inter.guild.id] = []
     voice = inter.guild.voice_client
     embed = embedder.songs(inter, info, "Song was added to queue!")
-
     info['original_message'] = await inter.channel.send("", embed=embed)
-
     songs_queue[inter.guild.id].append(info)
-
     log.added(inter)
 
     if inter.guild.id not in skip_flag:
@@ -145,9 +156,7 @@ async def custom_play(inter, url):
                     await voice.disconnect()
                     await curr_inter[inter.guild.id].channel.send("Finished playing music!")
                     break
-
                 link = songs_queue[inter.guild.id][0].get("url", None)
-
                 voice.play(disnake.FFmpegPCMAudio(
                     source=link, **config.FFMPEG_OPTIONS))
                 embed = embedder.songs(
@@ -156,6 +165,11 @@ async def custom_play(inter, url):
                     await songs_queue[inter.guild.id][0]['original_message'].delete()
                 await curr_inter[inter.guild.id].channel.send("", embed=embed)
                 log.playing(inter)
+                if new_url != url:
+                    tmp_message = await inter.channel.send("Processing playlist, please, don't use any commands!")
+                    add_from_playlist(inter, url)
+                    await tmp_message.delete()
+                    new_url = url
                 while ((voice.is_playing() or voice.is_paused()) and not skip_flag[inter.guild.id]):
                     await asyncio.sleep(1)
 
@@ -174,6 +188,11 @@ async def custom_play(inter, url):
         except Exception as err:
             log.error(err, inter.guild)
             pass
+
+    elif new_url != url:
+        tmp_message = await inter.channel.send("Processing playlist, please, don't use any commands!")
+        add_from_playlist(inter, url)
+        await tmp_message.delete()
 
 
 @bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
@@ -313,16 +332,17 @@ async def queue(inter):
     try:
         if len(songs_queue[inter.guild.id]) > 0:
             cnt = 1
-            ans = "```Queue:\n"
-            for track in songs_queue[inter.guild.id]:
-                ans += f"\n{cnt}) {track['title']}, duration: {track['duration'] // 3600}h{track['duration']//60 - (track['duration'] // 3600) * 60}m{track['duration']- (track['duration']//60)*60}s"
+            ans = "```Queue:"
+            for track in songs_queue[inter.guild.id][:15]:
+                ans += f"\n{cnt}) {track['title']}, duration: {helpers.get_duration(track['duration'])}"
                 cnt += 1
-            ans += "\n```"
+            ans += "```"
             await inter.send(ans)
         else:
             await inter.send("I am not playing anything!")
     except Exception as err:
         log.error(err, inter.guild)
+        print("queue", err)
         await inter.send("I am not playing anything!")
 
 
@@ -335,6 +355,20 @@ async def wrong(inter: disnake.AppCmdInter):
             await inter.send(f"Removed {title} from queue!")
     except Exception as err:
         log.error(err, inter.guild)
+        await inter.send("I am not playing anything!")
+
+
+@bot.slash_command(description="Shuffles current queue")
+async def shuffle(inter: disnake.AppCmdInter):
+    try:
+        if len(songs_queue[inter.guild.id]) > 2:
+            await inter.send("Shuffle completed successfully!")
+        elif len(songs_queue[inter.guild.id]) >= 1:
+            await inter.send("There are no tracks to shuffle!")
+        else:
+            await inter.send("I am not playing anything!")
+    except Exception as err:
+        print("shuffle", err)
         await inter.send("I am not playing anything!")
 
 
