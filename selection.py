@@ -11,6 +11,8 @@ class SelectionPanel(disnake.ui.Select):
             title = song['title']
             if len(title) > 45:
                 title = title[:45]+"..."
+            if song['duration'] == 0:
+                song['duration'] = "Live"
             options.append(disnake.SelectOption(
                 label=f"{title} : {song['duration']}", value=song['url_suffix']))
         super().__init__(placeholder="Choose your song!", options=options, custom_id="songs")

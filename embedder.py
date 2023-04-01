@@ -5,7 +5,10 @@ import config
 
 
 class embed:
-    def songs(self, inter, info, text):
+    def songs(self, inter, data, text):
+        info = data
+        if "entries" in info:
+            info = info["entries"][0]
         embed = disnake.Embed(
             title=info['title'],
             url=info['webpage_url'],
@@ -13,10 +16,10 @@ class embed:
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["songs"]),
             timestamp=datetime.datetime.now())
-        if info['live_status'] == "not_live":
-            duration = helpers.get_duration(info['duration'])
-        else:
+        if "live_status" in info and info['live_status'] == "is_live":
             duration = "Live"
+        else:
+            duration = helpers.get_duration(info['duration'])
 
         embed.set_author(name=info['uploader'])
         embed.set_thumbnail(
