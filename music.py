@@ -1,7 +1,9 @@
 from disnake.ext import commands
+from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
 import asyncio
 import disnake
+from selection import *
 from logger import *
 from embedder import *
 import helpers
@@ -91,60 +93,16 @@ async def bitrate(inter):
     await inter.delete_original_response()
 
 
-@bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
-async def play(inter, url: str = commands.Param(description='Type a query or paste youtube URL')):
-
-    curr_inter[inter.guild.id] = inter
-
-    voice = inter.guild.voice_client
-
-    try:
-        user_channel = inter.author.voice.channel
-        if not user_channel:
-            return await inter.send("You're not connected to a voice channel!")
-    except:
-        return await inter.send("You're not connected to a voice channel!")
-
-    if not voice:
-        voice = await user_channel.connect()
-
-    elif voice.channel and user_channel != voice.channel and len(voice.channel.members) > 1:
-        if not helpers.is_admin(inter):
-            return await inter.send("I'm already playing in another channel D:")
-
-        else:
-            await inter.channel.send("Yes, my master..")
-            repeat_flag[inter.guild.id] = False
-
-            voice.stop()
-            songs_queue[inter.guild.id].clear()
-            await voice.move_to(user_channel)
-
-    elif voice.channel != user_channel:
-        repeat_flag[inter.guild.id] = False
-        songs_queue[inter.guild.id].clear()
-
-        voice.stop()
-        await voice.move_to(user_channel)
-
-    if not voice:
-        return await inter.send('Seems like your channel is unavailable :c')
-
-    await inter.send('Searching...')
-
+async def custom_play(inter, url):
     with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
-        if "https://" in url:
-            info = ytdl.extract_info(url, download=False)
-        else:
-            info = ytdl.extract_info(f"ytsearch:{url}", download=False)[
-                'entries'][0]
-
+        info = ytdl.extract_info(url, download=False)
     if inter.guild.id not in songs_queue:
         songs_queue[inter.guild.id] = []
 
+    voice = inter.guild.voice_client
     embed = embedder.songs(inter, info, "Song was added to queue!")
 
-    info['original_message'] = await inter.edit_original_response("", embed=embed)
+    info['original_message'] = await inter.channel.send("", embed=embed)
 
     songs_queue[inter.guild.id].append(info)
 
@@ -196,6 +154,70 @@ async def play(inter, url: str = commands.Param(description='Type a query or pas
             pass
 
 
+@bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
+async def play(inter, url: str = commands.Param(description='Type a query or paste youtube URL')):
+    await inter.response.defer()
+    curr_inter[inter.guild.id] = inter
+
+    voice = inter.guild.voice_client
+
+    try:
+        user_channel = inter.author.voice.channel
+        if not user_channel:
+            return await inter.send("You're not connected to a voice channel!")
+    except:
+        return await inter.send("You're not connected to a voice channel!")
+
+    if not voice:
+        voice = await user_channel.connect()
+
+    elif voice.channel and user_channel != voice.channel and len(voice.channel.members) > 1:
+        if not helpers.is_admin(inter):
+            return await inter.send("I'm already playing in another channel D:")
+
+        else:
+            await inter.channel.send("Yes, my master..")
+            repeat_flag[inter.guild.id] = False
+
+            voice.stop()
+            songs_queue[inter.guild.id].clear()
+            await voice.move_to(user_channel)
+
+    elif voice.channel != user_channel:
+        repeat_flag[inter.guild.id] = False
+        songs_queue[inter.guild.id].clear()
+
+        voice.stop()
+        await voice.move_to(user_channel)
+
+    if not voice:
+        return await inter.send('Seems like your channel is unavailable :c')
+
+    if not "https://" in url:
+        songs = YoutubeSearch(url, max_results=5).to_dict()
+        view = disnake.ui.View(timeout=30)
+        select = SelectionPanel(songs, custom_play, inter.author)
+        view.add_item(select)
+        message = await inter.edit_original_response(view=view)
+        for i in range(30):
+            if not inter.guild.voice_client:
+                await message.delete()
+                break
+            await asyncio.sleep(1)
+        try:
+            await message.delete()
+            await voice.disconnect()
+            message = await inter.channel.send(f"{inter.author.mention} You're out of time! Next time think faster!")
+            await asyncio.sleep(5)
+            await message.delete()
+        except:
+            pass
+
+    else:
+        await inter.delete_original_response()
+        await custom_play(inter, url)
+
+
 @ bot.slash_command(description="Pauses/resumes player")
 async def pause(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
@@ -230,16 +252,17 @@ async def repeat(inter: disnake.AppCmdInter):
 async def stop(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
     try:
-        if not voice:
+        if not voice.channel:
             return await inter.send("I am not playing anything!")
-        songs_queue[inter.guild.id].clear()
+        if inter.guild.id in songs_queue:
+            songs_queue[inter.guild.id].clear()
 
         repeat_flag[inter.guild.id] = False
         skip_flag[inter.guild.id] = False
 
         voice.stop()
-        log.finished(inter)
         await voice.disconnect()
+        log.finished(inter)
         await inter.send("DJ decided to stop!")
 
     except Exception as err:

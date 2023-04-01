@@ -59,5 +59,5 @@ async def radio_message(inter, voice):
             continue
         name = new_name
         anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
-        await inter.channel.send(f"Now playing: ***{name}*** from ***{anime}***")
+        await inter.channel.send(f"Now playing: ***{name}***  from ***{anime}***")
         await asyncio.sleep(duration - 1)
