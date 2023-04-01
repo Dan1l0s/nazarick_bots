@@ -34,7 +34,6 @@ class logger:
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STARTUP : Bot is logged as {bot.user}\n")
         f.close()
-        print(f"Bot is logged as {bot.user}")
 
     def logged(self, entry):
         if not self.state:

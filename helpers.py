@@ -5,8 +5,8 @@ import re
 import asyncio
 
 
-def is_admin(ctx):
-    if ctx.guild.id not in config.admin_ids or ctx.author.id not in config.admin_ids[ctx.guild.id]:
+def is_admin(member):
+    if member.guild.id not in config.admin_ids or member.id not in config.admin_ids[member.guild.id]:
         return False
     return True
 

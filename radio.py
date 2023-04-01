@@ -9,6 +9,29 @@ bot = commands.InteractionBot(intents=disnake.Intents.all(
 
 
 @bot.event
+async def on_message(message):
+    if len(message.role_mentions) > 0 or len(message.mentions) > 0:
+        client = message.guild.get_member(config.ids["radio"])
+        for role in message.role_mentions:
+            if role in client.roles:
+                if helpers.is_admin(message.author):
+                    if "ping" in message.content:
+                        return await message.channel.send(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
+                    else:
+                        return await message.reply("At your service, my master.")
+                else:
+                    return await message.channel.send(f"How dare you tag me? Know your place, trash")
+        if client in message.mentions:
+            if helpers.is_admin(message.author):
+                if "ping" in message.content:
+                    return await message.channel.send(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
+                else:
+                    return await message.reply("At your service, my master.")
+            else:
+                return await message.channel.send(f"How dare you tag me? Know your place, trash")
+
+
+@bot.event
 async def on_ready():
     print(f"Bot is logged as {bot.user}")
     # log.enabled(bot)
@@ -28,7 +51,7 @@ async def radio(inter):
         voice = await user_channel.connect()
 
     elif voice.channel and user_channel != voice.channel and len(voice.channel.members) > 1:
-        if not helpers.is_admin(inter):
+        if not helpers.is_admin(inter.author):
             return await inter.send("I'm already playing in another channel D:")
 
         else:
