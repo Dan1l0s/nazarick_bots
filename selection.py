@@ -1,5 +1,6 @@
 import disnake
 import config
+import helpers
 
 
 class SelectionPanel(disnake.ui.Select):
@@ -18,7 +19,7 @@ class SelectionPanel(disnake.ui.Select):
         super().__init__(placeholder="Choose your song!", options=options, custom_id="songs")
 
     async def callback(self, inter):
-        if inter.author == self.author:
+        if inter.author == self.author or helpers.is_admin(inter.author):
             await inter.response.defer()
             await inter.delete_original_response()
             await self.func(inter, f"https://www.youtube.com/{inter.values[0]}")

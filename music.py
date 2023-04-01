@@ -156,13 +156,15 @@ async def custom_play(inter, url):
                     await voice.disconnect()
                     await curr_inter[inter.guild.id].channel.send("Finished playing music!")
                     break
-                link = songs_queue[inter.guild.id][0].get("url", None)
+                current_track = songs_queue[inter.guild.id][0]
+                songs_queue[inter.guild.id].pop(0)
+                link = current_track.get("url", None)
                 voice.play(disnake.FFmpegPCMAudio(
                     source=link, **config.FFMPEG_OPTIONS))
                 embed = embedder.songs(
-                    inter, songs_queue[inter.guild.id][0], "Playing this song!")
-                if songs_queue[inter.guild.id][0]['original_message']:
-                    await songs_queue[inter.guild.id][0]['original_message'].delete()
+                    inter, current_track, "Playing this song!")
+                if current_track['original_message']:
+                    await current_track['original_message'].delete()
                 await curr_inter[inter.guild.id].channel.send("", embed=embed)
                 log.playing(inter)
                 if new_url != url:
@@ -179,11 +181,9 @@ async def custom_play(inter, url):
 
                 elif repeat_flag[inter.guild.id]:
                     songs_queue[inter.guild.id].insert(
-                        0, songs_queue[inter.guild.id][0])
+                        0, current_track)
 
-                if len(songs_queue[inter.guild.id]) > 0:
-                    songs_queue[inter.guild.id].pop(0)
-                else:
+                if len(songs_queue[inter.guild.id]) == 0:
                     break
         except Exception as err:
             log.error(err, inter.guild)
@@ -316,7 +316,7 @@ async def stop(inter: disnake.AppCmdInter):
 async def skip(inter: disnake.AppCmdInter):
 
     try:
-        if len(songs_queue[inter.guild.id]) > 0:
+        if len(songs_queue[inter.guild.id]) >= 0:
             skip_flag[inter.guild.id] = True
             log.skip(inter)
             await inter.send("Skipped current track!")
@@ -339,7 +339,7 @@ async def queue(inter):
             ans += "```"
             await inter.send(ans)
         else:
-            await inter.send("I am not playing anything!")
+            await inter.send("There are no songs in the queue!")
     except Exception as err:
         log.error(err, inter.guild)
         print("queue", err)
@@ -349,7 +349,7 @@ async def queue(inter):
 @ bot.slash_command(description="Removes last added song from queue")
 async def wrong(inter: disnake.AppCmdInter):
     try:
-        if len(songs_queue[inter.guild.id]) > 1:
+        if len(songs_queue[inter.guild.id]) > 0:
             title = songs_queue[inter.guild.id][-1]['title']
             songs_queue[inter.guild.id].pop(-1)
             await inter.send(f"Removed {title} from queue!")
@@ -361,9 +361,10 @@ async def wrong(inter: disnake.AppCmdInter):
 @bot.slash_command(description="Shuffles current queue")
 async def shuffle(inter: disnake.AppCmdInter):
     try:
-        if len(songs_queue[inter.guild.id]) > 2:
+        if len(songs_queue[inter.guild.id]) > 1:
+            random.shuffle(songs_queue[inter.guild.id])
             await inter.send("Shuffle completed successfully!")
-        elif len(songs_queue[inter.guild.id]) >= 1:
+        elif len(songs_queue[inter.guild.id]) == 1:
             await inter.send("There are no tracks to shuffle!")
         else:
             await inter.send("I am not playing anything!")
