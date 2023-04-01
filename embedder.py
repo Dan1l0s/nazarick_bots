@@ -30,6 +30,19 @@ class embed:
                         value=helpers.get_nickname(inter.author), inline=True)
         return embed
 
+    def radio(self, title, source, duration):
+        embed = disnake.Embed(
+            title=title,
+            description="Playing from ANISON.FM",
+            color=disnake.Colour.from_rgb(
+                *config.embed_colors["songs"]),
+            timestamp=datetime.datetime.now())
+        embed.set_author(name=source)
+        embed.add_field(name="*Duration*",
+                        value=helpers.get_duration(duration),
+                        inline=True)
+        return embed
+
     def action(self, entry):
         if "member" in f'{entry.action}':
             embed = disnake.Embed(

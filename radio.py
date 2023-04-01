@@ -1,11 +1,18 @@
 import disnake
 from disnake.ext import commands
+from urllib.request import urlopen
+import json
+import re
+import asyncio
 
+from embedder import *
 import config
 import helpers
 
 bot = commands.InteractionBot(intents=disnake.Intents.all(
 ), activity=disnake.Activity(name="/radio", type=disnake.ActivityType.listening))
+
+embedder = embed()
 
 
 @bot.event
@@ -39,6 +46,7 @@ async def on_ready():
 
 @bot.slash_command(description="Plays songs from anison.fm")
 async def radio(inter):
+    await inter.response.defer()
     voice = inter.guild.voice_client
     try:
         user_channel = inter.author.voice.channel
@@ -64,12 +72,29 @@ async def radio(inter):
     if not voice:
         return await inter.send('Seems like your channel is unavailable :c')
 
-    await inter.send('Now playing ANISON.FM!')
+    await inter.delete_original_response()
 
     if not voice.is_playing():
         voice.play(disnake.FFmpegPCMAudio(
             source=config.radio_url, **config.FFMPEG_OPTIONS))
-        await helpers.radio_message(inter, voice)
+        await radio_message(inter, voice)
+
+
+async def radio_message(inter, voice):
+    url = "http://anison.fm/status.php?widget=true"
+    name = ""
+    while voice.is_playing():
+        response = urlopen(url)
+        data_json = json.loads(response.read())
+        duration = data_json["duration"] - 14
+        new_name = re.search("151; (.+?)</span>", data_json['on_air']).group(1)
+        if new_name == name:
+            await asyncio.sleep(duration - 1)
+            continue
+        name = new_name
+        anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
+        await inter.channel.send("", embed=embedder.radio(name, anime, duration))
+        await asyncio.sleep(duration - 1)
 
 
 @bot.slash_command(description="Stops current playback")
