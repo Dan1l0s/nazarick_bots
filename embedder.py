@@ -13,12 +13,16 @@ class embed:
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["songs"]),
             timestamp=datetime.datetime.now())
+        if info['live_status'] == "not_live":
+            duration = helpers.get_duration(info['duration'])
+        else:
+            duration = "Live"
 
         embed.set_author(name=info['uploader'])
         embed.set_thumbnail(
             url=f"https://img.youtube.com/vi/{info['id']}/0.jpg")
         embed.add_field(name="*Duration*",
-                        value=helpers.get_duration(info['duration']), inline=True)
+                        value=duration, inline=True)
         embed.add_field(name="*Requested by*",
                         value=helpers.get_nickname(inter.author), inline=True)
         return embed

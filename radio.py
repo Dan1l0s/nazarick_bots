@@ -16,19 +16,19 @@ async def on_message(message):
             if role in client.roles:
                 if helpers.is_admin(message.author):
                     if "ping" in message.content:
-                        return await message.channel.send(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
+                        return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                     else:
                         return await message.reply("At your service, my master.")
                 else:
-                    return await message.channel.send(f"How dare you tag me? Know your place, trash")
+                    return await message.reply(f"How dare you tag me? Know your place, trash")
         if client in message.mentions:
             if helpers.is_admin(message.author):
                 if "ping" in message.content:
-                    return await message.channel.send(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
+                    return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                 else:
                     return await message.reply("At your service, my master.")
             else:
-                return await message.channel.send(f"How dare you tag me? Know your place, trash")
+                return await message.reply(f"How dare you tag me? Know your place, trash")
 
 
 @bot.event

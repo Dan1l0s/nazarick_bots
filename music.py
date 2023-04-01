@@ -30,19 +30,19 @@ async def on_message(message):
             if role in client.roles:
                 if helpers.is_admin(message.author):
                     if "ping" in message.content:
-                        return await message.channel.send(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
+                        return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                     else:
                         return await message.reply("At your service, my master.")
                 else:
-                    return await message.channel.send(f"How dare you tag me? Know your place, trash")
+                    return await message.reply(f"How dare you tag me? Know your place, trash")
         if client in message.mentions:
             if helpers.is_admin(message.author):
                 if "ping" in message.content:
-                    return await message.channel.send(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
+                    return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                 else:
                     return await message.reply("At your service, my master.")
             else:
-                return await message.channel.send(f"How dare you tag me? Know your place, trash")
+                return await message.reply(f"How dare you tag me? Know your place, trash")
 
 
 @bot.event
@@ -121,7 +121,6 @@ async def custom_play(inter, url):
         info = ytdl.extract_info(url, download=False)
     if inter.guild.id not in songs_queue:
         songs_queue[inter.guild.id] = []
-
     voice = inter.guild.voice_client
     embed = embedder.songs(inter, info, "Song was added to queue!")
 
@@ -178,7 +177,7 @@ async def custom_play(inter, url):
 
 
 @bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
-async def play(inter, url: str = commands.Param(description='Type a query or paste youtube URL')):
+async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
     await inter.response.defer()
     curr_inter[inter.guild.id] = inter
 
@@ -216,18 +215,19 @@ async def play(inter, url: str = commands.Param(description='Type a query or pas
     if not voice:
         return await inter.send('Seems like your channel is unavailable :c')
 
-    if not "https://" in url:
-        songs = YoutubeSearch(url, max_results=5).to_dict()
+    if not "https://" in query:
+        songs = YoutubeSearch(query, max_results=5).to_dict()
         view = disnake.ui.View(timeout=30)
         select = SelectionPanel(songs, custom_play, inter.author)
         view.add_item(select)
         message = await inter.edit_original_response(view=view)
-        for i in range(30):
-            if not inter.guild.voice_client:
-                await message.delete()
-                break
-            await asyncio.sleep(1)
         try:
+            for i in range(30):
+                if not inter.guild.voice_client:
+                    await message.delete()
+                    break
+                await asyncio.sleep(1)
+
             await message.delete()
             await voice.disconnect()
             message = await inter.channel.send(f"{inter.author.mention} You're out of time! Next time think faster!")
@@ -238,7 +238,7 @@ async def play(inter, url: str = commands.Param(description='Type a query or pas
 
     else:
         await inter.delete_original_response()
-        await custom_play(inter, url)
+        await custom_play(inter, query)
 
 
 @ bot.slash_command(description="Pauses/resumes player")
