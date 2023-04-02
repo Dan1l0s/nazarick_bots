@@ -2,6 +2,7 @@ import disnake
 from disnake.ext import commands
 from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
+from threading import Thread
 import random
 import asyncio
 
@@ -26,11 +27,19 @@ embedder = embed()
 
 @bot.event
 async def on_message(message):
+    if "discord.gg" in message.content.lower():
+        try:
+            await message.delete()
+            await message.author.send(
+                f"Do NOT try to invite anyone to another servers {config.emojis['banned']}")
+        except:
+            pass
+
     if len(message.role_mentions) > 0 or len(message.mentions) > 0:
         client = message.guild.get_member(config.ids["music"])
         if helpers.is_mentioned(client, message):
             if helpers.is_admin(message.author):
-                if "ping" in message.content or "пинг" in message.content:
+                if "ping" in message.content.lower() or "пинг" in message.content.lower():
                     return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                 else:
                     return await message.reply("At your service, my master.")
@@ -115,6 +124,8 @@ def add_from_playlist(inter, url):
     for i in range(1, info['playlist_count']):
         info['entries'][i]['original_message'] = None
         songs_queue[inter.guild.id].append(info['entries'][i])
+    if not inter.guild.voice_client or not inter.guild.voice_client.is_connected():
+        songs_queue[inter.guild.id].clear()
 
 
 async def custom_play(inter, url):
@@ -159,8 +170,10 @@ async def custom_play(inter, url):
                 await curr_inter[inter.guild.id].channel.send("", embed=embed)
                 log.playing(inter)
                 if new_url != url:
-                    tmp_message = await inter.channel.send("Processing playlist, please, don't use any commands!")
-                    add_from_playlist(inter, url)
+                    tmp_message = await inter.channel.send("Processing playlist, further tracks can be not accessable yet :c")
+                    thread = Thread(target=add_from_playlist,
+                                    args=(inter, url))
+                    thread.start()
                     await tmp_message.delete()
                     new_url = url
                 while ((voice.is_playing() or voice.is_paused()) and not skip_flag[inter.guild.id]):

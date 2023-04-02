@@ -1,4 +1,4 @@
-import threading
+from threading import Thread
 import subprocess
 
 
@@ -10,8 +10,8 @@ def start_radio():
     subprocess.run('python radio.py', shell=True)
 
 
-music = threading.Thread(target=start_music)
-radio = threading.Thread(target=start_radio)
+music = Thread(target=start_music)
+radio = Thread(target=start_radio)
 
 music.start()
 radio.start()
