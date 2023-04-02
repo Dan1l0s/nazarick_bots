@@ -325,7 +325,11 @@ async def queue(inter):
             cnt = 1
             ans = "```Queue:"
             for track in songs_queue[inter.guild.id][:15]:
-                ans += f"\n{cnt}) {track['title']}, duration: {helpers.get_duration(track['duration'])}"
+                if "live_status" in track and track['live_status'] == "is_live":
+                    duration = "Live"
+                else:
+                    duration = helpers.get_duration(track['duration'])
+                ans += f"\n{cnt}) {track['title']}, duration: {duration}"
                 cnt += 1
             ans += "```"
             await inter.send(ans)
@@ -333,7 +337,6 @@ async def queue(inter):
             await inter.send("There are no songs in the queue!")
     except Exception as err:
         log.error(err, inter.guild)
-        print("queue", err)
         await inter.send("I am not playing anything!")
 
 
@@ -360,7 +363,6 @@ async def shuffle(inter: disnake.AppCmdInter):
         else:
             await inter.send("I am not playing anything!")
     except Exception as err:
-        print("shuffle", err)
         await inter.send("I am not playing anything!")
 
 
