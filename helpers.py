@@ -40,3 +40,12 @@ def get_duration(duration):
     else:
         ans += ":"+str(seconds)
     return ans
+
+
+def is_mentioned(member, message):
+    for role in message.role_mentions:
+        if role in member.roles:
+            return True
+    if member in message.mentions:
+        return True
+    return False

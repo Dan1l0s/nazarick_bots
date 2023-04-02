@@ -19,18 +19,9 @@ embedder = embed()
 async def on_message(message):
     if len(message.role_mentions) > 0 or len(message.mentions) > 0:
         client = message.guild.get_member(config.ids["radio"])
-        for role in message.role_mentions:
-            if role in client.roles:
-                if helpers.is_admin(message.author):
-                    if "ping" in message.content:
-                        return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
-                    else:
-                        return await message.reply("At your service, my master.")
-                else:
-                    return await message.reply(f"How dare you tag me? Know your place, trash")
-        if client in message.mentions:
+        if helpers.is_mentioned(client, message):
             if helpers.is_admin(message.author):
-                if "ping" in message.content:
+                if "ping" in message.content or "пинг" in message.content:
                     return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                 else:
                     return await message.reply("At your service, my master.")
