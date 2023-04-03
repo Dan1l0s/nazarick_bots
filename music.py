@@ -121,9 +121,12 @@ async def custom_play(inter, url):
         songs_queue[inter.guild.id] = []
     voice = inter.guild.voice_client
     await voice.move_to(inter.author.voice.channel)
-    embed = embedder.songs(inter, info, "Song was added to queue!")
-    info['original_message'] = await inter.channel.send("", embed=embed)
     songs_queue[inter.guild.id].append(info)
+    if voice.is_playing():
+        embed = embedder.songs(inter, info, "Song was added to queue!")
+        info['original_message'] = await inter.channel.send("", embed=embed)
+    else:
+        info['original_message'] = None
     log.added(inter)
 
     if inter.guild.id not in skip_flag:
