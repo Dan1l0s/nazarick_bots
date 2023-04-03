@@ -61,8 +61,6 @@ async def on_audit_log_entry_create(entry):
 
 @bot.event
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-    member_nick = helpers.get_nickname(member)
-    possible_channel_name = f"{member_nick}'s private"
 
     if before.channel and after.channel:
         if before.channel.id != after.channel.id:
@@ -79,25 +77,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
         # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
 
     if after.channel and after.channel.name == "Создать приват":
-        guild = member.guild
-        category = disnake.utils.get(
-            guild.categories, id=config.categories_ids[guild.id])
-
-        tmp_channel = await category.create_voice_channel(name=possible_channel_name)
-
-        perms = tmp_channel.overwrites_for(guild.default_role)
-        perms.view_channel = False
-        await tmp_channel.set_permissions(guild.default_role, overwrite=perms)
-
-        await member.move_to(tmp_channel)
-
-        perms = tmp_channel.overwrites_for(member)
-        perms.view_channel = True
-        perms.manage_permissions = True
-        perms.manage_channels = True
-        await tmp_channel.set_permissions(member, overwrite=perms)
-
-        await tmp_channel.edit(bitrate=384000)
+        await helpers.create_private(member)
     if before.channel:
         if "'s private" in before.channel.name:
             if len(before.channel.members) == 0:
@@ -107,7 +87,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")
 async def bitrate(inter):
     if not helpers.is_admin(inter.author):
-        return await inter.send("Unauthorized access, you are not admin!")
+        return await inter.send("Unauthorized access, you are not the Supreme Being!")
     await inter.send("Processing...")
 
     for channel in inter.guild.voice_channels:
@@ -268,6 +248,8 @@ async def play(inter, query: str = commands.Param(description='Type a query or p
 async def pause(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
     try:
+        if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
+            return await inter.send("You are not in my channel!")
         if voice.is_paused():
             voice.resume()
             await inter.send("Player resumed!")
@@ -284,6 +266,8 @@ async def pause(inter: disnake.AppCmdInter):
 @ bot.slash_command(description="Repeats current song")
 async def repeat(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
+    if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
+        return await inter.send("You are not in my channel!")
     if not voice.is_playing():
         return await inter.send("I am not playing anything!")
     if repeat_flag[inter.guild.id]:
@@ -300,6 +284,8 @@ async def stop(inter: disnake.AppCmdInter):
     try:
         if not voice.channel:
             return await inter.send("I am not playing anything!")
+        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+            return await inter.send("You are not in my channel!")
         if inter.guild.id in songs_queue:
             songs_queue[inter.guild.id].clear()
 
@@ -318,8 +304,10 @@ async def stop(inter: disnake.AppCmdInter):
 
 @ bot.slash_command(description="Skips current song")
 async def skip(inter: disnake.AppCmdInter):
-
+    voice = inter.guild.voice_client
     try:
+        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+            return await inter.send("You are not in my channel!")
         if len(songs_queue[inter.guild.id]) >= 0:
             skip_flag[inter.guild.id] = True
             log.skip(inter)
@@ -355,7 +343,10 @@ async def queue(inter):
 
 @ bot.slash_command(description="Removes last added song from queue")
 async def wrong(inter: disnake.AppCmdInter):
+    voice = inter.guild.voice_client
     try:
+        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+            return await inter.send("You are not in my channel!")
         if len(songs_queue[inter.guild.id]) > 0:
             title = songs_queue[inter.guild.id][-1]['title']
             songs_queue[inter.guild.id].pop(-1)
@@ -367,7 +358,10 @@ async def wrong(inter: disnake.AppCmdInter):
 
 @bot.slash_command(description="Shuffles current queue")
 async def shuffle(inter: disnake.AppCmdInter):
+    voice = inter.guild.voice_client
     try:
+        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+            return await inter.send("You are not in my channel!")
         if len(songs_queue[inter.guild.id]) > 1:
             random.shuffle(songs_queue[inter.guild.id])
             await inter.send("Shuffle completed successfully!")

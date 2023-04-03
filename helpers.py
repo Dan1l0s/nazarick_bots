@@ -1,4 +1,5 @@
 import config
+import disnake
 
 
 def is_admin(member):
@@ -49,3 +50,26 @@ def is_mentioned(member, message):
     if member in message.mentions:
         return True
     return False
+
+
+async def create_private(member):
+    possible_channel_name = f"{get_nickname(member)}'s private"
+
+    guild = member.guild
+    category = disnake.utils.get(
+        guild.categories, id=config.categories_ids[guild.id])
+
+    tmp_channel = await category.create_voice_channel(name=possible_channel_name)
+
+    perms = tmp_channel.overwrites_for(guild.default_role)
+    perms.view_channel = False
+    await tmp_channel.set_permissions(guild.default_role, overwrite=perms)
+
+    await member.move_to(tmp_channel)
+
+    perms = tmp_channel.overwrites_for(member)
+    perms.view_channel = True
+    perms.manage_permissions = True
+    perms.manage_channels = True
+    await tmp_channel.set_permissions(member, overwrite=perms)
+    await tmp_channel.edit(bitrate=384000)

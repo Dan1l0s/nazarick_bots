@@ -94,6 +94,8 @@ async def stop(inter: disnake.AppCmdInter):
     try:
         if not voice:
             return await inter.send("I am not playing anything!")
+        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+            return await inter.send("You are not in my channel!")
         voice.stop()
         # log.finished(inter)
         await voice.disconnect()
