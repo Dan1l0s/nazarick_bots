@@ -73,3 +73,11 @@ async def create_private(member):
     perms.manage_channels = True
     await tmp_channel.set_permissions(member, overwrite=perms)
     await tmp_channel.edit(bitrate=384000)
+
+
+async def unmute(member, client):
+    if member == client:
+        if client.voice.mute:
+            await member.edit(mute=False)
+        if client.voice.deaf:
+            await member.edit(deafen=False)

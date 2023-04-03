@@ -35,6 +35,12 @@ async def on_ready():
     # log.enabled(bot)
 
 
+@bot.event
+async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
+    client = member.guild.get_member(config.ids["radio"])
+    await helpers.unmute(member, client)
+
+
 @bot.slash_command(description="Plays songs from anison.fm")
 async def radio(inter):
     await inter.response.defer()

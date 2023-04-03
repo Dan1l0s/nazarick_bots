@@ -61,7 +61,7 @@ async def on_audit_log_entry_create(entry):
 
 @bot.event
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-
+    client = member.guild.get_member(config.ids["music"])
     if before.channel and after.channel:
         if before.channel.id != after.channel.id:
             log.switched(member, before, after)
@@ -82,6 +82,8 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
         if "'s private" in before.channel.name:
             if len(before.channel.members) == 0:
                 await before.channel.delete()
+    if after.channel:
+        await helpers.unmute(member, client)
 
 
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")
@@ -118,6 +120,7 @@ async def custom_play(inter, url):
     if inter.guild.id not in songs_queue:
         songs_queue[inter.guild.id] = []
     voice = inter.guild.voice_client
+    await voice.move_to(inter.author.voice.channel)
     embed = embedder.songs(inter, info, "Song was added to queue!")
     info['original_message'] = await inter.channel.send("", embed=embed)
     songs_queue[inter.guild.id].append(info)
@@ -167,7 +170,7 @@ async def custom_play(inter, url):
                     songs_queue[inter.guild.id].insert(
                         0, current_track)
 
-                if len(songs_queue[inter.guild.id]) == 0:
+                if len(songs_queue[inter.guild.id]) == 0 and not inter.guild.voice_client:
                     break
         except Exception as err:
             log.error(err, inter.guild)
@@ -227,8 +230,7 @@ async def play(inter, query: str = commands.Param(description='Type a query or p
         try:
             for i in range(30):
                 if not inter.guild.voice_client:
-                    await message.delete()
-                    break
+                    return await message.delete()
                 await asyncio.sleep(1)
 
             await message.delete()
