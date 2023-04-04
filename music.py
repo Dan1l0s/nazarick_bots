@@ -21,7 +21,7 @@ repeat_flag = {}
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
 
-log = logger(songs_queue, False)
+log = logger(songs_queue, True)
 embedder = embed()
 
 
@@ -61,7 +61,6 @@ async def on_audit_log_entry_create(entry):
 
 @bot.event
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-    client = member.guild.get_member(config.ids["music"])
     if before.channel and after.channel:
         if before.channel.id != after.channel.id:
             log.switched(member, before, after)
@@ -82,8 +81,8 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
         if "'s private" in before.channel.name:
             if len(before.channel.members) == 0:
                 await before.channel.delete()
-    if after.channel:
-        await helpers.unmute(member, client)
+    if after.channel and member:
+        await helpers.unmute_client(member, "music")
 
 
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")
@@ -145,6 +144,7 @@ async def custom_play(inter, url):
                     await curr_inter[inter.guild.id].channel.send("Finished playing music!")
                     break
                 current_track = songs_queue[inter.guild.id][0]
+                log.playing(inter)
                 songs_queue[inter.guild.id].pop(0)
                 link = current_track.get("url", None)
                 voice.play(disnake.FFmpegPCMAudio(
@@ -154,7 +154,6 @@ async def custom_play(inter, url):
                 if current_track['original_message']:
                     await current_track['original_message'].delete()
                 await curr_inter[inter.guild.id].channel.send("", embed=embed)
-                log.playing(inter)
                 if new_url != url:
                     tmp_message = await inter.channel.send("Processing playlist, further tracks can be not accessable yet :c")
                     thread = Thread(target=add_from_playlist,
@@ -271,10 +270,10 @@ async def pause(inter: disnake.AppCmdInter):
 @ bot.slash_command(description="Repeats current song")
 async def repeat(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
+    if not voice:
+        return await inter.send("I am not playing anything!")
     if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
         return await inter.send("You are not in my channel!")
-    if not voice.is_playing():
-        return await inter.send("I am not playing anything!")
     if repeat_flag[inter.guild.id]:
         repeat_flag[inter.guild.id] = False
         await inter.send("Repeat mode is off!")
@@ -287,7 +286,7 @@ async def repeat(inter: disnake.AppCmdInter):
 async def stop(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
     try:
-        if not voice.channel:
+        if not voice or not voice.channel:
             return await inter.send("I am not playing anything!")
         if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
             return await inter.send("You are not in my channel!")
@@ -380,7 +379,15 @@ async def shuffle(inter: disnake.AppCmdInter):
 
 @ bot.slash_command(description="Reviews list of commands")
 async def help(inter: disnake.AppCmdInter):
-    await inter.send(embed=disnake.Embed(color=0, description="Type /play to order a song (use URL from YT or just type the song's name)\nType /stop to stop playback\nType /pause to pause or resume playback\nType /repeat to repeat current track\nType /queue to get current list of songs"))
+    ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"
+    ans += "Type /stop to stop playback\n"
+    ans += "Type /skip to skip current track\n"
+    ans += "Type /queue to print current queue\n"
+    ans += "Type /shuffle to shuffle tracks in the queue\n"
+    ans += "Type /wrong to remove last added track\n"
+    ans += "Type /repeat to toogle repeat mode for current track\n"
+    ans += "Type /pause to pause/resume playback"
+    await inter.send(embed=disnake.Embed(color=0, description=ans))
 
 
 @ bot.slash_command(description="Clears custom amount of messages")

@@ -14,7 +14,7 @@ class logger:
         abs_path = self.get_path(guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + " : ERROR :" + err)
+            datetime.datetime.now().strftime("%H:%M:%S") + " : ERROR : " + str(err) + "\n")
         f.close()
 
     def skip(self, inter):
