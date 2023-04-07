@@ -3,9 +3,8 @@ import helpers
 import os
 
 
-class logger:
-    def __init__(self, songs_queue, state: bool):
-        self.songs_queue = songs_queue
+class Logger:
+    def __init__(self, state: bool):
         self.state = state
 
     def error(self, err, guild):
@@ -44,22 +43,31 @@ class logger:
                 f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
         f.close()
 
-    def added(self, inter):
+    def added(self, inter, track):
         if not self.state:
             return
         abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {self.songs_queue[inter.guild.id][-1]['title']} to queue with duration of {helpers.get_duration(self.songs_queue[inter.guild.id][-1]['duration'])}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {track['title']} to queue with duration of {helpers.get_duration(track['duration'])}\n")
         f.close()
 
-    def playing(self, inter):
+    def playing(self, inter, track):
         if not self.state:
             return
         abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {self.songs_queue[inter.guild.id][0]['title']} in VC: {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {track['title']} in VC: {inter.guild.voice_client.channel}\n")
+        f.close()
+
+    def radio(self, inter, data):
+        if not self.state:
+            return
+        abs_path = self.get_path(inter.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : RADIO : Playing {data['name']} in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
     def finished(self, inter):
@@ -68,7 +76,7 @@ class logger:
         abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {inter.guild.name} / {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
     def switched(self, member, before, after):

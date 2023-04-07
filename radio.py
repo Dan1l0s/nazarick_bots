@@ -1,18 +1,17 @@
 import disnake
 from disnake.ext import commands
-from urllib.request import urlopen
-import json
-import re
-import asyncio
 
-from embedder import *
+from embedder import Embed
 import config
+from logger import Logger
+from radio_player import RadioPlayer
 import helpers
 
 bot = commands.InteractionBot(intents=disnake.Intents.all(
 ), activity=disnake.Activity(name="/radio", type=disnake.ActivityType.listening))
-
-embedder = embed()
+logger = Logger(True)
+embedder = Embed()
+player = RadioPlayer(logger, embedder)
 
 
 @bot.event
@@ -32,84 +31,17 @@ async def on_message(message):
 
 @bot.event
 async def on_ready():
-    print(f"Bot is logged as {bot.user}")
-    # log.enabled(bot)
+    print(f"RadioBot is logged as {bot.user}")
+    logger.enabled(bot)
 
 
-@bot.event
-async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-    if after.channel and member:
-        await helpers.unmute_client(member, "radio")
-
-
-@bot.slash_command(description="Plays songs from anison.fm")
+@bot.slash_command(description="Plays songs from Anison.FM")
 async def radio(inter):
-    await inter.response.defer()
-    voice = inter.guild.voice_client
-    try:
-        user_channel = inter.author.voice.channel
-        if not user_channel:
-            return await inter.send("You're not connected to a voice channel!")
-    except:
-        return await inter.send("You're not connected to a voice channel!")
-
-    if not voice:
-        voice = await user_channel.connect()
-
-    elif voice.channel and user_channel != voice.channel and len(voice.channel.members) > 1:
-        if not helpers.is_admin(inter.author):
-            return await inter.send("I'm already playing in another channel D:")
-
-        else:
-            await inter.channel.send("Yes, my master..")
-            await voice.move_to(user_channel)
-
-    elif voice.channel != user_channel:
-        await voice.move_to(user_channel)
-
-    if not voice:
-        return await inter.send('Seems like your channel is unavailable :c')
-
-    await inter.delete_original_response()
-
-    if not voice.is_playing():
-        voice.play(disnake.FFmpegPCMAudio(
-            source=config.radio_url, **config.FFMPEG_OPTIONS))
-        await radio_message(inter, voice)
-
-
-async def radio_message(inter, voice):
-    url = "http://anison.fm/status.php?widget=true"
-    name = ""
-    while voice.is_playing():
-        response = urlopen(url)
-        data_json = json.loads(response.read())
-        duration = data_json["duration"] - 14
-        new_name = re.search("151; (.+?)</span>", data_json['on_air']).group(1)
-        if new_name == name:
-            await asyncio.sleep(1)
-            continue
-        name = new_name
-        anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
-        await inter.channel.send("", embed=embedder.radio(name, anime, duration))
-        await asyncio.sleep(1)
+    await player.radio(inter)
 
 
 @bot.slash_command(description="Stops current playback")
-async def stop(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    try:
-        if not voice:
-            return await inter.send("I am not playing anything!")
-        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-            return await inter.send("You are not in my channel!")
-        voice.stop()
-        # log.finished(inter)
-        await voice.disconnect()
-        await inter.send("DJ decided to stop!")
-
-    except Exception as err:
-        # log.error(err, inter.guild)
-        await inter.send("I am not playing anything!")
+async def stop(inter):
+    await player.stop(inter)
 
 bot.run(config.tokens["radio"])

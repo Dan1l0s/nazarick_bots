@@ -1,14 +1,10 @@
 import disnake
 from disnake.ext import commands
-from youtube_search import YoutubeSearch
-from yt_dlp import YoutubeDL
-from threading import Thread
-import random
 import asyncio
 
-from selection import *
-from logger import *
-from embedder import *
+from logger import Logger
+from embedder import Embed
+from player import Player
 import helpers
 import config
 
@@ -18,11 +14,14 @@ curr_inter = {}
 skip_flag = {}
 repeat_flag = {}
 
+
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
 
-log = logger(songs_queue, True)
-embedder = embed()
+logger = Logger(True)
+embedder = Embed()
+
+player = Player(logger, embedder)
 
 
 @bot.event
@@ -50,13 +49,13 @@ async def on_message(message):
 
 @bot.event
 async def on_ready():
-    print(f"Bot is logged as {bot.user}")
-    log.enabled(bot)
+    print(f"MusicBot is logged as {bot.user}")
+    logger.enabled(bot)
 
 
 @bot.event
 async def on_audit_log_entry_create(entry):
-    log.logged(entry)
+    logger.logged(entry)
     # await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=embedder.action(entry))
 
 
@@ -64,16 +63,16 @@ async def on_audit_log_entry_create(entry):
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
     if before.channel and after.channel:
         if before.channel.id != after.channel.id:
-            log.switched(member, before, after)
+            logger.switched(member, before, after)
             # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
         else:
-            log.voice_update(member)
+            logger.voice_update(member)
             # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.voice_update(member))
     elif before.channel:
-        log.disconnected(member, before)
+        logger.disconnected(member, before)
         # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
     else:
-        log.connected(member, after)
+        logger.connected(member, after)
         # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
 
     if after.channel and after.channel.name == "Создать приват":
@@ -83,7 +82,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
             if len(before.channel.members) == 0:
                 await before.channel.delete()
     if after.channel and member:
-        await helpers.unmute_client(member, "music")
+        await helpers.unmute_clients(member)
         await helpers.unmute_admin(member)
 
 
@@ -101,155 +100,6 @@ async def bitrate(inter):
     await inter.delete_original_response()
 
 
-def add_from_playlist(inter, url):
-    with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
-        info = ytdl.extract_info(url, download=False)
-    for i in range(1, info['playlist_count']):
-        info['entries'][i]['original_message'] = None
-        songs_queue[inter.guild.id].append(info['entries'][i])
-    if not inter.guild.voice_client or not inter.guild.voice_client.is_connected():
-        songs_queue[inter.guild.id].clear()
-
-
-async def custom_play(inter, url):
-    if "list" in url:
-        new_url = url[:url.find("list")-1]
-    else:
-        new_url = url
-    with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
-        info = ytdl.extract_info(new_url, download=False)
-    if inter.guild.id not in songs_queue:
-        songs_queue[inter.guild.id] = []
-    voice = inter.guild.voice_client
-    await voice.move_to(inter.author.voice.channel)
-    songs_queue[inter.guild.id].append(info)
-    if voice.is_playing():
-        embed = embedder.songs(inter, info, "Song was added to queue!")
-        info['original_message'] = await inter.channel.send("", embed=embed)
-    else:
-        info['original_message'] = None
-    log.added(inter)
-
-    if inter.guild.id not in skip_flag:
-        skip_flag[inter.guild.id] = False
-
-    if inter.guild.id not in repeat_flag:
-        repeat_flag[inter.guild.id] = False
-
-    if not voice.is_playing():
-        try:
-            while True:
-                if len(songs_queue[inter.guild.id]) == 0:
-                    repeat_flag[inter.guild.id] = False
-                    skip_flag[inter.guild.id] = False
-                    await voice.disconnect()
-                    await curr_inter[inter.guild.id].channel.send("Finished playing music!")
-                    break
-                current_track = songs_queue[inter.guild.id][0]
-                log.playing(inter)
-                songs_queue[inter.guild.id].pop(0)
-                link = current_track.get("url", None)
-                voice.play(disnake.FFmpegPCMAudio(
-                    source=link, **config.FFMPEG_OPTIONS))
-                embed = embedder.songs(
-                    inter, current_track, "Playing this song!")
-                if current_track['original_message']:
-                    await current_track['original_message'].delete()
-                await curr_inter[inter.guild.id].channel.send("", embed=embed)
-                if new_url != url:
-                    tmp_message = await inter.channel.send("Processing playlist, further tracks can be not accessable yet :c")
-                    thread = Thread(target=add_from_playlist,
-                                    args=(inter, url))
-                    thread.start()
-                    await tmp_message.delete()
-                    new_url = url
-                while ((voice.is_playing() or voice.is_paused()) and not skip_flag[inter.guild.id]):
-                    await asyncio.sleep(1)
-
-                if skip_flag[inter.guild.id]:
-                    voice.stop()
-                    skip_flag[inter.guild.id] = False
-
-                elif repeat_flag[inter.guild.id]:
-                    songs_queue[inter.guild.id].insert(
-                        0, current_track)
-
-                if len(songs_queue[inter.guild.id]) == 0 and not inter.guild.voice_client:
-                    break
-        except Exception as err:
-            log.error(err, inter.guild)
-            pass
-
-    elif new_url != url:
-        tmp_message = await inter.channel.send("Processing playlist, please, don't use any commands!")
-        add_from_playlist(inter, url)
-        await tmp_message.delete()
-
-
-@bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
-async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
-    await inter.response.defer()
-    curr_inter[inter.guild.id] = inter
-
-    voice = inter.guild.voice_client
-
-    try:
-        user_channel = inter.author.voice.channel
-        if not user_channel:
-            return await inter.send("You're not connected to a voice channel!")
-    except:
-        return await inter.send("You're not connected to a voice channel!")
-
-    if not voice:
-        voice = await user_channel.connect()
-
-    elif voice.channel and user_channel != voice.channel and len(voice.channel.members) > 1:
-        if not helpers.is_admin(inter.author):
-            return await inter.send("I'm already playing in another channel D:")
-
-        else:
-            await inter.channel.send("Yes, my master..")
-            repeat_flag[inter.guild.id] = False
-
-            voice.stop()
-            songs_queue[inter.guild.id].clear()
-            await voice.move_to(user_channel)
-
-    elif voice.channel != user_channel:
-        repeat_flag[inter.guild.id] = False
-        songs_queue[inter.guild.id].clear()
-
-        voice.stop()
-        await voice.move_to(user_channel)
-
-    if not voice:
-        return await inter.send('Seems like your channel is unavailable :c')
-
-    if not "https://" in query:
-        songs = YoutubeSearch(query, max_results=5).to_dict()
-        view = disnake.ui.View(timeout=30)
-        select = SelectionPanel(songs, custom_play, inter.author)
-        view.add_item(select)
-        message = await inter.edit_original_response(view=view)
-        try:
-            for i in range(30):
-                if not inter.guild.voice_client:
-                    return await message.delete()
-                await asyncio.sleep(1)
-
-            await message.delete()
-            await voice.disconnect()
-            message = await inter.channel.send(f"{inter.author.mention} You're out of time! Next time think faster!")
-            await asyncio.sleep(5)
-            await message.delete()
-        except:
-            pass
-
-    else:
-        await inter.delete_original_response()
-        await custom_play(inter, query)
-
-
 @bot.slash_command(description="Clears voice channel (authorized use only)")
 async def purge(inter):
     if inter.author.id != config.admin_ids[inter.guild.id][0]:
@@ -262,148 +112,6 @@ async def purge(inter):
     await inter.delete_original_response()
 
 
-@ bot.slash_command(description="Pauses/resumes player")
-async def pause(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    try:
-        if not inter.author.voice or inter.author.voice.channel != voice.channel:
-            return await inter.send("You are not in my channel!")
-        if voice.is_paused():
-            voice.resume()
-            await inter.send("Player resumed!")
-
-        else:
-            voice.pause()
-            await inter.send("Player paused!")
-
-    except Exception as err:
-        log.error(err, inter.guild)
-        await inter.send("I am not playing anything!")
-
-
-@ bot.slash_command(description="Repeats current song")
-async def repeat(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    if not voice:
-        return await inter.send("I am not playing anything!")
-    if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
-        return await inter.send("You are not in my channel!")
-    if repeat_flag[inter.guild.id]:
-        repeat_flag[inter.guild.id] = False
-        await inter.send("Repeat mode is off!")
-    else:
-        repeat_flag[inter.guild.id] = True
-        await inter.send("Repeat mode is on!")
-
-
-@ bot.slash_command(description="Clears queue and disconnects bot")
-async def stop(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    try:
-        if not voice or not voice.channel:
-            return await inter.send("I am not playing anything!")
-        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-            return await inter.send("You are not in my channel!")
-        if inter.guild.id in songs_queue:
-            songs_queue[inter.guild.id].clear()
-
-        repeat_flag[inter.guild.id] = False
-        skip_flag[inter.guild.id] = False
-
-        voice.stop()
-        await voice.disconnect()
-        log.finished(inter)
-        await inter.send("DJ decided to stop!")
-
-    except Exception as err:
-        log.error(err, inter.guild)
-        await inter.send("I am not playing anything!")
-
-
-@ bot.slash_command(description="Skips current song")
-async def skip(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    try:
-        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-            return await inter.send("You are not in my channel!")
-        if len(songs_queue[inter.guild.id]) >= 0:
-            skip_flag[inter.guild.id] = True
-            log.skip(inter)
-            await inter.send("Skipped current track!")
-        else:
-            await inter.send("I am not playing anything!")
-    except Exception as err:
-        log.error(err, inter.guild)
-        await inter.send("I am not playing anything!")
-
-
-@ bot.slash_command(description="Shows current queue")
-async def queue(inter):
-    try:
-        if len(songs_queue[inter.guild.id]) > 0:
-            cnt = 1
-            ans = "```Queue:"
-            for track in songs_queue[inter.guild.id][:15]:
-                if "live_status" in track and track['live_status'] == "is_live":
-                    duration = "Live"
-                else:
-                    duration = helpers.get_duration(track['duration'])
-                ans += f"\n{cnt}) {track['title']}, duration: {duration}"
-                cnt += 1
-            ans += "```"
-            await inter.send(ans)
-        else:
-            await inter.send("There are no songs in the queue!")
-    except Exception as err:
-        log.error(err, inter.guild)
-        await inter.send("I am not playing anything!")
-
-
-@ bot.slash_command(description="Removes last added song from queue")
-async def wrong(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    try:
-        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-            return await inter.send("You are not in my channel!")
-        if len(songs_queue[inter.guild.id]) > 0:
-            title = songs_queue[inter.guild.id][-1]['title']
-            songs_queue[inter.guild.id].pop(-1)
-            await inter.send(f"Removed {title} from queue!")
-    except Exception as err:
-        log.error(err, inter.guild)
-        await inter.send("I am not playing anything!")
-
-
-@bot.slash_command(description="Shuffles current queue")
-async def shuffle(inter: disnake.AppCmdInter):
-    voice = inter.guild.voice_client
-    try:
-        if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-            return await inter.send("You are not in my channel!")
-        if len(songs_queue[inter.guild.id]) > 1:
-            random.shuffle(songs_queue[inter.guild.id])
-            await inter.send("Shuffle completed successfully!")
-        elif len(songs_queue[inter.guild.id]) == 1:
-            await inter.send("There are no tracks to shuffle!")
-        else:
-            await inter.send("I am not playing anything!")
-    except Exception as err:
-        await inter.send("I am not playing anything!")
-
-
-@ bot.slash_command(description="Reviews list of commands")
-async def help(inter: disnake.AppCmdInter):
-    ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"
-    ans += "Type /stop to stop playback\n"
-    ans += "Type /skip to skip current track\n"
-    ans += "Type /queue to print current queue\n"
-    ans += "Type /shuffle to shuffle tracks in the queue\n"
-    ans += "Type /wrong to remove last added track\n"
-    ans += "Type /repeat to toogle repeat mode for current track\n"
-    ans += "Type /pause to pause/resume playback"
-    await inter.send(embed=disnake.Embed(color=0, description=ans))
-
-
 @ bot.slash_command(description="Clears custom amount of messages")
 async def clear(inter: disnake.AppCmdInter, amount: int):
     if helpers.is_admin(inter.author):
@@ -412,5 +120,52 @@ async def clear(inter: disnake.AppCmdInter, amount: int):
         await asyncio.sleep(5)
         return await inter.delete_original_response()
     return await inter.send(f"Unathorized attempt to clear messages!")
+
+
+@bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
+async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
+    await player.play(inter, query)
+
+
+@ bot.slash_command(description="Pauses/resumes player")
+async def pause(inter: disnake.AppCmdInter):
+    await player.pause(inter)
+
+
+@ bot.slash_command(description="Repeats current song")
+async def repeat(inter: disnake.AppCmdInter):
+    await player.repeat(inter)
+
+
+@ bot.slash_command(description="Clears queue and disconnects bot")
+async def stop(inter: disnake.AppCmdInter):
+    await player.stop(inter)
+
+
+@ bot.slash_command(description="Skips current song")
+async def skip(inter: disnake.AppCmdInter):
+    await player.skip(inter)
+
+
+@ bot.slash_command(description="Shows current queue")
+async def queue(inter):
+    await player.queue(inter)
+
+
+@ bot.slash_command(description="Removes last added song from queue")
+async def wrong(inter: disnake.AppCmdInter):
+    await player.wrong(inter)
+
+
+@bot.slash_command(description="Shuffles current queue")
+async def shuffle(inter: disnake.AppCmdInter):
+    await player.shuffle(inter)
+
+
+@ bot.slash_command(description="Reviews list of commands")
+async def help(inter: disnake.AppCmdInter):
+    ans = player.help()
+    await inter.send(embed=disnake.Embed(color=0, description=ans))
+
 
 bot.run(config.tokens["music"])

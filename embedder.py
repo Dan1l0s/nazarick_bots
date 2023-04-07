@@ -4,7 +4,7 @@ import helpers
 import config
 
 
-class embed:
+class Embed:
     def songs(self, inter, data, text):
         info = data
         if "entries" in info:
@@ -30,16 +30,16 @@ class embed:
                         value=helpers.get_nickname(inter.author), inline=True)
         return embed
 
-    def radio(self, title, source, duration):
+    def radio(self, data):
         embed = disnake.Embed(
-            title=title,
+            title=data['name'],
             description="Playing from ANISON.FM",
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["songs"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=source)
+        embed.set_author(name=data['source'])
         embed.add_field(name="*Duration*",
-                        value=helpers.get_duration(duration),
+                        value=helpers.get_duration(data['duration']),
                         inline=True)
         return embed
 

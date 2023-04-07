@@ -76,12 +76,11 @@ async def create_private(member):
     await tmp_channel.edit(bitrate=384000)
 
 
-async def unmute_client(member, tag):
-    client = member.guild.get_member(config.ids[tag])
-    if member == client:
-        if client.voice.mute:
+async def unmute_clients(member):
+    if member.id in config.ids:
+        if member.voice.mute:
             await member.edit(mute=False)
-        if client.voice.deaf:
+        if member.voice.deaf:
             await member.edit(deafen=False)
 
 
