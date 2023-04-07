@@ -1,5 +1,6 @@
 import config
 import disnake
+from datetime import datetime, timezone
 
 
 def is_admin(member):
@@ -82,3 +83,17 @@ async def unmute_client(member, tag):
             await member.edit(mute=False)
         if client.voice.deaf:
             await member.edit(deafen=False)
+
+
+async def unmute_admin(member):
+    if member.guild.id in config.supreme_beings_ids and member.id in config.supreme_beings_ids[member.guild.id]:
+        if member.voice.mute:
+            await member.edit(mute=False)
+        if member.voice.deaf:
+            await member.edit(deafen=False)
+        entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
+        entry = entry[1]
+        delta = datetime.now(timezone.utc) - entry.created_at
+        if entry.user != member and entry.user.id != config.ids["music"] and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
+            await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+            await entry.user.move_to(None)

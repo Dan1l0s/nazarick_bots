@@ -44,6 +44,7 @@ async def on_message(message):
                 else:
                     return await message.reply("At your service, my master.")
             else:
+                await message.author.timeout(duration=10, reason="Ping by lower life form")
                 return await message.reply(f"How dare you tag me? Know your place, trash")
 
 
@@ -83,6 +84,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
                 await before.channel.delete()
     if after.channel and member:
         await helpers.unmute_client(member, "music")
+        await helpers.unmute_admin(member)
 
 
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")
@@ -248,11 +250,23 @@ async def play(inter, query: str = commands.Param(description='Type a query or p
         await custom_play(inter, query)
 
 
+@bot.slash_command(description="Clears voice channel (authorized use only)")
+async def purge(inter):
+    if inter.author.id != config.admin_ids[inter.guild.id][0]:
+        return await inter.send("Authorized access, you are not the Greatest Supreme Being!")
+    for member in inter.author.voice.channel.members:
+        if member != inter.author and member.id not in config.ids.values():
+            await member.move_to(None)
+    await inter.send("Done!")
+    await asyncio.sleep(5)
+    await inter.delete_original_response()
+
+
 @ bot.slash_command(description="Pauses/resumes player")
 async def pause(inter: disnake.AppCmdInter):
     voice = inter.guild.voice_client
     try:
-        if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
+        if not inter.author.voice or inter.author.voice.channel != voice.channel:
             return await inter.send("You are not in my channel!")
         if voice.is_paused():
             voice.resume()
@@ -399,4 +413,4 @@ async def clear(inter: disnake.AppCmdInter, amount: int):
         return await inter.delete_original_response()
     return await inter.send(f"Unathorized attempt to clear messages!")
 
-bot.run(config.music_token)
+bot.run(config.tokens["music"])

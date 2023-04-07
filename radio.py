@@ -26,6 +26,7 @@ async def on_message(message):
                 else:
                     return await message.reply("At your service, my master.")
             else:
+                await message.author.timeout(10, reason="Ping by lower life form")
                 return await message.reply(f"How dare you tag me? Know your place, trash")
 
 
@@ -86,12 +87,12 @@ async def radio_message(inter, voice):
         duration = data_json["duration"] - 14
         new_name = re.search("151; (.+?)</span>", data_json['on_air']).group(1)
         if new_name == name:
-            await asyncio.sleep(duration - 1)
+            await asyncio.sleep(1)
             continue
         name = new_name
         anime = re.search("blank'>(.+?)</a>", data_json['on_air']).group(1)
         await inter.channel.send("", embed=embedder.radio(name, anime, duration))
-        await asyncio.sleep(duration - 1)
+        await asyncio.sleep(1)
 
 
 @bot.slash_command(description="Stops current playback")
@@ -111,4 +112,4 @@ async def stop(inter: disnake.AppCmdInter):
         # log.error(err, inter.guild)
         await inter.send("I am not playing anything!")
 
-bot.run(config.radio_token)
+bot.run(config.tokens["radio"])
