@@ -93,6 +93,6 @@ async def unmute_admin(member):
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id != config.ids["music"] and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
+        if entry.user != member and entry.user.id not in config.ids and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
             await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
             await entry.user.move_to(None)

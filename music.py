@@ -8,19 +8,11 @@ from player import Player
 import helpers
 import config
 
-songs_queue = {}
-curr_inter = {}
-
-skip_flag = {}
-repeat_flag = {}
-
-
 bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
 ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
 
 logger = Logger(True)
 embedder = Embed()
-
 player = Player(logger, embedder)
 
 
@@ -61,6 +53,21 @@ async def on_audit_log_entry_create(entry):
 
 @bot.event
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
+    if after.channel and after.channel.name == "Создать приват":
+        await helpers.create_private(member)
+    if before.channel:
+        if "'s private" in before.channel.name:
+            if len(before.channel.members) == 0:
+                await before.channel.delete()
+    if after.channel and member:
+        await helpers.unmute_clients(member)
+        await helpers.unmute_admin(member)
+
+    voice = member.guild.voice_client
+    if voice and before.channel and before.channel != after.channel:
+        if len(voice.channel.members) == 1:
+            await player.timeout(member.guild.id)
+
     if before.channel and after.channel:
         if before.channel.id != after.channel.id:
             logger.switched(member, before, after)
@@ -74,16 +81,6 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
     else:
         logger.connected(member, after)
         # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
-
-    if after.channel and after.channel.name == "Создать приват":
-        await helpers.create_private(member)
-    if before.channel:
-        if "'s private" in before.channel.name:
-            if len(before.channel.members) == 0:
-                await before.channel.delete()
-    if after.channel and member:
-        await helpers.unmute_clients(member)
-        await helpers.unmute_admin(member)
 
 
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")

@@ -188,7 +188,6 @@ class Player:
             await inter.send("DJ decided to stop!")
 
         except Exception as err:
-            print('error')
             self.logger.error(err, inter.guild)
             await inter.send("I am not playing anything!")
 
@@ -284,6 +283,22 @@ class Player:
                 await inter.send("I am not playing anything!")
         except Exception as err:
             await inter.send("I am not playing anything!")
+
+    async def timeout(self, guild_id):
+        message = await self.curr_inter[guild_id].channel.send("I am left alone, I will leave VC in 30 seconds!")
+        try:
+            for i in range(30):
+                voice = self.curr_inter[guild_id].guild.voice_client
+                if not voice.channel or len(voice.channel.members) > 1:
+                    await message.delete()
+                    return
+                await asyncio.sleep(1)
+        except Exception as err:
+            self.logger.error(err, self.curr_inter[guild_id])
+        voice.stop()
+        await voice.disconnect()
+        self.songs_queue[guild_id].clear()
+        await self.curr_inter[guild_id].channel.send("Finished playing music!")
 
     def help(self):
         ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"

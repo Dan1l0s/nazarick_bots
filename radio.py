@@ -9,6 +9,7 @@ import helpers
 
 bot = commands.InteractionBot(intents=disnake.Intents.all(
 ), activity=disnake.Activity(name="/radio", type=disnake.ActivityType.listening))
+
 logger = Logger(True)
 embedder = Embed()
 player = RadioPlayer(logger, embedder)
@@ -27,6 +28,14 @@ async def on_message(message):
             else:
                 await message.author.timeout(10, reason="Ping by lower life form")
                 return await message.reply(f"How dare you tag me? Know your place, trash")
+
+
+@bot.event
+async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
+    voice = member.guild.voice_client
+    if voice and before.channel and before.channel != after.channel:
+        if len(voice.channel.members) == 1:
+            await player.timeout(member.guild.id)
 
 
 @bot.event

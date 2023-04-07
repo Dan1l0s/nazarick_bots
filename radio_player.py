@@ -11,6 +11,7 @@ import helpers
 class RadioPlayer:
     logger = None
     embedder = None
+    curr_inter = {}
 
     def __init__(self, logger, embedder):
         self.logger = logger
@@ -44,6 +45,7 @@ class RadioPlayer:
             return await inter.send('Seems like your channel is unavailable :c')
 
         await inter.delete_original_response()
+        self.curr_inter[inter.guild.id] = inter
 
         if not voice.is_playing():
             voice.play(disnake.FFmpegPCMAudio(
@@ -84,3 +86,19 @@ class RadioPlayer:
             await inter.channel.send("", embed=self.embedder.radio(data))
             self.logger.radio(inter, data)
             await asyncio.sleep(1)
+
+    async def timeout(self, guild_id):
+        message = await self.curr_inter[guild_id].channel.send("I am left alone, I will leave VC in 30 seconds!")
+        try:
+            for i in range(30):
+                voice = self.curr_inter[guild_id].guild.voice_client
+                if not voice.channel or len(voice.channel.members) > 1:
+                    await message.delete()
+                    return
+                await asyncio.sleep(1)
+        except Exception as err:
+            self.logger.error(err, self.curr_inter[guild_id])
+        await voice.stop()
+        await voice.disconnect()
+        self.songs_queue[guild_id].clear()
+        await self.curr_inter[guild_id].channel.send("Finished playing music!")
