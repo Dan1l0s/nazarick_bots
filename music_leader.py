@@ -8,11 +8,10 @@ import config
 
 
 class MusicBotLeader(MusicBotInstance):
-    instances = None
+    instances = []
 
     def __init__(self, name, logger):
         MusicBotInstance.__init__(self, name, logger)
-        self.instances = []
         self.instances.append(self)
 
         @self.bot.event
@@ -22,12 +21,12 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             self.log_voice_state_update(member, before, after)
-            if await self.manager_private(member, before, after):
+            if await self.temp_channels(member, before, after):
                 return
-            if await self.umute_clients(member, before, after):
+            if await self.unmute_clients(member, before, after):
                 return
             for instance in self.instances:
-                await instance.check_timout(member, before, after)
+                await instance.check_timeout(member, before, after)
 
         @self.bot.event
         async def on_message(message):
@@ -63,40 +62,58 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
             await self.empty_response(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            # Проверьте функцию find_instance, вместо self.instances[0] будет возвращаемая ею.
             new_inter = Interaction(inter, self.instances[0].bot)
             await self.instances[0].play(new_inter, query)
 
-        @self.bot.slash_command(description="Pauses/resumes self.player")
+        @self.bot.slash_command(description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
-            await self.player.pause(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].pause(new_inter)
 
         @self.bot.slash_command(description="Repeats current song")
         async def repeat(inter: disnake.AppCmdInter):
-            await self.player.repeat(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].repeat(new_inter)
 
         @self.bot.slash_command(description="Clears queue and disconnects bot")
         async def stop(inter: disnake.AppCmdInter):
-            await self.player.stop(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].stop(new_inter)
 
         @self.bot.slash_command(description="Skips current song")
         async def skip(inter: disnake.AppCmdInter):
-            await self.player.skip(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].skip(new_inter)
 
         @self.bot.slash_command(description="Shows current queue")
         async def queue(inter):
-            await self.player.queue(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].queue(new_inter)
 
         @self.bot.slash_command(description="Removes last added song from queue")
         async def wrong(inter: disnake.AppCmdInter):
-            await self.player.wrong(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].wrong(new_inter)
 
         @self.bot.slash_command(description="Shuffles current queue")
         async def shuffle(inter: disnake.AppCmdInter):
-            await self.player.shuffle(inter)
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            await self.instances[0].shuffle(new_inter)
 
         @self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):
-            ans = self.player.help()
+            # TODO: функция для поиска свободной инстанции бота
+            new_inter = Interaction(inter, self.instances[0].bot)
+            ans = self.instances[0].help()
             await inter.send(embed=disnake.Embed(color=0, description=ans))
 
     def add_instance(self, bot):
@@ -104,7 +121,7 @@ class MusicBotLeader(MusicBotInstance):
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-    async def manager_private(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+    async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         if after.channel and after.channel.name == "Создать приват":
             await helpers.create_private(member)
             return True
@@ -113,7 +130,7 @@ class MusicBotLeader(MusicBotInstance):
             return True
         return False
 
-    async def umute_clients(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+    async def unmute_clients(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         if after.channel:
             await helpers.unmute_bots(member)
             await helpers.unmute_admin(member)
@@ -170,3 +187,16 @@ class MusicBotLeader(MusicBotInstance):
         await inter.edit_original_response("Done!")
         await asyncio.sleep(5)
         await inter.delete_original_response()
+
+    async def find_instance(self, inter):
+        guild = inter.guild
+        for instance in self.instances:
+            if guild in instance.guilds:
+                voice = instance.bot.get_guild(inter.guild.id).voice_client
+                if not voice or not voice.is_connected():
+                    return instance
+        if not helpers.is_admin(inter.author):
+            return None
+        for instance in self.instances:
+            if guild in instance.guilds:
+                return instance

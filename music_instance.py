@@ -10,14 +10,6 @@ import config
 import helpers
 from embedder import Embed
 from selection import SelectionPanel
-from enum import Enum
-
-
-class State(Enum):
-    Playing = 1
-    Paused = 2
-    Timeout = 3
-    Afk = 4
 
 
 class Info():
@@ -39,150 +31,10 @@ class Interaction():
         self.channel = bot.get_partial_messageable(inter.channel.id)
 
 
-class Player:
-    songs_queue = {}
-    curr_inter = {}
-    skip_flag = {}
-    repeat_flag = {}
-    logger = None
-    embedder = None
-
-    def __init__(self, logger, embedder):
-        self.logger = logger
-        self.embedder = embedder
-
-    async def stop(self, inter):
-        voice = inter.guild.voice_client
-        try:
-            if not voice:
-                return await inter.send("I am not playing anything!")
-
-            if (not inter.author.voice or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-                return await inter.send("You are not in my channel!")
-
-            if inter.guild.id in self.songs_queue:
-                self.songs_queue[inter.guild.id].clear()
-            self.repeat_flag[inter.guild.id] = False
-            self.skip_flag[inter.guild.id] = False
-
-            self.logger.finished(inter)
-            voice.stop()
-            await voice.disconnect()
-            await inter.send("DJ decided to stop!")
-
-        except Exception as err:
-            self.logger.error(err, inter.guild)
-            await inter.send("I am not playing anything!")
-
-    async def pause(self, inter):
-        voice = inter.guild.voice_client
-        try:
-            if not inter.author.voice or inter.author.voice.channel != voice.channel:
-                return await inter.send("You are not in my channel!")
-            if voice.is_paused():
-                voice.resume()
-                await inter.send("Player resumed!")
-
-            else:
-                voice.pause()
-                await inter.send("Player paused!")
-
-        except Exception as err:
-            self.logger.error(err, inter.guild)
-            await inter.send("I am not playing anything!")
-
-    async def repeat(self, inter):
-        voice = inter.guild.voice_client
-        if not voice:
-            return await inter.send("I am not playing anything!")
-        if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
-            return await inter.send("You are not in my channel!")
-        if self.repeat_flag[inter.guild.id]:
-            self.repeat_flag[inter.guild.id] = False
-            await inter.send("Repeat mode is off!")
-        else:
-            self.repeat_flag[inter.guild.id] = True
-            await inter.send("Repeat mode is on!")
-
-    async def skip(self, inter):
-        voice = inter.guild.voice_client
-        if not voice:
-            return await inter.send("I am not playing anything!")
-        try:
-            if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-                return await inter.send("You are not in my channel!")
-            self.skip_flag[inter.guild.id] = True
-            self.logger.skip(inter)
-            await inter.send("Skipped current track!")
-        except Exception as err:
-            self.logger.error(err, inter.guild)
-            await inter.send("I am not playing anything!")
-
-    async def queue(self, inter):
-        try:
-            if len(self.songs_queue[inter.guild.id]) > 0:
-                cnt = 1
-                ans = "```Queue:"
-                for track in self.songs_queue[inter.guild.id][:15]:
-                    if "live_status" in track and track['live_status'] == "is_live":
-                        duration = "Live"
-                    else:
-                        duration = helpers.get_duration(track)
-                    ans += f"\n{cnt}) {track['title']}, duration: {duration}"
-                    cnt += 1
-                ans += "```"
-                await inter.send(ans)
-            else:
-                await inter.send("There are no songs in the queue!")
-        except Exception as err:
-            self.logger.error(err, inter.guild)
-            await inter.send("I am not playing anything!")
-
-    async def wrong(self, inter):
-        voice = inter.guild.voice_client
-        try:
-            if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-                return await inter.send("You are not in my channel!")
-            if len(self.songs_queue[inter.guild.id]) > 0:
-                title = self.songs_queue[inter.guild.id][-1]['title']
-                self.songs_queue[inter.guild.id].pop(-1)
-                await inter.send(f"Removed {title} from queue!")
-        except Exception as err:
-            self.logger.error(err, inter.guild)
-            await inter.send("I am not playing anything!")
-
-    async def shuffle(self, inter):
-        voice = inter.guild.voice_client
-        try:
-            if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
-                return await inter.send("You are not in my channel!")
-            if len(self.songs_queue[inter.guild.id]) > 1:
-                random.shuffle(self.songs_queue[inter.guild.id])
-                await inter.send("Shuffle completed successfully!")
-            elif len(self.songs_queue[inter.guild.id]) == 1:
-                await inter.send("There are no tracks to shuffle!")
-            else:
-                await inter.send("I am not playing anything!")
-        except Exception as err:
-            await inter.send("I am not playing anything!")
-
-    def help(self):
-        ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"
-        ans += "Type /stop to stop playback\n"
-        ans += "Type /skip to skip current track\n"
-        ans += "Type /queue to print current queue\n"
-        ans += "Type /shuffle to shuffle tracks in the queue\n"
-        ans += "Type /wrong to remove last added track\n"
-        ans += "Type /repeat to toogle repeat mode for current track\n"
-        ans += "Type /pause to pause/resume playback"
-        return ans
-
-
 class MusicBotInstance:
     bot = None
     name = None
     logger = None
-    player = None
     embedder = None
     infos = {}
 
@@ -194,7 +46,6 @@ class MusicBotInstance:
         self.name = name
         self.logger = logger
         self.embedder = Embed()
-        self.player = Player(logger, self.embedder)
         print(self.bot)
 
         @self.bot.event
@@ -208,6 +59,10 @@ class MusicBotInstance:
         @self.bot.event
         async def on_guild_join(guild):
             self.infos[guild.id] = Info()
+
+        @self.bot.event
+        async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
+            await self.check_timeout(member, before, after)
 
     async def run(self):
         await self.bot.start(config.tokens[self.name])
@@ -350,12 +205,10 @@ class MusicBotInstance:
             self.add_from_playlist(inter, url)
             await tmp_message.delete()
 
-    async def check_timout(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+    async def check_timeout(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         voice = member.guild.voice_client
         if voice and before.channel and before.channel != after.channel and len(voice.channel.members) == 1:
-            await self.player.timeout(member.guild.id)
-            return True
-        return False
+            await self.timeout(member.guild.id)
 
     def add_from_playlist(self, inter, url):
         info = self.infos[inter.guild.id]
@@ -366,3 +219,154 @@ class MusicBotInstance:
             info.songs_queue.append(playlist_info['entries'][i])
         if not inter.guild.voice_client or not inter.guild.voice_client.is_connected():
             info.songs_queue.clear()
+
+    def help(self):
+        ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"
+        ans += "Type /stop to stop playback\n"
+        ans += "Type /skip to skip current track\n"
+        ans += "Type /queue to print current queue\n"
+        ans += "Type /shuffle to shuffle tracks in the queue\n"
+        ans += "Type /wrong to remove last added track\n"
+        ans += "Type /repeat to toogle repeat mode for current track\n"
+        ans += "Type /pause to pause/resume playback"
+        return ans
+
+    async def timeout(self, guild_id):
+        message = await self.curr_inter[guild_id].channel.send("I am left alone, I will leave VC in 30 seconds!")
+        voice = self.curr_inter[guild_id].guild.voice_client
+        try:
+            for i in range(30):
+                if not voice.channel or len(voice.channel.members) > 1:
+                    await message.delete()
+                    return
+                await asyncio.sleep(1)
+        except Exception as err:
+            self.logger.error(err, self.curr_inter[guild_id].guild)
+        voice.stop()
+        await voice.disconnect()
+        self.songs_queue[guild_id].clear()
+        await self.curr_inter[guild_id].channel.send("Finished playing music!")
+
+    async def stop(self, inter):
+        info = self.infos[inter.guild.id]
+        voice = inter.guild.voice_client
+        try:
+            if not voice:
+                return await inter.channel.send("I am not playing anything!")
+
+            if (not inter.author.voice or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+                return await inter.channel.send("You are not in my channel!")
+
+            if inter.guild.id in info.songs_queue:
+                info.songs_queue[inter.guild.id].clear()
+            info.repeat_flag[inter.guild.id] = False
+            info.skip_flag[inter.guild.id] = False
+
+            info.logger.finished(inter)
+            voice.stop()
+            await voice.disconnect()
+            await inter.channel.send("DJ decided to stop!")
+
+        except Exception as err:
+            self.logger.error(err, inter.guild)
+            await inter.channel.send("I am not playing anything!")
+
+    async def pause(self, inter):
+        voice = inter.guild.voice_client
+        try:
+            if not inter.author.voice or inter.author.voice.channel != voice.channel:
+                return await inter.channel.send("You are not in my channel!")
+            if voice.is_paused():
+                voice.resume()
+                await inter.channel.send("Player resumed!")
+
+            else:
+                voice.pause()
+                await inter.channel.send("Player paused!")
+
+        except Exception as err:
+            self.logger.error(err, inter.guild)
+            await inter.channel.send("I am not playing anything!")
+
+    async def repeat(self, inter):
+        info = self.infos[inter.guild.id]
+        voice = inter.guild.voice_client
+        if not voice:
+            return await inter.channel.send("I am not playing anything!")
+        if not inter.author.voice.channel or inter.author.voice.channel != voice.channel:
+            return await inter.channel.send("You are not in my channel!")
+        if info.repeat_flag[inter.guild.id]:
+            info.repeat_flag[inter.guild.id] = False
+            await inter.channel.send("Repeat mode is off!")
+        else:
+            info.repeat_flag[inter.guild.id] = True
+            await inter.channel.send("Repeat mode is on!")
+
+    async def skip(self, inter):
+        info = self.infos[inter.guild.id]
+        voice = inter.guild.voice_client
+        if not voice:
+            return await inter.channel.send("I am not playing anything!")
+        try:
+            if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+                return await inter.channel.send("You are not in my channel!")
+            info.skip_flag[inter.guild.id] = True
+            info.logger.skip(inter)
+            await inter.channel.send("Skipped current track!")
+        except Exception as err:
+            self.logger.error(err, inter.guild)
+            await inter.channel.send("I am not playing anything!")
+
+    async def queue(self, inter):
+        info = self.infos[inter.guild.id]
+        try:
+            if len(info.songs_queue[inter.guild.id]) > 0:
+                cnt = 1
+                ans = "```Queue:"
+                for track in info.songs_queue[inter.guild.id][:15]:
+                    if "live_status" in track and track['live_status'] == "is_live":
+                        duration = "Live"
+                    else:
+                        duration = helpers.get_duration(track)
+                    ans += f"\n{cnt}) {track['title']}, duration: {duration}"
+                    cnt += 1
+                ans += "```"
+                await inter.channel.send(ans)
+            else:
+                await inter.channel.send("There are no songs in the queue!")
+        except Exception as err:
+            self.logger.error(err, inter.guild)
+            await inter.channel.send("I am not playing anything!")
+
+    async def wrong(self, inter):
+        info = self.infos[inter.guild.id]
+        voice = inter.guild.voice_client
+        try:
+            if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+                return await inter.channel.send("You are not in my channel!")
+            if len(info.songs_queue[inter.guild.id]) > 0:
+                title = info.songs_queue[inter.guild.id][-1]['title']
+                info.songs_queue[inter.guild.id].pop(-1)
+                await inter.channel.send(f"Removed {title} from queue!")
+            else:
+                await inter.channel.send("There are no songs in the queue!")
+        except Exception as err:
+            self.logger.error(err, inter.guild)
+            await inter.channel.send("I am not playing anything!")
+
+    async def shuffle(self, inter):
+        info = self.infos[inter.guild.id]
+        voice = inter.guild.voice_client
+        try:
+            if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
+                return await inter.channel.send("You are not in my channel!")
+            if len(info.songs_queue[inter.guild.id]) > 1:
+                random.shuffle(self.songs_queue[inter.guild.id])
+                await inter.channel.send("Shuffle completed successfully!")
+            elif len(info.songs_queue[inter.guild.id]) == 1:
+                await inter.channel.send("There are no tracks to shuffle!")
+            else:
+                await inter.send("I am not playing anything!")
+        except Exception as err:
+            self.logger.error(err, inter.guild.id)
+            await inter.channel.send("I am not playing anything!")
