@@ -1,23 +1,16 @@
+from multiprocessing import Process
+from music_leader import MusicBotLeader
+from music_instance import MusicBotInstance
+from logger import Logger
 from threading import Thread
-import subprocess
+import asyncio
 
 
-def start_music():
-    subprocess.run('python music.py', shell=True)
+async def main():
+    logger = Logger(True)
+    music_leader = MusicBotLeader("MusicLeader", logger)
+    music_instance = MusicBotInstance("MusicInstance", logger)
+    music_leader.add_instance(music_instance)
+    await asyncio.gather(music_leader.run(), music_instance.run())
 
-
-def start_radio():
-    subprocess.run('python radio.py', shell=True)
-
-
-def start_reserve_music():
-    subprocess.run('python music_reserve.py', shell=True)
-
-
-music = Thread(target=start_music)
-radio = Thread(target=start_radio)
-reserve_music = Thread(target=start_reserve_music)
-
-music.start()
-radio.start()
-reserve_music.start()
+asyncio.run(main())
