@@ -95,7 +95,7 @@ class Player:
                         self.songs_queue[inter.guild.id].insert(
                             0, current_track)
 
-                    if len(self.songs_queue[inter.guild.id]) == 0 and not inter.guild.voice_client:
+                    if not voice.is_connected():
                         break
             except Exception as err:
                 self.logger.error(err, inter.guild)
@@ -152,7 +152,7 @@ class Player:
             message = await inter.edit_original_response(view=view)
             try:
                 for i in range(30):
-                    if not inter.guild.voice_client:
+                    if not voice:
                         return await message.delete()
                     await asyncio.sleep(1)
 
@@ -223,15 +223,14 @@ class Player:
 
     async def skip(self, inter):
         voice = inter.guild.voice_client
+        if not voice:
+            return await inter.send("I am not playing anything!")
         try:
             if (not inter.author.voice.channel or inter.author.voice.channel != voice.channel) and len(voice.channel.members) > 1:
                 return await inter.send("You are not in my channel!")
-            if len(self.songs_queue[inter.guild.id]) >= 0:
-                self.skip_flag[inter.guild.id] = True
-                self.logger.skip(inter)
-                await inter.send("Skipped current track!")
-            else:
-                await inter.send("I am not playing anything!")
+            self.skip_flag[inter.guild.id] = True
+            self.logger.skip(inter)
+            await inter.send("Skipped current track!")
         except Exception as err:
             self.logger.error(err, inter.guild)
             await inter.send("I am not playing anything!")
@@ -245,7 +244,7 @@ class Player:
                     if "live_status" in track and track['live_status'] == "is_live":
                         duration = "Live"
                     else:
-                        duration = helpers.get_duration(track['duration'])
+                        duration = helpers.get_duration(track)
                     ans += f"\n{cnt}) {track['title']}, duration: {duration}"
                     cnt += 1
                 ans += "```"
@@ -286,15 +285,15 @@ class Player:
 
     async def timeout(self, guild_id):
         message = await self.curr_inter[guild_id].channel.send("I am left alone, I will leave VC in 30 seconds!")
+        voice = self.curr_inter[guild_id].guild.voice_client
         try:
             for i in range(30):
-                voice = self.curr_inter[guild_id].guild.voice_client
                 if not voice.channel or len(voice.channel.members) > 1:
                     await message.delete()
                     return
                 await asyncio.sleep(1)
         except Exception as err:
-            self.logger.error(err, self.curr_inter[guild_id])
+            self.logger.error(err, self.curr_inter[guild_id].guild)
         voice.stop()
         await voice.disconnect()
         self.songs_queue[guild_id].clear()

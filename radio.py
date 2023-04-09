@@ -18,7 +18,7 @@ player = RadioPlayer(logger, embedder)
 @bot.event
 async def on_message(message):
     if len(message.role_mentions) > 0 or len(message.mentions) > 0:
-        client = message.guild.get_member(config.ids["radio"])
+        client = message.guild.get_member(config.bot_ids["radio"])
         if helpers.is_mentioned(client, message):
             if helpers.is_admin(message.author):
                 if "ping" in message.content or "пинг" in message.content:
@@ -45,8 +45,8 @@ async def on_ready():
 
 
 @bot.slash_command(description="Plays songs from Anison.FM")
-async def radio(inter):
-    await player.radio(inter)
+async def radio(inter, url=config.radio_url):
+    await player.radio(inter, url)
 
 
 @bot.slash_command(description="Stops current playback")

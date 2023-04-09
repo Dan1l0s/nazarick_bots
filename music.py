@@ -27,7 +27,7 @@ async def on_message(message):
             pass
 
     if len(message.role_mentions) > 0 or len(message.mentions) > 0:
-        client = message.guild.get_member(config.ids["music"])
+        client = message.guild.get_member(config.bot_ids["music"])
         if helpers.is_mentioned(client, message):
             if helpers.is_admin(message.author):
                 if "ping" in message.content.lower() or "пинг" in message.content.lower():
@@ -55,11 +55,10 @@ async def on_audit_log_entry_create(entry):
 async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
     if after.channel and after.channel.name == "Создать приват":
         await helpers.create_private(member)
-    if before.channel:
-        if "'s private" in before.channel.name:
-            if len(before.channel.members) == 0:
-                await before.channel.delete()
-    if after.channel and member:
+    if before.channel and "'s private" in before.channel.name:
+        if len(before.channel.members) == 0:
+            await before.channel.delete()
+    if after.channel:
         await helpers.unmute_clients(member)
         await helpers.unmute_admin(member)
 
@@ -100,10 +99,13 @@ async def bitrate(inter):
 @bot.slash_command(description="Clears voice channel (authorized use only)")
 async def purge(inter):
     if inter.author.id != config.admin_ids[inter.guild.id][0]:
-        return await inter.send("Authorized access, you are not the Greatest Supreme Being!")
+        return await inter.send("Unauthorized access, you are not the Greatest Supreme Being!")
+    tasks = []
     for member in inter.author.voice.channel.members:
-        if member != inter.author and member.id not in config.ids.values():
-            await member.move_to(None)
+        if member != inter.author and member.id not in config.bot_ids.values():
+            tasks.append(member.move_to(None))
+    await asyncio.gather(*tasks)
+
     await inter.send("Done!")
     await asyncio.sleep(5)
     await inter.delete_original_response()

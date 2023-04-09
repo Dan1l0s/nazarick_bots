@@ -16,10 +16,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["songs"]),
             timestamp=datetime.datetime.now())
-        if "live_status" in info and info['live_status'] == "is_live":
-            duration = "Live"
-        else:
-            duration = helpers.get_duration(info['duration'])
+        duration = helpers.get_duration(info)
 
         embed.set_author(name=info['uploader'])
         embed.set_thumbnail(
@@ -39,7 +36,7 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=data['source'])
         embed.add_field(name="*Duration*",
-                        value=helpers.get_duration(data['duration']),
+                        value=helpers.get_duration(data),
                         inline=True)
         return embed
 

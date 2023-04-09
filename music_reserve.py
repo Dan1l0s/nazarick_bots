@@ -19,7 +19,7 @@ player = Player(logger, embedder)
 @bot.event
 async def on_message(message):
     if len(message.role_mentions) > 0 or len(message.mentions) > 0:
-        client = message.guild.get_member(config.ids["music_reserve"])
+        client = message.guild.get_member(config.bot_ids["music_reserve"])
         if helpers.is_mentioned(client, message):
             if helpers.is_admin(message.author):
                 if "ping" in message.content.lower() or "пинг" in message.content.lower():

@@ -17,7 +17,7 @@ class RadioPlayer:
         self.logger = logger
         self.embedder = embedder
 
-    async def radio(self, inter):
+    async def radio(self, inter, url):
         await inter.response.defer()
         voice = inter.guild.voice_client
         try:
@@ -46,10 +46,10 @@ class RadioPlayer:
 
         await inter.delete_original_response()
         self.curr_inter[inter.guild.id] = inter
-
-        if not voice.is_playing():
-            voice.play(disnake.FFmpegPCMAudio(
-                source=config.radio_url, **config.FFMPEG_OPTIONS))
+        voice.stop()
+        voice.play(disnake.FFmpegPCMAudio(
+            source=url, **config.FFMPEG_OPTIONS))
+        if (url == config.radio_url):
             await self.radio_message(inter, voice)
 
     async def stop(self, inter):

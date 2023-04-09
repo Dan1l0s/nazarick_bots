@@ -1,6 +1,7 @@
 import config
 import disnake
 from datetime import datetime, timezone
+import time
 
 
 def is_admin(member):
@@ -16,31 +17,11 @@ def get_nickname(member):
         return member.name
 
 
-def get_duration(duration):
-    ans = ""
-    hours = duration // 3600
-    minutes = (duration // 60) - hours*60
-    seconds = duration % 60
-    if hours == 0:
-        ans += "00"
-    elif hours < 10:
-        ans += "0"+str(hours)
+def get_duration(info):
+    if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
+        ans = "Live"
     else:
-        ans += str(hours)
-
-    if minutes == 0:
-        ans += ":00"
-    elif minutes < 10:
-        ans += ":0"+str(minutes)
-    else:
-        ans += ":"+str(minutes)
-
-    if seconds == 0:
-        ans += ":00"
-    elif seconds < 10:
-        ans += ":0"+str(seconds)
-    else:
-        ans += ":"+str(seconds)
+        ans = time.strftime('%H:%M:%S', time.gmtime(info['duration']))
     return ans
 
 
@@ -62,9 +43,7 @@ async def create_private(member):
 
     tmp_channel = await category.create_voice_channel(name=possible_channel_name)
 
-    perms = tmp_channel.overwrites_for(guild.default_role)
-    perms.view_channel = False
-    await tmp_channel.set_permissions(guild.default_role, overwrite=perms)
+    await tmp_channel.set_permissions(guild.default_role, view_channel=False)
 
     await member.move_to(tmp_channel)
 
@@ -77,7 +56,7 @@ async def create_private(member):
 
 
 async def unmute_clients(member):
-    if member.id in config.ids:
+    if member.id in config.bot_ids.values():
         if member.voice.mute:
             await member.edit(mute=False)
         if member.voice.deaf:
@@ -93,6 +72,6 @@ async def unmute_admin(member):
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id not in config.ids and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
-            await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+        if entry.user != member and entry.user.id not in config.bot_ids and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
             await entry.user.move_to(None)
+            await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
