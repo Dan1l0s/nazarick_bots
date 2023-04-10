@@ -29,6 +29,7 @@ class Interaction():
         self.guild = bot.get_guild(inter.guild.id)
         self.author = self.guild.get_member(inter.author.id)
         self.channel = bot.get_partial_messageable(inter.channel.id)
+        self.response = inter
 
 
 class GuildState():
@@ -95,12 +96,12 @@ class MusicBotInstance:
             pass
         state.task = None
 
-    async def process_song_query(self, guild_id, query):
+    async def process_song_query(self, inter, query):
         print("Proc query")
         if not "https://" in query:
-            return await self.select_song(guild_id, query)
+            return await self.select_song(inter, query)
         else:
-            await self.add_from_url_to_queue(guild_id, query)
+            await self.add_from_url_to_queue(inter.guild.id, query)
 
     async def add_from_url_to_queue(self, guild_id, url):
         print("add_from_url_to_queue")
@@ -123,14 +124,15 @@ class MusicBotInstance:
                 track_info['original_message'] = None
             self.logger.added(task.curr_inter, track_info)
 
-    async def select_song(self, guild_id, query):
+    async def select_song(self, inter, query):
         print("Selecting song")
-        task = self.states[guild_id].task
+        task = self.states[inter.guild.id].task
         songs = YoutubeSearch(query, max_results=5).to_dict()
         view = disnake.ui.View(timeout=30)
         select = SelectionPanel(songs, self.add_from_url_to_queue,
-                                task.curr_inter.author, guild_id)
+                                task.curr_inter.author, inter.guild.id)
         view.add_item(select)
+        await inter.response.delete_original_response()
         message = await task.curr_inter.channel.send(view=view)
         # TODO: Try find another timeout mechanism
         try:
@@ -155,7 +157,7 @@ class MusicBotInstance:
 
         voice = inter.guild.voice_client
         if state.task and voice.channel == user_channel:
-            await self.process_song_query(inter.guild.id, query)
+            await self.process_song_query(inter, query)
             return
         elif state.task:
             voice.stop()
@@ -166,7 +168,7 @@ class MusicBotInstance:
         state.task = PlayTask()
         task = state.task
         task.curr_inter = inter
-        await self.process_song_query(inter.guild.id, query)
+        await self.process_song_query(inter, query)
 
         asyncio.create_task(self.play_loop(inter.guild.id))
 
@@ -176,9 +178,9 @@ class MusicBotInstance:
         try:
             print("Alive")
             while True:
-                if not task.song_queue:  
+                if not task.song_queue:
                     await self.abort_task(guild_id)
-                    break;
+                    break
                 current_track = task.song_queue[0]
                 task.song_queue.pop(0)
                 link = current_track.get("url", None)
@@ -268,7 +270,7 @@ class MusicBotInstance:
             await inter.channel.send("Player paused!")
 
     async def repeat(self, inter):
-        task = self.states[inter.guild.id]
+        task = self.states[inter.guild.id].task
         if not task:
             return
 
@@ -280,7 +282,8 @@ class MusicBotInstance:
             await inter.channel.send("Repeat mode is on!")
 
     async def skip(self, inter):
-        task = self.states[inter.guild.id]
+        task = self.states[inter.guild.id].task
+        await inter.response.delete_original_message()
         if not task:
             return
         task.skip_flag = True

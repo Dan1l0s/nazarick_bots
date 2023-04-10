@@ -65,7 +65,7 @@ class MusicBotLeader(MusicBotInstance):
             assigned_instance = self.instances[0]
             new_inter = Interaction(inter, assigned_instance.bot)
             await assigned_instance.play(new_inter, query)
-            await inter.delete_original_response()
+            # await inter.delete_original_response()
 
         @self.bot.slash_command(description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
@@ -88,6 +88,7 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.slash_command(description="Skips current song")
         async def skip(inter: disnake.AppCmdInter):
             # TODO: функция для поиска свободной инстанции бота
+            await inter.response.defer()
             new_inter = Interaction(inter, self.instances[0].bot)
             await self.instances[0].skip(new_inter)
 
