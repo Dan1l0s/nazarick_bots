@@ -11,7 +11,7 @@ class MusicBotLeader(MusicBotInstance):
     instances = []
 
     def __init__(self, name, logger):
-        MusicBotInstance.__init__(self, name, logger)
+        super().__init__(name, logger)
         self.instances.append(self)
 
         @self.bot.event
@@ -21,10 +21,10 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             self.log_voice_state_update(member, before, after)
-            if await self.temp_channels(member, before, after):
-                return
-            if await self.unmute_clients(member, before, after):
-                return
+            # if await self.temp_channels(member, before, after):
+            #     return
+            # if await self.unmute_clients(member, before, after):
+            #     return
             for instance in self.instances:
                 await instance.check_timeout(member, before, after)
 
@@ -61,11 +61,11 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
-            await self.empty_response(inter)
-            # TODO: функция для поиска свободной инстанции бота
-            # Проверьте функцию find_instance, вместо self.instances[0] будет возвращаемая ею.
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].play(new_inter, query)
+            await inter.response.defer()
+            assigned_instance = self.instances[0]
+            new_inter = Interaction(inter, assigned_instance.bot)
+            await assigned_instance.play(new_inter, query)
+            await inter.delete_original_response()
 
         @self.bot.slash_command(description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
@@ -174,7 +174,17 @@ class MusicBotLeader(MusicBotInstance):
                     await message.author.timeout(duration=10, reason="Ping by lower life form")
                     return await message.reply(f"How dare you tag me? Know your place, trash")
 
+# *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
+
+    def get_available_instance(self, guild_id):
+        for instance in self.isinstances:
+            if instance.available(guild_id):
+                return instance
+        return None
+
+
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def set_bitrate(self, inter, desired_bitrate):
         if not helpers.is_admin(inter.author):
@@ -193,7 +203,12 @@ class MusicBotLeader(MusicBotInstance):
         for instance in self.instances:
             if guild in instance.guilds:
                 voice = instance.bot.get_guild(inter.guild.id).voice_client
-                if not voice or not voice.is_connected():
+                if voice and voice.channel == inter.author.voice.channel:
+                    return instance
+        for instance in self.instances:
+            if guild in instance.guilds:
+                voice = instance.bot.get_guild(inter.guild.id).voice_client
+                if not voice or not voice.is_connected() or len(voice.channel.members) == 1:
                     return instance
         if not helpers.is_admin(inter.author):
             return None
