@@ -43,10 +43,10 @@ class Logger:
                 f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
         f.close()
 
-    def added(self, inter, track):
+    def added(self, guild, track):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {track['title']} to queue with duration of {helpers.get_duration(track)}\n")
@@ -106,13 +106,106 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} left VC {before.channel.name}\n")
         f.close()
 
-    def voice_update(self, member):
+    def log_voice_state_update(self, member, before, after):
+        if before.channel and after.channel:
+            if before.channel.id != after.channel.id:
+                self.switched(member, before, after)
+            else:
+                if before.deaf != after.deaf:
+                    if before.deaf:
+                        self.guild_undeafened(member)
+                    else:
+                        self.guild_deafened(member)
+                elif before.mute != after.mute:
+                    if before.mute:
+                        self.guild_unmuted(member)
+                    else:
+                        self.guild_muted(member)
+                elif before.self_deaf != after.self_deaf:
+                    if before.self_deaf:
+                        self.undeafened(member)
+                    else:
+                        self.deafened(member)
+                elif before.self_mute != after.self_mute:
+                    if before.self_mute:
+                        self.unmuted(member)
+                    else:
+                        self.muted(member)
+        elif before.channel:
+            self.disconnected(member, before)
+        else:
+            self.connected(member, after)
+
+    def guild_deafened(self, member):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} updated their voice state\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was deafened by guild admin\n")
+        f.close()
+
+    def guild_undeafened(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was undeafened by guild admin\n")
+        f.close()
+
+    def guild_muted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was muted by guild admin\n")
+        f.close()
+
+    def guild_unmuted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was unmuted by guild admin\n")
+        f.close()
+
+    def deafened(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} deafened themself\n")
+        f.close()
+
+    def undeafened(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} undeafened themself\n")
+        f.close()
+
+    def muted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} muted themself\n")
+        f.close()
+
+    def unmuted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} unmuted themself\n")
         f.close()
 
     def get_path(self, dir_name: str):

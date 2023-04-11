@@ -67,19 +67,7 @@ async def on_voice_state_update(member, before: disnake.VoiceState, after: disna
         if len(voice.channel.members) == 1:
             await player.timeout(member.guild.id)
 
-    if before.channel and after.channel:
-        if before.channel.id != after.channel.id:
-            logger.switched(member, before, after)
-            # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.switched(member, before, after))
-        else:
-            logger.voice_update(member)
-            # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.voice_update(member))
-    elif before.channel:
-        logger.disconnected(member, before)
-        # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.disconnected(member, before))
-    else:
-        logger.connected(member, after)
-        # await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=embedder.connected(member, after))
+    logger.log_voice_state_update(member, before, after)
 
 
 @bot.slash_command(description="Allows admin to fix voice channels' bitrate")
