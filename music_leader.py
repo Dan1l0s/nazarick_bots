@@ -18,15 +18,15 @@ class MusicBotLeader(MusicBotInstance):
         async def on_audit_log_entry_create(entry):
             self.logger.logged(entry)
 
-        @self.bot.event
-        async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-            self.log_voice_state_update(member, before, after)
+        # @self.bot.event
+        # async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
+        #     self.log_voice_state_update(member, before, after)
             # if await self.temp_channels(member, before, after):
             #     return
             # if await self.unmute_clients(member, before, after):
             #     return
-            for instance in self.instances:
-                await instance.check_timeout(member, before, after)
+            # for instance in self.instances:
+            #     await instance.check_timeout(member, before, after)
 
         @self.bot.event
         async def on_message(message):
@@ -62,63 +62,67 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
             await inter.response.defer()
-            assigned_instance = self.instances[0]
-            new_inter = Interaction(inter, assigned_instance.bot)
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, query)
-            # await inter.delete_original_response()
 
         @self.bot.slash_command(description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].pause(new_inter)
+            await inter.response.defer()
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
+            await assigned_instance.pause(new_inter)
 
         @self.bot.slash_command(description="Repeats current song")
         async def repeat(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
+            await inter.response.defer()
+            assigned_instance = await self.get_available_instance(inter)
             new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].repeat(new_inter)
+            await assigned_instance.repeat(new_inter)
 
         @self.bot.slash_command(description="Clears queue and disconnects bot")
         async def stop(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].stop(new_inter)
+            await inter.response.defer()
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
+            await assigned_instance.stop(new_inter)
 
         @self.bot.slash_command(description="Skips current song")
         async def skip(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
             await inter.response.defer()
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].skip(new_inter)
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
+            await assigned_instance.skip(new_inter)
 
         @self.bot.slash_command(description="Shows current queue")
         async def queue(inter):
-            # TODO: функция для поиска свободной инстанции бота
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].queue(new_inter)
+            await inter.response.defer()
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
+            await assigned_instance.queue(new_inter)
 
         @self.bot.slash_command(description="Removes last added song from queue")
         async def wrong(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].wrong(new_inter)
+            await inter.response.defer()
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
+            await assigned_instance.wrong(new_inter)
 
         @self.bot.slash_command(description="Shuffles current queue")
         async def shuffle(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
-            new_inter = Interaction(inter, self.instances[0].bot)
-            await self.instances[0].shuffle(new_inter)
+            await inter.response.defer()
+            assigned_instance = await self.get_available_instance(inter)
+            new_inter = Interaction(assigned_instance.bot, inter)
+            await assigned_instance.shuffle(new_inter)
 
         @self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):
-            # TODO: функция для поиска свободной инстанции бота
-            new_inter = Interaction(inter, self.instances[0].bot)
-            ans = self.instances[0].help()
-            await inter.send(embed=disnake.Embed(color=0, description=ans))
+            await inter.response.defer()
+            await inter.send(embed=disnake.Embed(color=0, description=self.help()))
 
     def add_instance(self, bot):
         self.instances.append(bot)
+
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
@@ -177,15 +181,10 @@ class MusicBotLeader(MusicBotInstance):
 
 # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
 
-    def get_available_instance(self, guild_id):
-        for instance in self.isinstances:
-            if instance.available(guild_id):
-                return instance
-        return None
-
+    async def get_available_instance(self, inter):
+        return self.instances[0]
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def set_bitrate(self, inter, desired_bitrate):
         if not helpers.is_admin(inter.author):
@@ -216,3 +215,14 @@ class MusicBotLeader(MusicBotInstance):
         for instance in self.instances:
             if guild in instance.guilds:
                 return instance
+            
+    def help(self):
+        ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"
+        ans += "Type /stop to stop playback\n"
+        ans += "Type /skip to skip current track\n"
+        ans += "Type /queue to print current queue\n"
+        ans += "Type /shuffle to shuffle tracks in the queue\n"
+        ans += "Type /wrong to remove last added track\n"
+        ans += "Type /repeat to toogle repeat mode for current track\n"
+        ans += "Type /pause to pause/resume playback"
+        return ans

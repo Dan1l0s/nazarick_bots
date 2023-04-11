@@ -43,10 +43,10 @@ class Logger:
                 f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
         f.close()
 
-    def added(self, inter, track):
+    def added(self, guild, track):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {track['title']} to queue with duration of {helpers.get_duration(track)}\n")

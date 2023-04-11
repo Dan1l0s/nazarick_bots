@@ -5,7 +5,7 @@ import config
 
 
 class Embed:
-    def songs(self, inter, data, text):
+    def songs(self, client, data, text):
         info = data
         if "entries" in info:
             info = info["entries"][0]
@@ -24,7 +24,7 @@ class Embed:
         embed.add_field(name="*Duration*",
                         value=duration, inline=True)
         embed.add_field(name="*Requested by*",
-                        value=helpers.get_nickname(inter.author), inline=True)
+                        value=helpers.get_nickname(client), inline=True)
         return embed
 
     def radio(self, data):
