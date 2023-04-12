@@ -44,8 +44,6 @@ class Logger:
         f.close()
 
     def added(self, guild, track):
-
-    def added(self, guild, track):
         if not self.state:
             return
         abs_path = self.get_path(guild.name)
