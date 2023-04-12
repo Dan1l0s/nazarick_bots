@@ -22,7 +22,7 @@ class Logger:
         abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track at {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
     def enabled(self, bot):
@@ -52,13 +52,13 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {track['title']} to queue with duration of {helpers.get_duration(track)}\n")
         f.close()
 
-    def playing(self, inter, track):
+    def playing(self, guild, track):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {track['title']} in VC: {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {track['title']} in VC: {guild.voice_client.channel}\n")
         f.close()
 
     def radio(self, inter, data):
@@ -106,13 +106,76 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} left VC {before.channel.name}\n")
         f.close()
 
-    def voice_update(self, member):
+    def guild_deafened(self, member):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} updated their voice state\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was deafened by guild admin\n")
+        f.close()
+
+    def guild_undeafened(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was undeafened by guild admin\n")
+        f.close()
+
+    def guild_muted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was muted by guild admin\n")
+        f.close()
+
+    def guild_unmuted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was unmuted by guild admin\n")
+        f.close()
+
+    def deafened(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} deafened themself\n")
+        f.close()
+
+    def undeafened(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} undeafened themself\n")
+        f.close()
+
+    def muted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} muted themself\n")
+        f.close()
+
+    def unmuted(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} unmuted themself\n")
         f.close()
 
     def get_path(self, dir_name: str):

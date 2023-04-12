@@ -25,6 +25,8 @@ class Embed:
                         value=duration, inline=True)
         embed.add_field(name="*Requested by*",
                         value=helpers.get_nickname(client), inline=True)
+        embed.add_field(name="*Channel*",
+                        value=client.voice.channel.name, inline=True)
         return embed
 
     def radio(self, data):

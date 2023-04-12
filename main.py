@@ -5,11 +5,10 @@ import time
 import asyncio
 
 
-
 async def main():
     logger = Logger(True)
-    music_leader = MusicBotLeader("MusicLeader", logger)
-    music_instance = MusicBotInstance("MusicInstance", logger)
+    music_leader = MusicBotLeader("music", logger)
+    music_instance = MusicBotInstance("music_reserve", logger)
     music_leader.add_instance(music_instance)
 
     tasks = []

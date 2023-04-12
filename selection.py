@@ -31,7 +31,6 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         self.message = await self.inter.text_channel.send(view=self)
 
     async def callback(self, inter):
-        print("Called callback")
         if inter.author == self.author or helpers.is_admin(inter.author):
             await self.message.delete()
             await self.func(self.inter, self.song, f"https://www.youtube.com/{inter.values[0]}", respond=False)
@@ -46,7 +45,6 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         if self.select_done.done():
             return
         try:
-            print("Called on timeout")
             await self.message.delete()
             self.select_done.set_result(1)
             self.message = await self.inter.text_channel.send(f"{self.inter.author.mention} You're out of time! Next time think faster!")

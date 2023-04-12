@@ -64,7 +64,6 @@ class GuildState():
     async def connected_to(self, vc):
         while True:
             if self.voice.is_connected() and self.voice.channel == vc:
-                print("Finnaly connected")
                 break
             await asyncio.sleep(0.25)
 
@@ -88,12 +87,14 @@ class MusicBotInstance:
 
         @self.bot.event
         async def on_ready():
-            print(
-                f"{self.name} is logged as {self.bot.user} (ID: {self.bot.application_id})")
+            print(f"{self.name} is logged as {self.bot.user}")
             self.logger.enabled(self.bot)
             for guild in self.bot.guilds:
                 self.states[guild.id] = GuildState(guild)
-            # asyncio.create_task(self.print_voice())
+
+        @self.bot.event
+        async def on_message(message):
+            await self.check_mentions(message)
 
         @self.bot.event
         async def on_guild_join(guild):
@@ -108,25 +109,15 @@ class MusicBotInstance:
             if before.channel != state.voice.channel and after.channel != state.voice.channel:
                 return
             if member.id == self.bot.application_id and not after.channel:
-                return await self.abort_play(guild_id, message="Disconnected")
+                return await self.abort_play(guild_id)
             if len(state.voice.channel.members) < 2:
-                print(f"Timeout begin: {self.name}")
-                await self.timeout(guild_id)
+                if not state.cancel_timeout:
+                    await self.timeout(guild_id)
             else:
                 await self.cancel_timeout(guild_id)
 
     async def run(self):
         await self.bot.start(config.tokens[self.name])
-
-    # async def print_voice(self):
-    #     while True:
-    #         await asyncio.sleep(0.25)
-    #         state = self.states[569924343010689025]
-    #         if not state.voice:
-    #             print("None")
-    #         else:
-    #             print(
-    #                 f"Voice: {state.voice}, {bool (state.voice.is_connected())}, {bool (state.voice.is_playing())},  {bool (state.voice.is_paused())} ")
 
 # *_______ForLeader________________________________________________________________________________________________________________________________________
 
@@ -134,13 +125,13 @@ class MusicBotInstance:
         return guild_id in self.states
 
     def available(self, guild_id):
-        print(f"{self.name}: {self.states[guild_id].voice}")
         return bool(self.states[guild_id].voice == None)
 
-    def timeout(self, guild_id):
+    def check_timeout(self, guild_id):
         if not self.states[guild_id].voice:
             return False
-        return bool(self.states[guild_id].cancel_timeout != None)
+        return len(self.states[guild_id].voice.channel.members) == 1
+        # return bool(self.states[guild_id].cancel_timeout != None)
 
     def current_voice_channel(self, guild_id):
         if not self.states[guild_id].voice:
@@ -158,24 +149,19 @@ class MusicBotInstance:
         state.cancel_timeout = asyncio.Future()
         try:
             resume = await asyncio.wait_for(state.cancel_timeout, tm)
-            print("Timeout was canceled")
             await message.delete()
             if resume and not state.paused:
-                print("Resuming play")
                 state.voice.resume()
         except:
-            print("Timeout was not canceled")
-            await self.abort_play(guild_id, message="Timeout")
+            await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
         state.cancel_timeout = None
 
     async def cancel_timeout(self, guild_id, resume=True):
         state = self.states[guild_id]
         if state.cancel_timeout and not state.cancel_timeout.done():
-            print(f"Timeout end: {self.name}")
             state.cancel_timeout.set_result(resume)
 
     async def abort_play(self, guild_id, message="Finished playing music!"):
-        print(f"Aborting task with message: {message}")
         state = self.states[guild_id]
         if state.voice:
             try:
@@ -188,28 +174,29 @@ class MusicBotInstance:
                 pass
         state.reset()
 
-    async def process_song_query(self, inter, query, song=None):
+    async def process_song_query(self, inter, query, *, song=None, playnow=False):
         state = self.states[inter.guild.id]
         if not song:
             song = Song(inter.author)
-            state.song_queue.append(song)
+            if playnow:
+                state.song_queue.insert(0, song)
+            else:
+                state.song_queue.append(song)
         if not "https://" in query:
             asyncio.create_task(self.select_song(inter, song, query))
         else:
-            asyncio.create_task(self.add_from_url_to_queue(inter, song, query))
+            asyncio.create_task(self.add_from_url_to_queue(
+                inter, song, query, playnow=playnow))
 
-    async def add_from_url_to_queue(self, inter, song, url, respond=True):
+    async def add_from_url_to_queue(self, inter, song, url, *, respond=True, playnow=False):
         state = self.states[inter.guild.id]
         if "list" in url:
-            await self.add_from_url_to_queue(inter, song, url[:url.find("list")-1])
-            return self.add_from_playlist(inter, url)
+            await self.add_from_url_to_queue(inter, song, url[:url.find("list")-1], playnow=playnow)
+            return self.add_from_playlist(inter, url, playnow=playnow)
         else:
-            print("Downloading")
             with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
                 track_info = ytdl.extract_info(url, download=False)
-            print("Downloaded")
             song.track_info.set_result(track_info)
-            print(f"Added song: {track_info['webpage_url']}")
             if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                 embed = self.embedder.songs(
                     song.author, track_info, "Song was added to queue!")
@@ -224,27 +211,24 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         await select.send()
 
-    def add_from_playlist(self, inter, url):
+    def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
-        print("Downloading")
         with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
             playlist_info = ytdl.extract_info(url, download=False)
-        print("Downloaded")
         # TODO: Proper condition for not adding
         if not state.voice:
             return
-        for entry in playlist_info['entries'][1:]:
+        for entry in playlist_info['entries'][1::-1]:
             song = Song(inter.author)
             song.track_info.set_result(entry)
-            state.song_queue.append(song)
-            print(f"Added song: {entry['webpage_url']}")
+            if playnow:
+                state.song_queue.insert(0, song)
+            else:
+                state.song_queue.append(song)
 
     async def play_loop(self, guild_id):
         state = self.states[guild_id]
         try:
-            print(
-                f"Voice in loop: {state.voice}, {bool (state.voice.is_connected())}")
-            print("Entered play loop")
             while state.song_queue:
                 current_song = state.song_queue.pop(0)
                 current_track = await current_song.track_info
@@ -253,10 +237,6 @@ class MusicBotInstance:
                     continue
 
                 link = current_track.get("url", None)
-
-                print(
-                    f"Voice in loop: {state.voice}, {bool (state.voice.is_connected())}, connected to: {state.voice.channel.name}")
-                print(f"Playing: {link}")
                 state.voice.play(disnake.FFmpegPCMAudio(
                     source=link, **config.FFMPEG_OPTIONS))
                 if current_song.original_message:
@@ -264,23 +244,20 @@ class MusicBotInstance:
                 embed = self.embedder.songs(
                     current_song.author, current_track, "Playing this song!")
                 await state.last_inter.text_channel.send("", embed=embed)
+                self.logger.playing(state.guild, current_track)
                 await self.play_before_interrupt(guild_id)
                 if not state.voice:
-                    print("Leaving because not connected")
                     break
 
                 if state.skip_flag:
-                    print("Pausing voice because of skip")
                     state.voice.stop()
                     state.skip_flag = False
                 elif state.repeat_flag:
                     state.song_queue.insert(
                         0, current_song)
-            if not state.song_queue:
-                print("Queue empty")
             await self.abort_play(guild_id)
         except Exception as err:
-            print(f"Execption in play_loop: {err}")
+            print(f"Exception in play_loop: {err}")
             self.logger.error(err, state.guild)
             pass
 
@@ -292,6 +269,21 @@ class MusicBotInstance:
         except Exception as err:
             print(f"Caught exception in play_before_interrupt: {err}")
 
+    async def check_mentions(self, message):
+        if len(message.role_mentions) > 0 or len(message.mentions) > 0:
+            client = message.guild.get_member(self.bot.user.id)
+            if helpers.is_mentioned(client, message):
+                if helpers.is_admin(message.author):
+                    if "ping" in message.content.lower() or "пинг" in message.content.lower():
+                        return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
+                    else:
+                        return await message.reply("At your service, my master.")
+                else:
+                    try:
+                        await message.author.timeout(duration=10, reason="Ping by lower life form")
+                    except:
+                        pass
+                    return await message.reply(f"How dare you tag me? Know your place, trash")
 # *_______PlayerFuncs________________________________________________________________________________________________________________________________________
 
     # *Requires author of inter to be in voice channel
@@ -301,78 +293,75 @@ class MusicBotInstance:
 
         if not state.voice:
             state.voice = await inter.voice_channel.connect()
-            await self.process_song_query(inter, query)
+            await self.process_song_query(inter, query, playnow=playnow)
             return asyncio.create_task(self.play_loop(inter.guild.id))
 
         if state.voice and inter.voice_channel == state.voice.channel:
-            return await self.process_song_query(inter, query)
+            return await self.process_song_query(inter, query, playnow=playnow)
 
         if state.voice and inter.voice_channel != state.voice.channel:
             state.voice.stop()
             await self.cancel_timeout(inter.guild.id, False)
             state.reset()
             song = Song(inter.author)
-            state.song_queue.append(song)
-            print(f"Switching to: {inter.voice_channel.name}")
+            if playnow:
+                state.song_queue.insert(0, song)
+            else:
+                state.song_queue.append(song)
+
             await state.voice.move_to(inter.voice_channel)
             await state.connected_to(inter.voice_channel)
-            print(f"Switched to: {state.voice.channel.name}")
-            await self.process_song_query(inter, query, song=song)
+
+            await self.process_song_query(inter, query, song=song, playnow=playnow)
 
     async def stop(self, inter):
         state = self.states[inter.guild.id]
         await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
             return
-
-        await self.abort_play(inter.guild.id, message="DJ decided to stop!")
+        await self.abort_play(inter.guild.id, message=f"DJ {helpers.get_nickname(inter.author)} decided to stop!")
 
     async def pause(self, inter):
         state = self.states[inter.guild.id]
-        await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
+            await inter.orig_inter.send("Wrong instance to process operation")
             return
         if state.paused:
             state.paused = False
             if state.voice.is_paused():
                 state.voice.resume()
-            await inter.text_channel.send("Player resumed!")
+            await inter.orig_inter.send("Player resumed!")
         else:
             state.paused = True
             if state.voice.is_playing():
                 state.voice.pause()
-            await inter.text_channel.send("Player paused!")
+            await inter.orig_inter.send("Player paused!")
 
     async def repeat(self, inter):
         state = self.states[inter.guild.id]
-        await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
+            await inter.orig_inter.send("Wrong instance to process operation")
             return
 
         if state.repeat_flag:
             state.repeat_flag = False
-            await inter.text_channel.send("Repeat mode is off!")
+            await inter.orig_inter.send("Repeat mode is off!")
         else:
             state.repeat_flag = True
-            await inter.text_channel.send("Repeat mode is on!")
+            await inter.orig_inter.send("Repeat mode is on!")
 
     async def skip(self, inter):
         state = self.states[inter.guild.id]
-        await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
             return
         state.skip_flag = True
-        await inter.text_channel.send("Skipped current track!")
+        self.logger.skip(inter)
+        await inter.orig_inter.send("Skipped current track!")
 
     async def queue(self, inter):
         state = self.states[inter.guild.id]
-        await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
+            await inter.orig_inter.send("Wrong instance to process operation")
             return
 
         if len(state.song_queue) > 0:
@@ -390,15 +379,14 @@ class MusicBotInstance:
                 ans += f"\n{cnt}) {track['title']}, duration: {duration}"
                 cnt += 1
             ans += "```"
-            await inter.text_channel.send(ans)
+            await inter.orig_inter.send(ans)
         else:
-            await inter.text_channel.send("There are no songs in the queue!")
+            await inter.orig_inter.send("There are no songs in the queue!")
 
     async def wrong(self, inter):
         state = self.states[inter.guild.id]
-        await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
+            await inter.orig_inter.send("Wrong instance to process operation")
             return
 
         if len(state.song_queue) > 0:
@@ -407,21 +395,20 @@ class MusicBotInstance:
             state.song_queue.pop(-1)
             if song.track_info.done():
                 title = song.track_info.result()['title']
-            await inter.text_channel.send(f"Removed {title} from queue!")
+            await inter.orig_inter.send(f"Removed {title} from queue!")
         else:
-            await inter.text_channel.send("There are no songs in the queue!")
+            await inter.orig_inter.send("There are no songs in the queue!")
 
     async def shuffle(self, inter):
         state = self.states[inter.guild.id]
-        await inter.orig_inter.delete_original_response()
         if not state.voice:
-            await inter.text_channel.send("Wrong instance to process operation")
+            await inter.orig_inter.send("Wrong instance to process operation")
             return
 
         if len(state.song_queue) > 1:
             random.shuffle(state.song_queue)
-            await inter.text_channel.send("Shuffle completed successfully!")
+            await inter.orig_inter.send("Shuffle completed successfully!")
         elif len(state.song_queue) == 1:
-            await inter.text_channel.send("There are no tracks to shuffle!")
+            await inter.orig_inter.send("There are no tracks to shuffle!")
         else:
-            await inter.text_channel.send("I am not playing anything!")
+            await inter.orig_inter.send("I am not playing anything!")

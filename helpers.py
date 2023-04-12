@@ -35,6 +35,9 @@ def is_mentioned(member, message):
 
 
 async def create_private(member):
+
+    if member.guild.id not in config.categories_ids:
+        return
     possible_channel_name = f"{get_nickname(member)}'s private"
 
     guild = member.guild
