@@ -87,10 +87,10 @@ class MusicBotInstance:
 
         @self.bot.event
         async def on_ready():
-            print(f"{self.name} is logged as {self.bot.user}")
             self.logger.enabled(self.bot)
             for guild in self.bot.guilds:
                 self.states[guild.id] = GuildState(guild)
+            print(f"{self.name} is logged as {self.bot.user}")
 
         @self.bot.event
         async def on_message(message):
@@ -99,22 +99,6 @@ class MusicBotInstance:
         @self.bot.event
         async def on_guild_join(guild):
             self.states[guild.id] = GuildState(guild)
-
-        @self.bot.event
-        async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-            guild_id = member.guild.id
-            state = self.states[guild_id]
-            if not state.voice or before.channel == after.channel:
-                return
-            if before.channel != state.voice.channel and after.channel != state.voice.channel:
-                return
-            if member.id == self.bot.application_id and not after.channel:
-                return await self.abort_play(guild_id)
-            if len(state.voice.channel.members) < 2:
-                if not state.cancel_timeout:
-                    await self.timeout(guild_id)
-            else:
-                await self.cancel_timeout(guild_id)
 
     async def run(self):
         await self.bot.start(config.tokens[self.name])
@@ -130,8 +114,7 @@ class MusicBotInstance:
     def check_timeout(self, guild_id):
         if not self.states[guild_id].voice:
             return False
-        return len(self.states[guild_id].voice.channel.members) == 1
-        # return bool(self.states[guild_id].cancel_timeout != None)
+        return bool(self.states[guild_id].cancel_timeout != None)
 
     def current_voice_channel(self, guild_id):
         if not self.states[guild_id].voice:
@@ -160,6 +143,21 @@ class MusicBotInstance:
         state = self.states[guild_id]
         if state.cancel_timeout and not state.cancel_timeout.done():
             state.cancel_timeout.set_result(resume)
+
+    async def on_voice_event(self, member, before, after):
+        guild_id = member.guild.id
+        state = self.states[guild_id]
+        if not state.voice or before.channel == after.channel:
+            return
+        if before.channel != state.voice.channel and after.channel != state.voice.channel:
+            return
+        if member.id == self.bot.application_id and not after.channel:
+            return await self.abort_play(guild_id)
+        if len(state.voice.channel.members) < 2:
+            if not state.cancel_timeout:
+                await self.timeout(guild_id)
+        else:
+            await self.cancel_timeout(guild_id)
 
     async def abort_play(self, guild_id, message="Finished playing music!"):
         state = self.states[guild_id]
@@ -218,12 +216,15 @@ class MusicBotInstance:
         # TODO: Proper condition for not adding
         if not state.voice:
             return
-        for entry in playlist_info['entries'][1::-1]:
-            song = Song(inter.author)
-            song.track_info.set_result(entry)
-            if playnow:
+        if playnow:
+            for entry in playlist_info['entries'][1:][::-1]:
+                song = Song(inter.author)
+                song.track_info.set_result(entry)
                 state.song_queue.insert(0, song)
-            else:
+        else:
+            for entry in playlist_info['entries'][1:]:
+                song = Song(inter.author)
+                song.track_info.set_result(entry)
                 state.song_queue.append(song)
 
     async def play_loop(self, guild_id):
@@ -319,6 +320,7 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         if not state.voice:
             return
+        self.logger.finished(inter)
         await self.abort_play(inter.guild.id, message=f"DJ {helpers.get_nickname(inter.author)} decided to stop!")
 
     async def pause(self, inter):

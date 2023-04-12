@@ -7,13 +7,18 @@ import asyncio
 
 async def main():
     logger = Logger(True)
-    music_leader = MusicBotLeader("music", logger)
-    music_instance = MusicBotInstance("music_reserve", logger)
-    music_leader.add_instance(music_instance)
+
+    music_leader = MusicBotLeader("music_main", logger)
+    music_instance1 = MusicBotInstance("music_assistant1", logger)
+    music_instance2 = MusicBotInstance("music_assistant2", logger)
+
+    music_leader.add_instance(music_instance1)
+    music_leader.add_instance(music_instance2)
 
     tasks = []
     tasks.append(music_leader.run())
-    tasks.append(music_instance.run())
+    tasks.append(music_instance1.run())
+    tasks.append(music_instance2.run())
 
     await asyncio.gather(*tasks)
 

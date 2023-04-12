@@ -23,8 +23,13 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             self.log_voice_state_update(member, before, after)
+            for instance in self.instances:
+                if instance.contains_in_guild(member.guild.id):
+                    await instance.on_voice_event(member, before, after)
+
             if await self.temp_channels(member, before, after):
                 return
+
             if await self.unmute_clients(member, before, after):
                 return
             # for instance in self.instances:
@@ -161,6 +166,7 @@ class MusicBotLeader(MusicBotInstance):
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         if after.channel and after.channel.name == "Создать приват":
             await helpers.create_private(member)
@@ -222,6 +228,7 @@ class MusicBotLeader(MusicBotInstance):
 
 
 # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def get_available_instance(self, inter):
         guild_id = inter.guild.id
