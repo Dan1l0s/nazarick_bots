@@ -98,7 +98,7 @@ class RadioPlayer:
                 await asyncio.sleep(1)
         except Exception as err:
             self.logger.error(err, self.curr_inter[guild_id])
-        await voice.stop()
+        voice.stop()
         await voice.disconnect()
         self.songs_queue[guild_id].clear()
         await self.curr_inter[guild_id].channel.send("Finished playing music!")

@@ -35,6 +35,9 @@ def is_mentioned(member, message):
 
 
 async def create_private(member):
+
+    if member.guild.id not in config.categories_ids:
+        return
     possible_channel_name = f"{get_nickname(member)}'s private"
 
     guild = member.guild
@@ -55,7 +58,7 @@ async def create_private(member):
     await tmp_channel.edit(bitrate=384000)
 
 
-async def unmute_clients(member):
+async def unmute_bots(member):
     if member.id in config.bot_ids.values():
         if member.voice.mute:
             await member.edit(mute=False)

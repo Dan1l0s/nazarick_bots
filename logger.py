@@ -22,7 +22,7 @@ class Logger:
         abs_path = self.get_path(inter.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track at {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
     def enabled(self, bot):
@@ -44,21 +44,24 @@ class Logger:
         f.close()
 
     def added(self, guild, track):
+
+    def added(self, guild, track):
         if not self.state:
             return
+        abs_path = self.get_path(guild.name)
         abs_path = self.get_path(guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {track['title']} to queue with duration of {helpers.get_duration(track)}\n")
         f.close()
 
-    def playing(self, inter, track):
+    def playing(self, guild, track):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {track['title']} in VC: {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {track['title']} in VC: {guild.voice_client.channel}\n")
         f.close()
 
     def radio(self, inter, data):
@@ -105,36 +108,6 @@ class Logger:
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} left VC {before.channel.name}\n")
         f.close()
-
-    def log_voice_state_update(self, member, before, after):
-        if before.channel and after.channel:
-            if before.channel.id != after.channel.id:
-                self.switched(member, before, after)
-            else:
-                if before.deaf != after.deaf:
-                    if before.deaf:
-                        self.guild_undeafened(member)
-                    else:
-                        self.guild_deafened(member)
-                elif before.mute != after.mute:
-                    if before.mute:
-                        self.guild_unmuted(member)
-                    else:
-                        self.guild_muted(member)
-                elif before.self_deaf != after.self_deaf:
-                    if before.self_deaf:
-                        self.undeafened(member)
-                    else:
-                        self.deafened(member)
-                elif before.self_mute != after.self_mute:
-                    if before.self_mute:
-                        self.unmuted(member)
-                    else:
-                        self.muted(member)
-        elif before.channel:
-            self.disconnected(member, before)
-        else:
-            self.connected(member, after)
 
     def guild_deafened(self, member):
         if not self.state:
