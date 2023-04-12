@@ -49,7 +49,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
             print("Called on timeout")
             await self.message.delete()
             self.select_done.set_result(1)
-            self.message = await self.inter.channel.send(f"{self.inter.author.mention} You're out of time! Next time think faster!")
+            self.message = await self.inter.text_channel.send(f"{self.inter.author.mention} You're out of time! Next time think faster!")
             await asyncio.sleep(5)
             await self.message.delete()
         except Exception as err:
