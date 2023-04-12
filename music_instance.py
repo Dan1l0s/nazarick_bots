@@ -209,7 +209,8 @@ class MusicBotInstance:
 
     async def select_song(self, inter, song, query):
         songs = YoutubeSearch(query, max_results=5).to_dict()
-        select = SelectionPanel(songs, self.add_from_url_to_queue, inter, song)
+        select = SelectionPanel(
+            songs, self.add_from_url_to_queue, inter, song, self)
         await inter.orig_inter.delete_original_response()
         await select.send()
 

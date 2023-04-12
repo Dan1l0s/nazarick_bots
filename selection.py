@@ -5,11 +5,12 @@ import asyncio
 
 
 class SelectionPanel(disnake.ui.View, disnake.ui.Select):
-    def __init__(self, songs, func, inter, song):
+    def __init__(self, songs, func, inter, song, bot):
         self.author = inter.author
         self.song = song
         self.func = func
         self.inter = inter
+        self.bot = bot
         self.select_done = asyncio.Future()
         options = []
         for song in songs:
@@ -46,8 +47,11 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
             return
         try:
             await self.message.delete()
+            voice = self.bot.states[self.inter.guild.id].voice
             self.select_done.set_result(1)
             self.message = await self.inter.text_channel.send(f"{self.inter.author.mention} You're out of time! Next time think faster!")
+            if not (voice.is_playing() or voice.is_paused()):
+                await self.bot.abort_play(self.inter.guild.id, message="")
             await asyncio.sleep(5)
             await self.message.delete()
         except Exception as err:
