@@ -23,9 +23,8 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             self.log_voice_state_update(member, before, after)
-            for instance in self.instances:
-                if instance.contains_in_guild(member.guild.id):
-                    await instance.on_voice_event(member, before, after)
+
+            await self.on_voice_event(member, before, after)
 
             if await self.temp_channels(member, before, after):
                 return

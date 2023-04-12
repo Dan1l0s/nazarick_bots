@@ -97,6 +97,10 @@ class MusicBotInstance:
             await self.check_mentions(message)
 
         @self.bot.event
+        async def on_voice_state_update(member, before, after):
+            await self.on_voice_event(member, before, after)
+
+        @self.bot.event
         async def on_guild_join(guild):
             self.states[guild.id] = GuildState(guild)
 
