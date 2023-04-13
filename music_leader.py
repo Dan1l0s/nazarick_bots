@@ -37,6 +37,8 @@ class MusicBotLeader(MusicBotInstance):
         @self.bot.event
         async def on_message(message):
             if not message.guild:
+               if message.author.id in config.admin_ids[569924343010689025]:
+                   await message.reply("Your attention is an honor for me, my master.") 
                return
             await self.check_mentions(message)
             await self.check_message_content(message)
