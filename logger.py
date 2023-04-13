@@ -86,7 +86,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} switched VC from {before.channel.name} to {after.channel.name}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} switched VC from {before.channel.name} to {after.channel.name}\n")
         f.close()
 
     def connected(self, member, after):
@@ -95,7 +95,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} joined VC {after.channel.name}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} joined VC {after.channel.name}\n")
         f.close()
 
     def disconnected(self, member, before):
@@ -104,7 +104,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} left VC {before.channel.name}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} left VC {before.channel.name}\n")
         f.close()
 
     def guild_deafened(self, member):
@@ -113,7 +113,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was deafened by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} was deafened by guild admin\n")
         f.close()
 
     def guild_undeafened(self, member):
@@ -122,7 +122,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was undeafened by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} was undeafened by guild admin\n")
         f.close()
 
     def guild_muted(self, member):
@@ -131,7 +131,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was muted by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} was muted by guild admin\n")
         f.close()
 
     def guild_unmuted(self, member):
@@ -140,7 +140,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} was unmuted by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} was unmuted by guild admin\n")
         f.close()
 
     def deafened(self, member):
@@ -149,7 +149,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} deafened themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} deafened themself\n")
         f.close()
 
     def undeafened(self, member):
@@ -158,7 +158,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} undeafened themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} undeafened themself\n")
         f.close()
 
     def muted(self, member):
@@ -167,7 +167,7 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} muted themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} muted themself\n")
         f.close()
 
     def unmuted(self, member):
@@ -176,7 +176,43 @@ class Logger:
         abs_path = self.get_path(member.guild.name)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {helpers.get_nickname(member)} unmuted themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} unmuted themself\n")
+        f.close()
+    
+    def video_on(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} turned on their camera\n")
+        f.close()
+
+    def video_off(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} turned off their camera\n")
+        f.close()
+
+    def stream_on(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} went live\n")
+        f.close()
+
+    def stream_off(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.name)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member.display_name} shutted their stream\n")
         f.close()
 
     def get_path(self, dir_name: str):

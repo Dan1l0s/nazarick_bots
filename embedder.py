@@ -24,7 +24,7 @@ class Embed:
         embed.add_field(name="*Duration*",
                         value=duration, inline=True)
         embed.add_field(name="*Requested by*",
-                        value=helpers.get_nickname(client), inline=True)
+                        value=client.display_name, inline=True)
         embed.add_field(name="*Channel*",
                         value=client.voice.channel.name, inline=True)
         return embed
@@ -57,7 +57,7 @@ class Embed:
                 color=disnake.Colour.from_rgb(
                     *config.embed_colors["other_action"]),
                 timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name, icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -67,7 +67,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["switched_vc"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
@@ -76,7 +76,7 @@ class Embed:
             description=f"**{member.mention} connected to `{after.channel.name}`**",
             color=disnake.Colour.from_rgb(*config.embed_colors["joined_vc"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
@@ -85,7 +85,7 @@ class Embed:
             description=f'**{member.mention} disconnected from `{before.channel.name}`**',
             color=disnake.Colour.from_rgb(*config.embed_colors["left_vc"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
@@ -95,6 +95,20 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
+        return embed
+
+    def welcome_message(self, member):
+        embed = disnake.Embed(
+            description=f'**{member.mention}, welcome to {helpers.get_guild_name(member.guild)}!**',
+            color=disnake.Colour.from_rgb(
+                *config.embed_colors["welcome_message"]),
+            timestamp=datetime.datetime.now()               
+        )
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
+        embed.set_footer(text=f'{member.guild.name}')
+        embed.add_field(name="**⏲ Age of account:**", value=f'`{member.created_at.strftime("%d/%m/%Y %H:%M")}`\n**{helpers.get_welcome_time(member.created_at)}**',
+                        inline=True)
+        embed.set_thumbnail(url=member.display_avatar.url)
         return embed

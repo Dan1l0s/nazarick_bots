@@ -5,17 +5,9 @@ import time
 
 
 def is_admin(member):
-    if member.guild.id not in config.admin_ids or member.id not in config.admin_ids[member.guild.id]:
+    if member.guild and member.guild.id not in config.admin_ids or member.id not in config.admin_ids[member.guild.id]:
         return False
     return True
-
-
-def get_nickname(member):
-    if member.nick:
-        return member.nick
-    else:
-        return member.name
-
 
 def get_duration(info):
     if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
@@ -38,7 +30,7 @@ async def create_private(member):
 
     if member.guild.id not in config.categories_ids:
         return
-    possible_channel_name = f"{get_nickname(member)}'s private"
+    possible_channel_name = f"{member.display_name}'s private"
 
     guild = member.guild
     category = disnake.utils.get(
@@ -78,3 +70,51 @@ async def unmute_admin(member):
         if entry.user != member and entry.user.id not in config.bot_ids and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
             await entry.user.move_to(None)
             await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+
+def get_guild_name(guild):
+    if guild.name == "Nazarick":
+        return "the Great Tomb of Nazarick"
+    return guild.name
+
+def get_welcome_time(date):
+    delta = datetime.now(timezone.utc) - date
+    amount = delta.days // 365
+    if amount > 0:
+        if amount == 1:
+            return "a year ago"
+        else:
+            return f"{amount} years ago"
+        
+    amount = delta.days // 30
+    if amount > 0:
+        if amount == 1:
+            return "a month ago"
+        else:
+            return f"{amount} months ago"
+        
+    amount = delta.days // 7
+    if amount > 0:
+        if amount == 1:
+            return "a week ago"
+        else:
+            return f"{amount} weeks ago"
+    
+    amount = delta.days
+    if amount > 0:
+        if amount == 1:
+            return "a day ago"
+        else:
+            return f"{amount} days ago"
+        
+    amount = delta.hours
+    if amount > 0:
+        if amount == 1:
+            return "an hour ago"
+        else:
+            return f"{amount} hours ago"    
+        
+    amount = delta.minutes
+    if amount <= 1:
+        return "a minute ago"
+    return f"{amount} minutes ago"    
+

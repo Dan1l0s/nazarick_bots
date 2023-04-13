@@ -36,14 +36,41 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.event
         async def on_message(message):
+            if not message.guild:
+               return
+            await self.check_mentions(message)
             await self.check_message_content(message)
+
+
+        # @self.bot.event
+        # async def on_member_join(member):
+        #     if member.guild.id in config.welcome_ids:
+        #         channel = config.welcome_ids[member.guild.id]
+        #         if not channel:
+        #             return
+        #     elif member.guild.system_channel:
+        #         channel = member.guild.system_channel
+        #     else:
+        #         return
+            # await channel.send(f"Greetings! {member.mention}, welcome to the Great Tomb of Nazarick.")
+
+        @self.bot.slash_command(description="temporary command")
+        async def welcome(inter):
+            if await self.check_dm(inter):
+                return
+            embed = self.embedder.welcome_message(inter.author)
+            await inter.send(embed=embed)
 
         @self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
+            if await self.check_dm(inter):
+                return
             await self.set_bitrate(384000)
 
         @self.bot.slash_command(description="Clears voice channel (authorized use only)")
         async def purge(inter):
+            if await self.check_dm(inter):
+                return
             if inter.author.id != config.admin_ids[inter.guild.id][0]:
                 return await inter.send("Unauthorized access, you are not the Greatest Supreme Being!")
             tasks = []
@@ -58,6 +85,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Clears custom amount of messages")
         async def clear(inter: disnake.AppCmdInter, amount: int):
+            if await self.check_dm(inter):
+                return
             if helpers.is_admin(inter.author):
                 await inter.channel.purge(limit=amount+1)
                 await inter.send(f"Cleared {amount} messages")
@@ -67,6 +96,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
+            if await self.check_dm(inter):
+                return
             await inter.response.defer()
             if not inter.author.voice or not inter.author.voice.channel:
                 return await inter.edit_original_response("You are not in voice channel")
@@ -80,6 +111,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query) at position #1 in the queue", aliases="p")
         async def playnow(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             if not inter.author.voice or not inter.author.voice.channel:
                 return await inter.send("You are not in voice channel")
@@ -93,6 +126,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -102,6 +137,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Repeats current song")
         async def repeat(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -111,6 +148,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Clears queue and disconnects bot")
         async def stop(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -120,6 +159,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Skips current song")
         async def skip(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -129,6 +170,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Shows current queue")
         async def queue(inter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -138,6 +181,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Removes last added song from queue")
         async def wrong(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -147,6 +192,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Shuffles current queue")
         async def shuffle(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return            
             await inter.response.defer()
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
@@ -207,6 +254,16 @@ class MusicBotLeader(MusicBotInstance):
                         self.logger.unmuted(member)
                     else:
                         self.logger.muted(member)
+                elif before.self_video != after.self_video:
+                    if before.self_video:
+                        self.logger.video_off(member)
+                    else:
+                        self.logger.video_on(member)
+                elif before.self_stream != after.self_stream:
+                    if before.self_stream:
+                        self.logger.stream_off(member)
+                    else:
+                        self.logger.stream_on(member)
         elif before.channel:
             self.logger.disconnected(member, before)
         else:
@@ -296,3 +353,12 @@ class MusicBotLeader(MusicBotInstance):
         ans += "Type /repeat to toogle repeat mode for current track\n"
         ans += "Type /pause to pause/resume playback"
         return ans
+
+    async def check_dm(self, inter):
+        if not inter.guild:
+            if inter.author.id in config.admin_ids[569924343010689025]:
+                await inter.send(f"{config.dm_error_admin}")
+            else:
+                await inter.send(f"{config.dm_error}")
+            return True
+        return False

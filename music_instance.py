@@ -94,6 +94,8 @@ class MusicBotInstance:
 
         @self.bot.event
         async def on_message(message):
+            if not message.guild:
+               return
             await self.check_mentions(message)
 
         @self.bot.event
@@ -326,7 +328,7 @@ class MusicBotInstance:
         if not state.voice:
             return
         self.logger.finished(inter)
-        await self.abort_play(inter.guild.id, message=f"DJ {helpers.get_nickname(inter.author)} decided to stop!")
+        await self.abort_play(inter.guild.id, message=f"DJ {inter.author.display_name} decided to stop!")
 
     async def pause(self, inter):
         state = self.states[inter.guild.id]
