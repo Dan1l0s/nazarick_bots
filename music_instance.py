@@ -5,6 +5,9 @@ from yt_dlp import YoutubeDL
 from threading import Thread
 import random
 import asyncio
+from urllib.request import urlopen
+import json
+import re
 
 import config
 import helpers
@@ -32,10 +35,12 @@ class Song():
     track_info = None
     author = None
     original_message = None
+    radio_mode = None
 
-    def __init__(self, author="Unknown author"):
+    def __init__(self, *, author="Unknown author", radio_mode=False):
         self.track_info = asyncio.Future()
         self.author = author
+        self.radio_mode = radio_mode
 
 
 class GuildState():
@@ -47,6 +52,7 @@ class GuildState():
     voice = None
     cancel_timeout = None
     song_queue = None
+    radio_flag = None
 
     def __init__(self, guild):
         self.guild = guild
@@ -54,11 +60,13 @@ class GuildState():
         self.repeat_flag = False
         self.paused = False
         self.song_queue = []
+        self.radio_flag = False
 
     def reset(self):
         self.skip_flag = False
         self.repeat_flag = False
         self.paused = False
+        self.radio_flag = False
         self.song_queue.clear()
 
     async def connected_to(self, vc):
@@ -95,9 +103,9 @@ class MusicBotInstance:
         @self.bot.event
         async def on_message(message):
             if not message.guild:
-               if message.author.id in config.admin_ids[569924343010689025]:
-                   await message.reply("Your attention is an honor for me, my master.") 
-               return
+                if message.author.id in config.admin_ids[569924343010689025]:
+                    await message.reply("Your attention is an honor for me, my master.")
+                return
             await self.check_mentions(message)
 
         @self.bot.event
@@ -180,15 +188,18 @@ class MusicBotInstance:
                 pass
         state.reset()
 
-    async def process_song_query(self, inter, query, *, song=None, playnow=False):
+    async def process_song_query(self, inter, query, *, song=None, playnow=False, radio=False):
         state = self.states[inter.guild.id]
         if not song:
-            song = Song(inter.author)
+            if radio:
+                song = Song(author=inter.author, radio_mode=radio)
+            else:
+                song = Song(author=inter.author)
             if playnow:
                 state.song_queue.insert(0, song)
             else:
                 state.song_queue.append(song)
-        if not "https://" in query:
+        if not "https://" in query and not radio:
             asyncio.create_task(self.select_song(inter, song, query))
         else:
             asyncio.create_task(self.add_from_url_to_queue(
@@ -200,16 +211,23 @@ class MusicBotInstance:
             await self.add_from_url_to_queue(inter, song, url[:url.find("list")-1], playnow=playnow)
             return self.add_from_playlist(inter, url, playnow=playnow)
         else:
-            with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
-                track_info = ytdl.extract_info(url, download=False)
-            song.track_info.set_result(track_info)
-            if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
-                embed = self.embedder.songs(
-                    song.author, track_info, "Song was added to queue!")
-                song.original_message = await inter.text_channel.send("", embed=embed)
-            if respond:
-                await inter.orig_inter.delete_original_response()
-            self.logger.added(state.guild, track_info)
+            if not song.radio_mode:
+                with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
+                    track_info = ytdl.extract_info(url, download=False)
+                song.track_info.set_result(track_info)
+                if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
+                    embed = self.embedder.songs(
+                        song.author, track_info, "Song was added to queue!")
+                    song.original_message = await inter.text_channel.send("", embed=embed)
+                if respond:
+                    await inter.orig_inter.delete_original_response()
+                self.logger.added(state.guild, track_info)
+            else:
+                if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
+                    song.original_message = await inter.text_channel.send("Radio was added to queue!")
+                if respond:
+                    await inter.orig_inter.delete_original_response()
+                song.track_info.set_result(url)
 
     async def select_song(self, inter, song, query):
         songs = YoutubeSearch(query, max_results=5).to_dict()
@@ -245,16 +263,26 @@ class MusicBotInstance:
                 if not current_track:
                     print(f"Invalid Track")
                     continue
+                if not current_song.radio_mode:
+                    state.radio_flag = False
+                    link = current_track.get("url", None)
+                    state.voice.play(disnake.FFmpegPCMAudio(
+                        source=link, **config.FFMPEG_OPTIONS))
+                    if current_song.original_message:
+                        await current_song.original_message.delete()
+                    embed = self.embedder.songs(
+                        current_song.author, current_track, "Playing this song!")
+                    await state.last_inter.text_channel.send("", embed=embed)
+                    self.logger.playing(state.guild, current_track)
+                else:
+                    state.radio_flag = True
+                    if current_song.original_message:
+                        await current_song.original_message.delete()
+                    state.voice.play(disnake.FFmpegPCMAudio(
+                        source=current_track, **config.FFMPEG_OPTIONS))
+                    if (current_track == config.radio_url):
+                        asyncio.create_task(self.radio_message(state))
 
-                link = current_track.get("url", None)
-                state.voice.play(disnake.FFmpegPCMAudio(
-                    source=link, **config.FFMPEG_OPTIONS))
-                if current_song.original_message:
-                    await current_song.original_message.delete()
-                embed = self.embedder.songs(
-                    current_song.author, current_track, "Playing this song!")
-                await state.last_inter.text_channel.send("", embed=embed)
-                self.logger.playing(state.guild, current_track)
                 await self.play_before_interrupt(guild_id)
                 if not state.voice:
                     break
@@ -297,23 +325,26 @@ class MusicBotInstance:
 # *_______PlayerFuncs________________________________________________________________________________________________________________________________________
 
     # *Requires author of inter to be in voice channel
-    async def play(self, inter, query, playnow=False):
+    async def play(self, inter, query, playnow=False, radio=False):
         state = self.states[inter.guild.id]
         state.last_inter = inter
 
         if not state.voice:
             state.voice = await inter.voice_channel.connect()
-            await self.process_song_query(inter, query, playnow=playnow)
+            await self.process_song_query(inter, query, playnow=playnow, radio=radio)
             return asyncio.create_task(self.play_loop(inter.guild.id))
 
         if state.voice and inter.voice_channel == state.voice.channel:
-            return await self.process_song_query(inter, query, playnow=playnow)
+            return await self.process_song_query(inter, query, playnow=playnow, radio=radio)
 
         if state.voice and inter.voice_channel != state.voice.channel:
             state.voice.stop()
             await self.cancel_timeout(inter.guild.id, False)
             state.reset()
-            song = Song(inter.author)
+            if radio:
+                song = Song(author=inter.author, radio_mode=radio)
+            else:
+                song = Song(author=inter.author)
             if playnow:
                 state.song_queue.insert(0, song)
             else:
@@ -322,7 +353,7 @@ class MusicBotInstance:
             await state.voice.move_to(inter.voice_channel)
             await state.connected_to(inter.voice_channel)
 
-            await self.process_song_query(inter, query, song=song, playnow=playnow)
+            await self.process_song_query(inter, query, song=song, playnow=playnow, radio=radio)
 
     async def stop(self, inter):
         state = self.states[inter.guild.id]
@@ -423,3 +454,22 @@ class MusicBotInstance:
             await inter.orig_inter.send("There are no tracks to shuffle!")
         else:
             await inter.orig_inter.send("I am not playing anything!")
+
+    async def radio_message(self, state):
+        url = config.radio_widget
+        name = ""
+        while state.radio_flag:
+            response = urlopen(url)
+            data = json.loads(response.read())
+            data["duration"] -= 14
+            data["name"] = re.search(
+                "151; (.+?)</span>", data['on_air']).group(1)
+            if data["name"] == name:
+                await asyncio.sleep(1)
+                continue
+            name = data["name"]
+            data["source"] = re.search(
+                "blank'>(.+?)</a>", data['on_air']).group(1)
+            await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
+            self.logger.radio(state.last_inter.guild, data)
+            await asyncio.sleep(1)

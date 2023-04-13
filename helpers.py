@@ -9,6 +9,7 @@ def is_admin(member):
         return False
     return True
 
+
 def get_duration(info):
     if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
         ans = "Live"
@@ -71,10 +72,12 @@ async def unmute_admin(member):
             await entry.user.move_to(None)
             await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
 
+
 def get_guild_name(guild):
     if guild.name == "Nazarick":
         return "the Great Tomb of Nazarick"
     return guild.name
+
 
 def get_welcome_time(date):
     delta = datetime.now(timezone.utc) - date
@@ -84,37 +87,36 @@ def get_welcome_time(date):
             return "a year ago"
         else:
             return f"{amount} years ago"
-        
+
     amount = delta.days // 30
     if amount > 0:
         if amount == 1:
             return "a month ago"
         else:
             return f"{amount} months ago"
-        
+
     amount = delta.days // 7
     if amount > 0:
         if amount == 1:
             return "a week ago"
         else:
             return f"{amount} weeks ago"
-    
+
     amount = delta.days
     if amount > 0:
         if amount == 1:
             return "a day ago"
         else:
             return f"{amount} days ago"
-        
+
     amount = delta.hours
     if amount > 0:
         if amount == 1:
             return "an hour ago"
         else:
-            return f"{amount} hours ago"    
-        
+            return f"{amount} hours ago"
+
     amount = delta.minutes
     if amount <= 1:
         return "a minute ago"
-    return f"{amount} minutes ago"    
-
+    return f"{amount} minutes ago"

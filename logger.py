@@ -10,7 +10,7 @@ class Logger:
     def error(self, err, guild):
         if not self.state:
             return
-        abs_path = self.get_path(guild.name)
+        abs_path = self.get_path(guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + " : ERROR : " + str(err) + "\n")
@@ -19,7 +19,7 @@ class Logger:
     def skip(self, inter):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(inter.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track in VC: {inter.guild.voice_client.channel}\n")
@@ -37,7 +37,7 @@ class Logger:
     def logged(self, entry):
         if not self.state:
             return
-        abs_path = self.get_path(entry.user.guild.name)
+        abs_path = self.get_path(entry.user.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(datetime.datetime.now().strftime("%H:%M:%S") +
                 f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
@@ -46,8 +46,7 @@ class Logger:
     def added(self, guild, track):
         if not self.state:
             return
-        abs_path = self.get_path(guild.name)
-        abs_path = self.get_path(guild.name)
+        abs_path = self.get_path(guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Added {track['title']} to queue with duration of {helpers.get_duration(track)}\n")
@@ -56,25 +55,25 @@ class Logger:
     def playing(self, guild, track):
         if not self.state:
             return
-        abs_path = self.get_path(guild.name)
+        abs_path = self.get_path(guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : PLAY : Playing {track['title']} in VC: {guild.voice_client.channel}\n")
         f.close()
 
-    def radio(self, inter, data):
+    def radio(self, guild, data):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : RADIO : Playing {data['name']} in VC: {inter.guild.voice_client.channel}\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : RADIO : Playing {data['name']} in VC: {guild.voice_client.channel}\n")
         f.close()
 
     def finished(self, inter):
         if not self.state:
             return
-        abs_path = self.get_path(inter.guild.name)
+        abs_path = self.get_path(inter.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {inter.guild.voice_client.channel}\n")
@@ -83,7 +82,7 @@ class Logger:
     def switched(self, member, before, after):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} switched VC from {before.channel.name} to {after.channel.name}\n")
@@ -92,7 +91,7 @@ class Logger:
     def connected(self, member, after):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} joined VC {after.channel.name}\n")
@@ -101,7 +100,7 @@ class Logger:
     def disconnected(self, member, before):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} left VC {before.channel.name}\n")
@@ -110,7 +109,7 @@ class Logger:
     def guild_deafened(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was deafened by guild admin\n")
@@ -119,7 +118,7 @@ class Logger:
     def guild_undeafened(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was undeafened by guild admin\n")
@@ -128,7 +127,7 @@ class Logger:
     def guild_muted(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was muted by guild admin\n")
@@ -137,7 +136,7 @@ class Logger:
     def guild_unmuted(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was unmuted by guild admin\n")
@@ -146,7 +145,7 @@ class Logger:
     def deafened(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} deafened themself\n")
@@ -155,7 +154,7 @@ class Logger:
     def undeafened(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} undeafened themself\n")
@@ -164,7 +163,7 @@ class Logger:
     def muted(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} muted themself\n")
@@ -173,16 +172,16 @@ class Logger:
     def unmuted(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} unmuted themself\n")
         f.close()
-    
+
     def video_on(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} turned on their camera\n")
@@ -191,7 +190,7 @@ class Logger:
     def video_off(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} turned off their camera\n")
@@ -200,7 +199,7 @@ class Logger:
     def stream_on(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} went live\n")
@@ -209,7 +208,7 @@ class Logger:
     def stream_off(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.name)
+        abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} shutted their stream\n")
@@ -218,8 +217,8 @@ class Logger:
     def get_path(self, dir_name: str):
         if not self.state:
             return
-        if not os.path.exists(f'logs/{dir_name}'):
-            os.makedirs(f'logs/{dir_name}')
+        if not os.path.exists(f"logs/{dir_name}"):
+            os.makedirs(f"logs/{dir_name}")
         file_name = datetime.datetime.now().strftime('%d-%m-%Y')
         script_dir = os.path.dirname(__file__)
         rel_path = f"logs/{dir_name}/{file_name}"
