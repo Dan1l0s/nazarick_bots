@@ -233,7 +233,7 @@ class MusicBotLeader(MusicBotInstance):
         if after.channel and after.channel.name == "Создать приват":
             await helpers.create_private(member)
             return True
-        if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:
+        if before.channel and "'s private" in before.channel.name and helpers.get_members_count(before.channel.members) == 0:
             await before.channel.delete()
             return True
         return False
@@ -351,7 +351,7 @@ class MusicBotLeader(MusicBotInstance):
         for instance in self.instances:
             if guild in instance.guilds:
                 voice = instance.bot.get_guild(inter.guild.id).voice_client
-                if not voice or not voice.is_connected() or len(voice.channel.members) == 1:
+                if not voice or not voice.is_connected() or helpers.get_members_cont(voice.channel.members) == 1:
                     return instance
         if not helpers.is_admin(inter.author):
             return None
@@ -367,7 +367,9 @@ class MusicBotLeader(MusicBotInstance):
         ans += "Type /shuffle to shuffle tracks in the queue\n"
         ans += "Type /wrong to remove last added track\n"
         ans += "Type /repeat to toogle repeat mode for current track\n"
-        ans += "Type /pause to pause/resume playback"
+        ans += "Type /pause to pause/resume playback\n"
+        ans += "Type /playnow to order a song at pos #1 in the queue\n"
+        ans += "Type /radio to play online radio (by default plays ANISON.FM)"
         return ans
 
     async def check_dm(self, inter):

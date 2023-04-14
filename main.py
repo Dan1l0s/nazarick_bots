@@ -1,7 +1,8 @@
+import asyncio
+
 from music_leader import MusicBotLeader
 from music_instance import MusicBotInstance
 from logger import Logger
-import asyncio
 
 
 async def main():

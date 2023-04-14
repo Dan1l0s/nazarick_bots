@@ -40,6 +40,8 @@ class Embed:
         embed.add_field(name="*Duration*",
                         value=helpers.get_duration(data),
                         inline=True)
+        embed.add_field(name="*Channel*",
+                        value=data['channel'].name, inline=True)
         return embed
 
     def action(self, entry):
@@ -57,7 +59,8 @@ class Embed:
                 color=disnake.Colour.from_rgb(
                     *config.embed_colors["other_action"]),
                 timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.display_avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -104,7 +107,7 @@ class Embed:
             description=f'**{member.mention}, welcome to {helpers.get_guild_name(member.guild)}!**',
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["welcome_message"]),
-            timestamp=datetime.datetime.now()               
+            timestamp=datetime.datetime.now()
         )
         embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')

@@ -169,7 +169,7 @@ class MusicBotInstance:
             return
         if member.id == self.bot.application_id and not after.channel:
             return await self.abort_play(guild_id)
-        if len(state.voice.channel.members) < 2:
+        if helpers.get_members_count(state.voice.channel.members) < 2:
             if not state.cancel_timeout:
                 await self.timeout(guild_id)
         else:
@@ -470,6 +470,7 @@ class MusicBotInstance:
             name = data["name"]
             data["source"] = re.search(
                 "blank'>(.+?)</a>", data['on_air']).group(1)
+            data['channel'] = state.voice.channel
             await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
             self.logger.radio(state.last_inter.guild, data)
             await asyncio.sleep(1)

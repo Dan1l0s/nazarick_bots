@@ -120,3 +120,11 @@ def get_welcome_time(date):
     if amount <= 1:
         return "a minute ago"
     return f"{amount} minutes ago"
+
+
+def get_members_count(members):
+    cnt = len(members)
+    for member in members:
+        if member.bot:
+            cnt -= 1
+    return cnt
