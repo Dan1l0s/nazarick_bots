@@ -472,7 +472,7 @@ class MusicBotInstance:
             data["duration"] -= 14
             data["name"] = re.search(
                 "151; (.+?)</span>", data['on_air']).group(1)
-            if data["name"] == name or state.voice.is_paused():
+            if data["name"] == name or (state and state.voice.is_paused()):
                 await asyncio.sleep(1)
                 continue
             name = data["name"]

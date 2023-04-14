@@ -15,13 +15,14 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         options = []
         for song in songs:
             title = song['title']
+            suffix = song['url_suffix'][:song['url_suffix'].find("&")]
             sz = config.music_settings["SelectionPanelMaxNameLen"]
             if len(title) > sz:
                 title = title[:sz]+"..."
             if song['duration'] == 0:
                 song['duration'] = "Live"
             options.append(disnake.SelectOption(
-                label=f"{title} : {song['duration']}", value=song['url_suffix']))
+                label=f"{title} : {song['duration']}", value=suffix))
         disnake.ui.View.__init__(
             self, timeout=config.music_settings["SelectionPanelTimeout"])
         disnake.ui.Select.__init__(self,
