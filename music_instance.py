@@ -44,6 +44,7 @@ class Song():
 
 
 class GuildState():
+    current_song = None
     guild = None
     skip_flag = None
     repeat_flag = None
@@ -52,7 +53,6 @@ class GuildState():
     voice = None
     cancel_timeout = None
     song_queue = None
-    radio_flag = None
 
     def __init__(self, guild):
         self.guild = guild
@@ -60,13 +60,12 @@ class GuildState():
         self.repeat_flag = False
         self.paused = False
         self.song_queue = []
-        self.radio_flag = False
 
     def reset(self):
         self.skip_flag = False
         self.repeat_flag = False
         self.paused = False
-        self.radio_flag = False
+        self.curr_track = None
         self.song_queue.clear()
 
     async def connected_to(self, vc):
@@ -258,26 +257,24 @@ class MusicBotInstance:
         state = self.states[guild_id]
         try:
             while state.song_queue:
-                current_song = state.song_queue.pop(0)
-                current_track = await current_song.track_info
+                state.current_song = state.song_queue.pop(0)
+                current_track = await state.current_song.track_info
                 if not current_track:
                     print(f"Invalid Track")
                     continue
-                if not current_song.radio_mode:
-                    state.radio_flag = False
+                if not state.current_song.radio_mode:
                     link = current_track.get("url", None)
                     state.voice.play(disnake.FFmpegPCMAudio(
                         source=link, **config.FFMPEG_OPTIONS))
-                    if current_song.original_message:
-                        await current_song.original_message.delete()
+                    if state.current_song.original_message:
+                        await state.current_song.original_message.delete()
                     embed = self.embedder.songs(
-                        current_song.author, current_track, "Playing this song!")
+                        state.current_song.author, current_track, "Playing this song!")
                     await state.last_inter.text_channel.send("", embed=embed)
                     self.logger.playing(state.guild, current_track)
                 else:
-                    state.radio_flag = True
-                    if current_song.original_message:
-                        await current_song.original_message.delete()
+                    if state.current_song.original_message:
+                        await state.current_song.original_message.delete()
                     state.voice.play(disnake.FFmpegPCMAudio(
                         source=current_track, **config.FFMPEG_OPTIONS))
                     if (current_track == config.radio_url):
@@ -292,7 +289,7 @@ class MusicBotInstance:
                     state.skip_flag = False
                 elif state.repeat_flag:
                     state.song_queue.insert(
-                        0, current_song)
+                        0, state.current_song)
             await self.abort_play(guild_id)
         except Exception as err:
             print(f"Exception in play_loop: {err}")
@@ -365,13 +362,24 @@ class MusicBotInstance:
 
     async def pause(self, inter):
         state = self.states[inter.guild.id]
+        track_info = await state.current_song.track_info
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
             return
         if state.paused:
-            state.paused = False
             if state.voice.is_paused():
-                state.voice.resume()
+                if state.current_song.radio_mode:
+                    state.voice.stop()
+                    state.voice.play(disnake.FFmpegPCMAudio(
+                        source=track_info, **config.FFMPEG_OPTIONS))
+                elif helpers.get_duration(track_info) == "Live":
+                    link = track_info.get("url", None)
+                    state.voice.stop()
+                    state.voice.play(disnake.FFmpegPCMAudio(
+                        source=link, **config.FFMPEG_OPTIONS))
+                else:
+                    state.voice.resume()
+            state.paused = False
             await inter.orig_inter.send("Player resumed!")
         else:
             state.paused = True
@@ -458,13 +466,13 @@ class MusicBotInstance:
     async def radio_message(self, state):
         url = config.radio_widget
         name = ""
-        while state.radio_flag:
+        while state.current_song and state.current_song.radio_mode:
             response = urlopen(url)
             data = json.loads(response.read())
             data["duration"] -= 14
             data["name"] = re.search(
                 "151; (.+?)</span>", data['on_air']).group(1)
-            if data["name"] == name:
+            if data["name"] == name or state.voice.is_paused():
                 await asyncio.sleep(1)
                 continue
             name = data["name"]
