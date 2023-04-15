@@ -70,7 +70,10 @@ async def unmute_admin(member):
         delta = datetime.now(timezone.utc) - entry.created_at
         if entry.user != member and entry.user.id not in config.bot_ids and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
             await entry.user.move_to(None)
-            await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+            try:
+                await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+            except:
+                pass
 
 
 def get_guild_name(guild):
