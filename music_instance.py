@@ -262,19 +262,26 @@ class MusicBotInstance:
                 if not current_track:
                     print(f"Invalid Track")
                     continue
+
                 if not state.current_song.radio_mode:
                     link = current_track.get("url", None)
                     state.voice.play(disnake.FFmpegPCMAudio(
                         source=link, **config.FFMPEG_OPTIONS))
                     if state.current_song.original_message:
-                        await state.current_song.original_message.delete()
+                        try:
+                            await state.current_song.original_message.delete()
+                        except:
+                            pass
                     embed = self.embedder.songs(
                         state.current_song.author, current_track, "Playing this song!")
                     await state.last_inter.text_channel.send("", embed=embed)
                     self.logger.playing(state.guild, current_track)
                 else:
                     if state.current_song.original_message:
-                        await state.current_song.original_message.delete()
+                        try:
+                            await state.current_song.original_message.delete()
+                        except:
+                            pass
                     state.voice.play(disnake.FFmpegPCMAudio(
                         source=current_track, **config.FFMPEG_OPTIONS))
                     if (current_track == config.radio_url):
@@ -422,11 +429,15 @@ class MusicBotInstance:
                 if not song.track_info.done():
                     continue
                 track = song.track_info.result()
-                if "live_status" in track and track['live_status'] == "is_live":
+                if "live_status" in track and track['live_status'] == "is_live" or song.radio_mode:
                     duration = "Live"
                 else:
                     duration = helpers.get_duration(track)
-                ans += f"\n{cnt}) {track['title']}, duration: {duration}"
+                if song.radio_mode:
+                    title = "Radio: " + track
+                else:
+                    title = track['title']
+                ans += f"\n{cnt}) {title}, duration: {duration}"
                 cnt += 1
             ans += "```"
             await inter.orig_inter.send(ans)
@@ -475,6 +486,10 @@ class MusicBotInstance:
             if data["name"] == name or (state and state.voice.is_paused()):
                 await asyncio.sleep(1)
                 continue
+            if len(state.song_queue) > 0:
+                state.song_queue.append(state.current_song)
+                state.voice.stop()
+                return
             name = data["name"]
             data["source"] = re.search(
                 "blank'>(.+?)</a>", data['on_air']).group(1)
