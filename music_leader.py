@@ -233,7 +233,7 @@ class MusicBotLeader(MusicBotInstance):
         if after.channel and after.channel.name == "Создать приват":
             await helpers.create_private(member)
             return True
-        if before.channel and "'s private" in before.channel.name and helpers.get_members_count(before.channel.members) == 0:
+        if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:
             await before.channel.delete()
             return True
         return False
@@ -322,6 +322,8 @@ class MusicBotLeader(MusicBotInstance):
         author_vc = None
         if inter.author.voice:
             author_vc = inter.author.voice.channel
+        else:
+            return None
         for instance in self.instances:
             if instance.contains_in_guild(guild_id) and instance.current_voice_channel(guild_id) == author_vc:
                 return instance
