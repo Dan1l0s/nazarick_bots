@@ -168,8 +168,8 @@ class MusicBotInstance:
             return
         if member.id == self.bot.application_id and not after.channel:
             return await self.abort_play(guild_id)
-        if helpers.get_members_count(state.voice.channel.members) < 2:
-            if not state.cancel_timeout:
+        if helpers.get_members_count(state.voice.channel.members) < 1:
+            if state.cancel_timeout == None:
                 await self.timeout(guild_id)
         else:
             await self.cancel_timeout(guild_id)
@@ -277,6 +277,9 @@ class MusicBotInstance:
                     await state.last_inter.text_channel.send("", embed=embed)
                     self.logger.playing(state.guild, current_track)
                 else:
+                    if len(state.song_queue) > 0 and not state.song_queue[0].radio_mode:
+                        state.song_queue.append(state.current_song)
+                        continue
                     if state.current_song.original_message:
                         try:
                             await state.current_song.original_message.delete()
@@ -478,22 +481,25 @@ class MusicBotInstance:
         url = config.radio_widget
         name = ""
         while state.current_song and state.current_song.radio_mode:
-            response = urlopen(url)
-            data = json.loads(response.read())
-            data["duration"] -= 14
-            data["name"] = re.search(
-                "151; (.+?)</span>", data['on_air']).group(1)
-            if data["name"] == name or (state and state.voice.is_paused()):
+            try:
+                response = urlopen(url)
+                data = json.loads(response.read())
+                data["duration"] -= 14
+                data["name"] = re.search(
+                    "151; (.+?)</span>", data['on_air']).group(1)
+                if data["name"] == name or (state.voice and state.voice.is_paused()):
+                    await asyncio.sleep(1)
+                    continue
+                if len(state.song_queue) > 0:
+                    state.song_queue.append(state.current_song)
+                    state.voice.stop()
+                    return
+                name = data["name"]
+                data["source"] = re.search(
+                    "blank'>(.+?)</a>", data['on_air']).group(1)
+                data['channel'] = state.voice.channel
+                await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
+                self.logger.radio(state.last_inter.guild, data)
                 await asyncio.sleep(1)
-                continue
-            if len(state.song_queue) > 0:
-                state.song_queue.append(state.current_song)
-                state.voice.stop()
-                return
-            name = data["name"]
-            data["source"] = re.search(
-                "blank'>(.+?)</a>", data['on_air']).group(1)
-            data['channel'] = state.voice.channel
-            await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
-            self.logger.radio(state.last_inter.guild, data)
-            await asyncio.sleep(1)
+            except:
+                await asyncio.sleep(1)
