@@ -214,6 +214,24 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} shutted their stream\n")
         f.close()
 
+    def gpt(self, member, messages, guild_id="gpt"):
+        if not self.state:
+            return
+        abs_path = self.get_path(guild_id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : GPT : User {member} used GPT with the query: `{messages[0]}` and got response `{messages[1]}`\n")
+        f.close()
+
+    def gpt_clear(self, member, guild_id="gpt"):
+        if not self.state:
+            return
+        abs_path = self.get_path(guild_id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : GPT : User {member} cleared their chatGPT history\n")
+        f.close()
+
     def get_path(self, dir_name: str):
         if not self.state:
             return

@@ -1,6 +1,8 @@
 import disnake
 from disnake.ext import commands
 import asyncio
+import openai
+import math
 
 from music_instance import MusicBotInstance, Interaction
 import helpers
@@ -9,12 +11,15 @@ import config
 
 class MusicBotLeader(MusicBotInstance):
     instances = None
+    chatgpt_messages = None
 
     def __init__(self, name, logger):
         super().__init__(name, logger)
         self.instances = []
         self.instances.append(self)
         self.instance_count = 0
+        self.chatgpt_messages = {}
+        openai.api_key = config.openai_api_key
 
         @self.bot.event
         async def on_audit_log_entry_create(entry):
@@ -217,6 +222,21 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.shuffle(new_inter)
 
+        @self.bot.slash_command(description="Allows to use ChatGPT")
+        async def gpt(inter: disnake.AppCmdInter, message: str):
+            asyncio.create_task(self.gpt_helper(inter, message))
+
+        @self.bot.slash_command(description="Clears chat history with ChatGPT (it will forget all your messages)")
+        async def gpt_clear(inter: disnake.AppCmdInter):
+            self.chatgpt_messages[inter.author.id] = []
+            await inter.send("Done!")
+            self.logger.gpt_clear(inter.author)
+            await asyncio.sleep(5)
+            try:
+                await inter.delete_original_response()
+            except:
+                pass
+
         @self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):
             await inter.response.defer()
@@ -227,7 +247,6 @@ class MusicBotLeader(MusicBotInstance):
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         if after.channel and after.channel.name == "Создать приват":
@@ -301,7 +320,6 @@ class MusicBotLeader(MusicBotInstance):
 
 # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def get_available_instance(self, inter):
         guild_id = inter.guild.id
         for instance in self.instances:
@@ -342,6 +360,27 @@ class MusicBotLeader(MusicBotInstance):
         await inter.edit_original_response("Done!")
         await asyncio.sleep(5)
         await inter.delete_original_response()
+
+    async def gpt_helper(self, inter, message):
+        try:
+            await inter.response.defer()
+        except:
+            print(inter, '#'*80)
+            return
+        if inter.author.id not in self.chatgpt_messages:
+            self.chatgpt_messages[inter.author.id] = []
+        messages_list = self.chatgpt_messages[inter.author.id]
+        messages_list.append(
+            {"role": "user", "content": message})
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=messages_list).choices[0].message.content
+        await inter.edit_original_response(response[:2000])
+        length = math.ceil(len(response) / 2000)
+        for i in range(2, length + 1):
+            await inter.channel.send(response[2000*(i-1):2000*i])
+        messages_list.append({"role": "assistant", "content": response})
+        self.logger.gpt(inter.author, [message, response])
 
     async def find_instance(self, inter):
         guild = inter.guild
