@@ -61,17 +61,17 @@ class MusicBotLeader(MusicBotInstance):
             # await channel.send(f"Greetings! {member.mention}, welcome to the Great Tomb of Nazarick.")
 
         @self.bot.slash_command(description="temporary command")
-        async def welcome(inter):
+        async def welcome(inter, member: disnake.Member):
             if await self.check_dm(inter):
                 return
-            embed = self.embedder.welcome_message(inter.author)
+            embed = self.embedder.welcome_message(member)
             await inter.send(embed=embed)
 
         @self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
             if await self.check_dm(inter):
                 return
-            await self.set_bitrate(384000)
+            await self.set_bitrate(inter, 384000)
 
         @self.bot.slash_command(description="Clears voice channel (authorized use only)")
         async def purge(inter):
@@ -320,6 +320,7 @@ class MusicBotLeader(MusicBotInstance):
 
 # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def get_available_instance(self, inter):
         guild_id = inter.guild.id
         for instance in self.instances:
@@ -372,9 +373,16 @@ class MusicBotLeader(MusicBotInstance):
         messages_list = self.chatgpt_messages[inter.author.id]
         messages_list.append(
             {"role": "user", "content": message})
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages_list).choices[0].message.content
+        while True:
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages_list).choices[0].message.content
+                break
+            except Exception as err:
+                print(err)
+                messages_list = messages_list[-5:]
+                self.logger.gpt_clear(inter.author)
         await inter.edit_original_response(response[:2000])
         length = math.ceil(len(response) / 2000)
         for i in range(2, length + 1):
