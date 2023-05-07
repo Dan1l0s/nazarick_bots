@@ -21,14 +21,19 @@ class Interaction():
     guild = None
     text_channel = None
     voice_channel = None
+    message = None
 
     def __init__(self, bot, inter):
-        self.guild = bot.get_guild(inter.guild.id)
-        self.author = self.guild.get_member(inter.author.id)
+        if inter.guild:
+            self.guild = bot.get_guild(inter.guild.id)
+        if inter.guild:
+            self.author = self.guild.get_member(inter.author.id)
+            if self.author.voice:
+                self.voice_channel = self.author.voice.channel
+        else:
+            self.author = inter.author
         self.text_channel = bot.get_partial_messageable(inter.channel.id)
         self.orig_inter = inter
-        if self.author.voice:
-            self.voice_channel = self.author.voice.channel
 
 
 class Song():

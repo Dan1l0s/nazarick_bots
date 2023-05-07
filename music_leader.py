@@ -41,12 +41,14 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.event
         async def on_message(message):
+            if await self.check_gpt_interaction(message):
+                return
             if not message.guild:
                 if message.author.id in config.admin_ids[569924343010689025]:
                     await message.reply("Your attention is an honor for me, my master.")
                 return
-            await self.check_mentions(message)
             await self.check_message_content(message)
+            await self.check_mentions(message)
 
         # @self.bot.event
         # async def on_member_join(member):
@@ -224,7 +226,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.slash_command(description="Allows to use ChatGPT")
         async def gpt(inter: disnake.AppCmdInter, message: str):
-            asyncio.create_task(self.gpt_helper(inter, message))
+            new_inter = Interaction(self.bot, inter)
+            asyncio.create_task(self.gpt_helper(new_inter, message))
 
         @self.bot.slash_command(description="Clears chat history with ChatGPT (it will forget all your messages)")
         async def gpt_clear(inter: disnake.AppCmdInter):
@@ -247,6 +250,7 @@ class MusicBotLeader(MusicBotInstance):
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         if after.channel and after.channel.name == "Создать приват":
@@ -317,9 +321,18 @@ class MusicBotLeader(MusicBotInstance):
             return True
         return False
 
+    async def check_gpt_interaction(self, message):
+        if message.reference:
+            replied_message = await message.channel.fetch_message(message.reference.message_id)
+            if message.author.id in self.chatgpt_messages and replied_message.content in self.chatgpt_messages[message.author.id][-1]["content"]:
+                inter = Interaction(self.bot, message)
+                inter.orig_inter = None
+                inter.message = message
+                asyncio.create_task(self.gpt_helper(inter, message.content))
+                return True
+        return False
 
-# *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
-
+        # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
 
     async def get_available_instance(self, inter):
         guild_id = inter.guild.id
@@ -363,30 +376,33 @@ class MusicBotLeader(MusicBotInstance):
         await inter.delete_original_response()
 
     async def gpt_helper(self, inter, message):
-        try:
-            await inter.response.defer()
-        except:
-            print(inter, '#'*80)
-            return
+        if inter.orig_inter:
+            try:
+                await inter.orig_inter.response.defer()
+            except:
+                pass
         if inter.author.id not in self.chatgpt_messages:
             self.chatgpt_messages[inter.author.id] = []
         messages_list = self.chatgpt_messages[inter.author.id]
         messages_list.append(
             {"role": "user", "content": message})
-        while True:
+        for i in range(-5, 0):
             try:
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=messages_list).choices[0].message.content
                 break
-            except Exception as err:
-                print(err)
-                messages_list = messages_list[-5:]
+            except:
+                messages_list = messages_list[i:]
                 self.logger.gpt_clear(inter.author)
-        await inter.edit_original_response(response[:2000])
+
+        if inter.orig_inter:
+            await inter.orig_inter.edit_original_response(response[:2000])
+        else:
+            await inter.message.reply(response[:2000])
         length = math.ceil(len(response) / 2000)
         for i in range(2, length + 1):
-            await inter.channel.send(response[2000*(i-1):2000*i])
+            await inter.text_channel.send(response[2000*(i-1):2000*i])
         messages_list.append({"role": "assistant", "content": response})
         self.logger.gpt(inter.author, [message, response])
 
