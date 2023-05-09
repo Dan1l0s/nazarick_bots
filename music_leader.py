@@ -323,7 +323,10 @@ class MusicBotLeader(MusicBotInstance):
 
     async def check_gpt_interaction(self, message):
         if message.reference:
-            replied_message = await message.channel.fetch_message(message.reference.message_id)
+            try:
+                replied_message = await message.channel.fetch_message(message.reference.message_id)
+            except:
+                return False
             if message.author.id in self.chatgpt_messages and replied_message.content in self.chatgpt_messages[message.author.id][-1]["content"]:
                 inter = Interaction(self.bot, message)
                 inter.orig_inter = None

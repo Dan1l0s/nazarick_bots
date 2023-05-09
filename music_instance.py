@@ -58,6 +58,7 @@ class GuildState():
     voice = None
     cancel_timeout = None
     song_queue = None
+    last_radio_message = None
 
     def __init__(self, guild):
         self.guild = guild
@@ -65,6 +66,7 @@ class GuildState():
         self.repeat_flag = False
         self.paused = False
         self.song_queue = []
+        self.last_radio_message = []
 
     def reset(self):
         self.skip_flag = False
@@ -72,6 +74,7 @@ class GuildState():
         self.paused = False
         self.curr_track = None
         self.song_queue.clear()
+        self.last_radio_message.clear()
 
     async def connected_to(self, vc):
         while True:
@@ -321,7 +324,7 @@ class MusicBotInstance:
 
     async def check_mentions(self, message):
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
-            client = message.guild.get_member(self.bot.user.id)
+            client = message.guild.me
             if helpers.is_mentioned(client, message):
                 if helpers.is_admin(message.author):
                     if "ping" in message.content.lower() or "пинг" in message.content.lower():
@@ -503,6 +506,9 @@ class MusicBotInstance:
                 data["source"] = re.search(
                     "blank'>(.+?)</a>", data['on_air']).group(1)
                 data['channel'] = state.voice.channel
+                if (state.last_radio_message == data):
+                    return
+                state.last_radio_message = data
                 await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
                 self.logger.radio(state.last_inter.guild, data)
                 await asyncio.sleep(1)
