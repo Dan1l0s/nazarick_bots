@@ -399,13 +399,14 @@ class MusicBotLeader(MusicBotInstance):
                 messages_list = messages_list[i:]
                 self.logger.gpt_clear(inter.author)
 
+        chunks = helpers.split_into_chunks(response)
+
         if inter.orig_inter:
-            await inter.orig_inter.edit_original_response(response[:2000])
+            await inter.orig_inter.edit_original_response(chunks[0])
         else:
-            await inter.message.reply(response[:2000])
-        length = math.ceil(len(response) / 2000)
-        for i in range(2, length + 1):
-            await inter.text_channel.send(response[2000*(i-1):2000*i])
+            await inter.message.reply(chunks[0])
+        for i in range(1, len(chunks)):
+            await inter.text_channel.send(chunks[i])
         messages_list.append({"role": "assistant", "content": response})
         self.logger.gpt(inter.author, [message, response])
 

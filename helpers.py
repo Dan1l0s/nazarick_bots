@@ -131,3 +131,32 @@ def get_members_count(members):
         if member.bot:
             cnt -= 1
     return cnt
+
+
+def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
+    source = msg.split("\n")
+    chunks = []
+    item = ""
+    length = 0
+    for line in source:
+        if length + len(line) > chunk_size:
+            if item.count('`') % 2 == 1:
+                item += '```'
+                chunks.append(item)
+                item = '```'
+                length = 3
+            else:
+                chunks.append(item)
+                length = len(line)
+                item = ""
+                length = 0
+        item += line
+        length += len(line)
+
+        if (line[-3:] != '```'):
+            item += '\n'
+            length += 1
+
+    if item != "":
+        chunks.append(item)
+    return chunks
