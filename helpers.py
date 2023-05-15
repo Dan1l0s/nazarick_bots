@@ -2,6 +2,7 @@ import config
 import disnake
 from datetime import datetime, timezone
 import time
+import re
 
 
 def is_admin(member):
@@ -135,21 +136,27 @@ def get_members_count(members):
 
 def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
     source = msg.split("\n")
+    pattern = r'```[a-zA-Z]*\n'
     chunks = []
     item = ""
     length = 0
     for line in source:
         if length + len(line) > chunk_size:
             if item.count('`') % 2 == 1:
+                prefix = re.findall(pattern, item)
                 item += '```'
                 chunks.append(item)
-                item = '```'
-                length = 3
+
+                item = prefix[-1]
+                length = len(item)
             else:
                 chunks.append(item)
-                length = len(line)
                 item = ""
                 length = 0
+
+        if (line.count('`') % 6 == 0):
+            line = line.replace('```', '\`\`\`')
+
         item += line
         length += len(line)
 

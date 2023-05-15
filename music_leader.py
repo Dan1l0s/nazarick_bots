@@ -322,17 +322,34 @@ class MusicBotLeader(MusicBotInstance):
         return False
 
     async def check_gpt_interaction(self, message):
+        if message.author.bot:
+            return False
+        if not message.guild:
+            inter = Interaction(self.bot, message)
+            inter.orig_inter = None
+            inter.message = message
+            asyncio.create_task(
+                self.gpt_helper(inter, message.content))
+            return True
         if message.reference:
             try:
                 replied_message = await message.channel.fetch_message(message.reference.message_id)
-            except:
+            except Exception as e:
+                print(e)
                 return False
-            if message.author.id in self.chatgpt_messages and replied_message.content in self.chatgpt_messages[message.author.id][-1]["content"]:
-                inter = Interaction(self.bot, message)
-                inter.orig_inter = None
-                inter.message = message
-                asyncio.create_task(self.gpt_helper(inter, message.content))
-                return True
+            if message.author.id not in self.chatgpt_messages or replied_message.author.id != self.bot.user.id:
+                return False
+            try:
+                if replied_message.content[10:100] in self.chatgpt_messages[message.author.id][-1]["content"]:
+                    inter = Interaction(self.bot, message)
+                    inter.orig_inter = None
+                    inter.message = message
+                    asyncio.create_task(
+                        self.gpt_helper(inter, message.content))
+                    return True
+            except Exception as err:
+                print(err)
+                pass
         return False
 
         # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
@@ -389,14 +406,15 @@ class MusicBotLeader(MusicBotInstance):
         messages_list = self.chatgpt_messages[inter.author.id]
         messages_list.append(
             {"role": "user", "content": message})
-        for i in range(-5, 0):
+        while True:
             try:
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=messages_list).choices[0].message.content
                 break
-            except:
-                messages_list = messages_list[i:]
+            except Exception as e:
+                print(e)
+                messages_list = messages_list[2:]
                 self.logger.gpt_clear(inter.author)
 
         chunks = helpers.split_into_chunks(response)
