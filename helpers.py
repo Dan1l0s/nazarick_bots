@@ -138,32 +138,32 @@ def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
     source = msg.split("\n")
     pattern = r'```[a-zA-Z]*\n'
     chunks = []
-    item = ""
+    chunk = ""
     length = 0
     for line in source:
         if length + len(line) > chunk_size:
-            if item.count('`') % 2 == 1:
-                prefix = re.findall(pattern, item)
-                item += '```'
-                chunks.append(item)
+            if chunk.count('`') % 2 == 1:
+                prefix = re.findall(pattern, chunk)
+                chunk += '```'
+                chunks.append(chunk)
 
-                item = prefix[-1]
-                length = len(item)
+                chunk = prefix[-1]
+                length = len(chunk)
             else:
-                chunks.append(item)
-                item = ""
+                chunks.append(chunk)
+                chunk = ""
                 length = 0
 
         if (line.count('`') % 6 == 0):
             line = line.replace('```', '\`\`\`')
 
-        item += line
+        chunk += line
         length += len(line)
 
         if (line[-3:] != '```'):
-            item += '\n'
+            chunk += '\n'
             length += 1
 
-    if item != "":
-        chunks.append(item)
+    if chunk != "":
+        chunks.append(chunk)
     return chunks

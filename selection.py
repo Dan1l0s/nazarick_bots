@@ -11,7 +11,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         self.func = func
         self.inter = inter
         self.bot = bot
-        self.select_done = asyncio.Future()
+        self.done = False
         options = []
         for song in songs:
             title = song['title']
@@ -36,7 +36,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         if inter.author == self.author or helpers.is_admin(inter.author):
             await self.message.delete()
             await self.func(self.inter, self.song, f"https://www.youtube.com/{inter.values[0]}", respond=False)
-            self.select_done.set_result(1)
+            self.done = True
         else:
             try:
                 await inter.author.send(f"Don't you even try to use someone's selection panel once again. {config.emojis['dead']}")
@@ -44,12 +44,13 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
                 pass
 
     async def on_timeout(self):
-        if self.select_done.done():
+        if self.done:
             return
         try:
             await self.message.delete()
             voice = self.bot.states[self.inter.guild.id].voice
-            self.select_done.set_result(1)
+            self.done = True
+            self.song.track_info.set_result(None)
             self.message = await self.inter.text_channel.send(f"{self.inter.author.mention} You're out of time! Next time think faster!")
             if not (voice.is_playing() or voice.is_paused()):
                 await self.bot.abort_play(self.inter.guild.id, message="")

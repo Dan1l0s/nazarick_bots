@@ -247,7 +247,7 @@ class MusicBotInstance:
         state = self.states[inter.guild.id]
         with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
             playlist_info = ytdl.extract_info(url, download=False)
-        # TODO: Proper condition for not adding
+
         if not state.voice:
             return
         if playnow:
@@ -265,10 +265,17 @@ class MusicBotInstance:
         state = self.states[guild_id]
         try:
             while state.song_queue:
-                state.current_song = state.song_queue.pop(0)
+                pos = -1
+                for i in range(0, len(state.song_queue)):
+                    if state.song_queue[i].track_info.done():
+                        pos = i
+                        break
+                if pos == -1:
+                    await asyncio.sleep(0)  # Do. Not. Ask.
+                    continue
+                state.current_song = state.song_queue.pop(pos)
                 current_track = await state.current_song.track_info
                 if not current_track:
-                    print(f"Invalid Track")
                     continue
 
                 if not state.current_song.radio_mode:
