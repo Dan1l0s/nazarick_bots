@@ -2,19 +2,13 @@ import config
 import disnake
 from datetime import datetime, timezone
 import time
+import re
 
 
 def is_admin(member):
-    if member.guild.id not in config.admin_ids or member.id not in config.admin_ids[member.guild.id]:
+    if member.guild and member.guild.id not in config.admin_ids or member.id not in config.admin_ids[member.guild.id]:
         return False
     return True
-
-
-def get_nickname(member):
-    if member.nick:
-        return member.nick
-    else:
-        return member.name
 
 
 def get_duration(info):
@@ -35,7 +29,10 @@ def is_mentioned(member, message):
 
 
 async def create_private(member):
-    possible_channel_name = f"{get_nickname(member)}'s private"
+
+    if member.guild.id not in config.categories_ids:
+        return
+    possible_channel_name = f"{member.display_name}'s private"
 
     guild = member.guild
     category = disnake.utils.get(
@@ -72,6 +69,101 @@ async def unmute_admin(member):
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id not in config.bot_ids and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
+        if entry.user != member and entry.user.id not in config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
             await entry.user.move_to(None)
-            await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+            try:
+                await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
+            except:
+                pass
+
+
+def get_guild_name(guild):
+    if guild.name == "Nazarick":
+        return "the Great Tomb of Nazarick"
+    return guild.name
+
+
+def get_welcome_time(date):
+    delta = datetime.now(timezone.utc) - date
+    amount = delta.days // 365
+    if amount > 0:
+        if amount == 1:
+            return "a year ago"
+        else:
+            return f"{amount} years ago"
+
+    amount = delta.days // 30
+    if amount > 0:
+        if amount == 1:
+            return "a month ago"
+        else:
+            return f"{amount} months ago"
+
+    amount = delta.days // 7
+    if amount > 0:
+        if amount == 1:
+            return "a week ago"
+        else:
+            return f"{amount} weeks ago"
+
+    amount = delta.days
+    if amount > 0:
+        if amount == 1:
+            return "a day ago"
+        else:
+            return f"{amount} days ago"
+
+    amount = delta.hours
+    if amount > 0:
+        if amount == 1:
+            return "an hour ago"
+        else:
+            return f"{amount} hours ago"
+
+    amount = delta.minutes
+    if amount <= 1:
+        return "a minute ago"
+    return f"{amount} minutes ago"
+
+
+def get_members_count(members):
+    cnt = len(members)
+    for member in members:
+        if member.bot:
+            cnt -= 1
+    return cnt
+
+
+def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
+    source = msg.split("\n")
+    pattern = r'```[a-zA-Z]*\n'
+    chunks = []
+    chunk = ""
+    length = 0
+    for line in source:
+        if length + len(line) > chunk_size:
+            if chunk.count('`') % 2 == 1:
+                prefix = re.findall(pattern, chunk)
+                chunk += '```'
+                chunks.append(chunk)
+
+                chunk = prefix[-1]
+                length = len(chunk)
+            else:
+                chunks.append(chunk)
+                chunk = ""
+                length = 0
+
+        if (line.count('`') % 6 == 0):
+            line = line.replace('```', '\`\`\`')
+
+        chunk += line
+        length += len(line)
+
+        if (line[-3:] != '```'):
+            chunk += '\n'
+            length += 1
+
+    if chunk != "":
+        chunks.append(chunk)
+    return chunks
