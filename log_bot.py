@@ -11,6 +11,9 @@ import config
 # 1) Check messages for Bot messages - Done 90%
 # 2) Edit some responses - Done 70%
 # 3) Go through various actions and their responses - Done 80%
+# 4) Permissions updates - 0%
+# 5) Voice Channel updates - 95%
+# 6) text Channel updates - 20%
 
 class AutoLog():
     
@@ -29,14 +32,15 @@ class AutoLog():
     # --------------------- MESSAGES --------------------------------
         @self.bot.event
         async def on_message_edit(before, after):
-            if before.author.id not in config.bot_ids.values():
-                if before.content != after.content:
-                    await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed=self.embeds.message_edit(before, after))
-                if before.pinned != after.pinned:
-                    if before.pinned:
-                        await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_unpin(before, after))
-                    else:
-                        await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_pin(before, after))    
+            if before.author.id in config.bot_ids.values():
+                return
+            if before.content != after.content:
+                await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed=self.embeds.message_edit(before, after))
+            if before.pinned != after.pinned:
+                if before.pinned:
+                    await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_unpin(before, after))
+                else:
+                    await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_pin(before, after))    
     
         @self.bot.event
         async def on_message_delete(message):
@@ -46,7 +50,6 @@ class AutoLog():
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
         async def on_audit_log_entry_create(entry):
-            #await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.action(entry))
             if "channel_create" in f"{entry.action}":
                 await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_create(entry))
             elif "channel_delete" in f"{entry.action}":

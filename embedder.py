@@ -40,27 +40,6 @@ class Embed:
                         inline=True)
         return embed
 
-# --------------------- ACTIONS --------------------------------
-
-    # def action(self, entry):
-    #     if "member" in f'{entry.action}':
-    #         embed = disnake.Embed(
-    #             description=f'**{entry.user.mention} did `{entry.action}` to `{entry.target}`**'.replace(
-    #                 'AuditLogAction.', ''),
-    #             color=disnake.Colour.from_rgb(
-    #                 *config.embed_colors["member_action"]),
-    #             timestamp=datetime.datetime.now())
-    #     else:
-    #         embed = disnake.Embed(
-    #             description=f'**{entry.user.mention} did `{entry.action}` to `{entry.target}`**'.replace(
-    #                 'AuditLogAction.', ''),
-    #             color=disnake.Colour.from_rgb(
-    #                 *config.embed_colors["other_action"]),
-    #             timestamp=datetime.datetime.now())
-    #     embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
-    #     embed.set_footer(text=f'{entry.user.guild.name}')
-    #     return embed
-    
     def entry_channel_create(self, entry):
         embed = disnake.Embed(
             description=f'**{entry.user.mention} created channel {entry.user.guild.get_channel(entry.target.id).mention}**',
@@ -69,6 +48,19 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
+        if hasattr(entry.after, 'name'):
+            embed.add_field(name = "Channel Name", value = entry.after.name, inline = False)
+        if hasattr(entry.after, 'type'):
+            embed.add_field(name = "Channel Type", value = entry.after.type, inline = False)
+        if hasattr(entry.after, 'bitrate'):
+            embed.add_field(name = "Channel Bitrate", value = entry.after.bitrate, inline = False)
+        if hasattr(entry.after, 'user_limit'):
+            if entry.after.user_limit != 0:
+                embed.add_field(name = "Channel User Limit", value = entry.after.user_limit, inline = False)
+            else:
+                embed.add_field(name = "Channel User Limit", value = "None", inline = False)                
+        if hasattr(entry.after, 'nsfw'):
+            embed.add_field(name = "Channel NSFW settings", value = entry.after.nsfw, inline = False)
         return embed
     
     def entry_channel_update(self, entry):
@@ -77,6 +69,49 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
+        if hasattr(entry.before, 'name'):
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old Name:**", value = entry.before.name, inline = True)
+            embed.add_field(name = "**New Name:**", value = entry.after.name, inline = True)
+        if hasattr(entry.after, 'type'):
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old Type:**", value = entry.before.type, inline = True)
+            embed.add_field(name = "**New Type:**", value = entry.after.type, inline = True)
+        if hasattr(entry.after, 'bitrate'):
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old Bitrate:**", value = entry.before.bitrate, inline = True)
+            embed.add_field(name = "**New Bitrate:**", value = entry.after.bitrate, inline = True)
+        if hasattr(entry.after, 'rtc_region'):
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old RTC Region:**", value = entry.before.rtc_region, inline = True)
+            embed.add_field(name = "**New RTC Region:**", value = entry.after.rtc_region, inline = True)
+        if hasattr(entry.after, 'user_limit'):
+            embed.add_field(name = "", value = "", inline = False)
+            if entry.before.user_limit != 0:
+                embed.add_field(name = "**Old User Limit:**", value = entry.before.user_limit, inline = True)
+            else:
+                embed.add_field(name = "**Old User Limit:**", value = "None", inline = True)
+            if entry.after.user_limit != 0:
+                embed.add_field(name = "**New User Limit:**", value = entry.after.user_limit, inline = True)
+            else:
+                embed.add_field(name = "**New User Limit:**", value = "None", inline = True)
+        if hasattr(entry.after, 'nsfw'):
+            if entry.before.nsfw:
+                embed.add_field(name = "", value = "", inline = False)
+                embed.add_field(name = "**Old NSFW settings:**", value = "NSFW", inline = True)
+                embed.add_field(name = "**New NSFW settings:**", value = ":sob: Not NSFW", inline = True)
+            else:
+                embed.add_field(name = "", value = "", inline = False)
+                embed.add_field(name = "**Old NSFW settings:**", value = "Not NSFW", inline = True)
+                embed.add_field(name = "**New NSFW settings:**", value = ":smiling_imp: NSFW", inline = True)
+        if hasattr(entry.after, 'position'):
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old Position:**", value = entry.before.position, inline = True)
+            embed.add_field(name = "**New Position:**", value = entry.after.position, inline = True)
+        if hasattr(entry.after, 'topic'):
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old Topic:**", value = entry.before.topic, inline = True)
+            embed.add_field(name = "**New Topic:**", value = entry.after.topic, inline = True)
         embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
@@ -256,8 +291,6 @@ class Embed:
         )
         embed.set_author(name=payload.user.name, icon_url=payload.user.display_avatar.url)
         embed.set_footer(text=f'{payload.user.guild.name}')
-        embed.add_field(name="**⏲ Age of account:**", value=f'`{payload.user.created_at.strftime("%d/%m/%Y %H:%M")}`\n**{helpers.get_welcome_time(payload.user.created_at)}**',
-                        inline=True)
         embed.set_thumbnail(url=payload.user.display_avatar.url)
         return embed
     
@@ -353,16 +386,6 @@ class Embed:
         return embed
     
 # --------------------- VOICE STATES --------------------------------
-
-    def voice_update(self, member):
-        embed = disnake.Embed(
-            description=f'**{member.mention} updated voice state**',
-            color=disnake.Colour.from_rgb(
-                *config.embed_colors["voice_update"]),
-            timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
-        embed.set_footer(text=f'{member.guild.name}')
-        return embed
     
     def sv_mute(self, member, after):
         embed = disnake.Embed(
@@ -372,7 +395,10 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        embed.add_field(name = f":microphone2:** Server Mute**", value = after.mute)
+        if after.mute:
+            embed.add_field(name = f":microphone2:** Server Mute**", value = "Yes")
+        else:
+            embed.add_field(name = f":microphone2:** Server Mute**", value = "No")
         return embed
     
     def sv_deaf(self, member, after):
@@ -383,7 +409,10 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        embed.add_field(name = f":mute:** Server Deafen**", value = after.deaf)
+        if after.deaf:
+            embed.add_field(name = f":mute:** Server Deafen**", value = "Yes")
+        else:
+            embed.add_field(name = f":mute:** Server Deafen**", value = "No")
         return embed
     
     def self_mute(self, member, after):
@@ -394,7 +423,10 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        embed.add_field(name = f":microphone2:** Muted**", value = after.self_mute)
+        if after.self_mute:
+            embed.add_field(name = f":microphone2:** Muted**", value = "Yes")
+        else:
+            embed.add_field(name = f":microphone2:** Muted**", value = "No")
         return embed
     
     def self_deaf(self, member, after):
@@ -405,7 +437,10 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        embed.add_field(name = f":mute:** Deafened**", value = after.self_deaf)
+        if after.self_deaf:
+            embed.add_field(name = f":mute:** Deafened**", value = "Yes")
+        else:
+            embed.add_field(name = f":mute:** Deafened**", value = "No")
         return embed
     
     def stream(self, member, after):
@@ -416,7 +451,10 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        embed.add_field(name = f":tv:** Stream Enabled**", value = after.self_stream)
+        if after.self_stream:
+            embed.add_field(name = f":tv:** Stream Enabled**", value = "Enabled")
+        else:
+            embed.add_field(name = f":tv:** Stream Enabled**", value = "Disabled")
         return embed
     
     def video(self, member, after):
@@ -427,5 +465,8 @@ class Embed:
             timestamp=datetime.datetime.now())
         embed.set_author(name=member.name, icon_url=member.avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        embed.add_field(name = f":video_camera:** Video Enabled**", value = after.self_video)
+        if after.self_video:
+            embed.add_field(name = f":video_camera:** Video Enabled**", value = "Enabled")
+        else:
+            embed.add_field(name = f":video_camera:** Video Enabled**", value = "Disabled")
         return embed
