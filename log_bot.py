@@ -7,6 +7,10 @@ from embedder import *
 import helpers
 import config
 
+# TO-DO:
+# 1) Check messages for Bot messages - Done 90%
+# 2) Edit some responses - Done 70%
+# 3) Go through various actions and their responses - Done 80%
 
 class AutoLog():
     
@@ -25,23 +29,45 @@ class AutoLog():
     # --------------------- MESSAGES --------------------------------
         @self.bot.event
         async def on_message_edit(before, after):
-            if before.content != after.content:
-                await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed=self.embeds.message_edit(before, after))
-            if before.pinned != after.pinned:
-                if before.pinned:
-                    await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_unpin(before, after))
-                else:
-                    await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_pin(before, after))    
+            if before.author.id not in config.bot_ids.values():
+                if before.content != after.content:
+                    await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed=self.embeds.message_edit(before, after))
+                if before.pinned != after.pinned:
+                    if before.pinned:
+                        await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_unpin(before, after))
+                    else:
+                        await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed = self.embeds.message_pin(before, after))    
     
         @self.bot.event
         async def on_message_delete(message):
-            await self.bot.get_channel(config.log_ids[message.channel.guild.id]).send(embed = self.embeds.message_delete(message))
+            if message.author.id not in config.bot_ids.values():
+                await self.bot.get_channel(config.log_ids[message.channel.guild.id]).send(embed = self.embeds.message_delete(message))
 
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
         async def on_audit_log_entry_create(entry):
-            await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.action(entry))
-        
+            #await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.action(entry))
+            if "channel_create" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_create(entry))
+            elif "channel_delete" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_delete(entry))
+            elif "channel_update" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_update(entry))
+            elif "ban" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_ban(entry))
+            elif "unban" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_unban(entry))
+            elif "kick" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_kick(entry))    
+            elif "member_move" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_move(entry))
+            elif "member_update" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_update(entry))
+            elif "member_disconnect" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_disconnect(entry))
+            elif "member_role_update" in f"{entry.action}":
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_role_update(entry))
+                
         @self.bot.event
         async def on_raw_member_update(member):
             await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.profile_upd(member))
@@ -92,6 +118,7 @@ class AutoLog():
 
         
     async def run(self):
+        self.logger.enabled(self.bot)
         await self.bot.start(config.tokens[self.name])
         
     
