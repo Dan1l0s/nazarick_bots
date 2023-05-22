@@ -3,6 +3,7 @@ import asyncio
 from music_leader import MusicBotLeader
 from music_instance import MusicBotInstance
 from logger import Logger
+from log_bot import AutoLog
 
 
 async def main():
@@ -17,12 +18,16 @@ async def main():
     music_leader.add_instance(music_instance2)
     music_leader.add_instance(music_instance3)
 
+    log_bot = AutoLog("logs", logger)
+
     tasks = []
     tasks.append(music_leader.run())
+
     tasks.append(music_instance1.run())
     tasks.append(music_instance2.run())
     tasks.append(music_instance3.run())
-
+    tasks.append(log_bot.run())
+    
     await asyncio.gather(*tasks)
 
 asyncio.run(main())

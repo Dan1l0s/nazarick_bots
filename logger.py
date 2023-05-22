@@ -1,7 +1,7 @@
 import datetime
 import helpers
 import os
-
+import disnake
 
 class Logger:
     def __init__(self, state: bool):
@@ -105,6 +105,36 @@ class Logger:
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} left VC {before.channel.name}\n")
         f.close()
+
+    def log_voice_state_update(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+        if before.channel and after.channel:
+            if before.channel.id != after.channel.id:
+                self.logger.switched(member, before, after)
+            else:
+                if before.deaf != after.deaf:
+                    if before.deaf:
+                        self.logger.guild_undeafened(member)
+                    else:
+                        self.logger.guild_deafened(member)
+                elif before.mute != after.mute:
+                    if before.mute:
+                        self.logger.guild_unmuted(member)
+                    else:
+                        self.logger.guild_muted(member)
+                elif before.self_deaf != after.self_deaf:
+                    if before.self_deaf:
+                        self.logger.undeafened(member)
+                    else:
+                        self.logger.deafened(member)
+                elif before.self_mute != after.self_mute:
+                    if before.self_mute:
+                        self.logger.unmuted(member)
+                    else:
+                        self.logger.muted(member)
+        elif before.channel:
+            self.logger.disconnected(member, before)
+        else:
+            self.logger.connected(member, after)
 
     def guild_deafened(self, member):
         if not self.state:
