@@ -7,14 +7,6 @@ from embedder import *
 import helpers
 import config
 
-# TO-DO:
-# 1) Check messages for Bot messages - Done 90%
-# 2) Edit some responses - Done 70%
-# 3) Go through various actions and their responses - Done 80%
-# 4) Permissions updates - 0%
-# 5) Voice Channel updates - 95%
-# 6) text Channel updates - 20%
-
 class AutoLog():
     
     name = None
@@ -24,7 +16,7 @@ class AutoLog():
 
     def __init__(self, name, logger):
         self.bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
-        ), activity=disnake.Activity(name="everyone 0-0", type=disnake.ActivityType.watching))
+        ), activity=disnake.Activity(name="with the slaves", type=disnake.ActivityType.playing))
         self.name = name
         self.embeds = Embed()
         self.logger = logger
@@ -50,26 +42,10 @@ class AutoLog():
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
         async def on_audit_log_entry_create(entry):
-            if "channel_create" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_create(entry))
-            elif "channel_delete" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_delete(entry))
-            elif "channel_update" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_channel_update(entry))
-            elif "ban" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_ban(entry))
-            elif "unban" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_unban(entry))
-            elif "kick" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_kick(entry))    
-            elif "member_move" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_move(entry))
-            elif "member_update" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_update(entry))
-            elif "member_disconnect" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_disconnect(entry))
-            elif "member_role_update" in f"{entry.action}":
-                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=self.embeds.entry_member_role_update(entry))
+            s = ''.join(('entry_', f'{entry.action}'[15:]))
+            if hasattr(self.embeds, s):
+                s = getattr(self.embeds,s)
+                await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=s(entry))  
                 
         @self.bot.event
         async def on_raw_member_update(member):
