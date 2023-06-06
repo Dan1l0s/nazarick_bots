@@ -24,6 +24,8 @@ class AutoLog():
     # --------------------- MESSAGES --------------------------------
         @self.bot.event
         async def on_message_edit(before, after):
+            if before.author.guild and before.author.guild.id not in config.log_ids:
+                return
             if before.author.id in config.bot_ids.values():
                 return
             if before.content != after.content:
@@ -36,12 +38,16 @@ class AutoLog():
     
         @self.bot.event
         async def on_message_delete(message):
+            if message.author.guild and message.author.guild.id not in config.log_ids:
+                return
             if message.author.id not in config.bot_ids.values():
                 await self.bot.get_channel(config.log_ids[message.channel.guild.id]).send(embed = self.embeds.message_delete(message))
 
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
         async def on_audit_log_entry_create(entry):
+            if entry.user.guild.id not in config.log_ids:
+                return
             s = ''.join(('entry_', f'{entry.action}'[15:]))
             if hasattr(self.embeds, s):
                 s = getattr(self.embeds,s)
@@ -49,27 +55,39 @@ class AutoLog():
                 
         @self.bot.event
         async def on_raw_member_update(member):
+            if member.guild.id not in config.log_ids:
+                return
             await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.profile_upd(member))
 
         @self.bot.event
         async def on_raw_member_remove(payload):
+            if payload.guild_id not in config.log_ids:
+                return
             await payload.user.guild.get_channel(config.log_ids[payload.user.guild.id]).send(embed=self.embeds.member_remove(payload))
 
         @self.bot.event
         async def on_member_join(member):
+            if member.guild.id not in config.log_ids:
+                return
             await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.member_join(member))
 
         @self.bot.event
         async def on_member_ban(guild, user):
+            if guild.id not in config.log_ids:
+                return
             await guild.get_channel(config.log_ids[guild.id]).send(embed=self.embeds.ban(guild, user))
 
         @self.bot.event
         async def on_member_unban(guild, user):
+            if guild.id not in config.log_ids:
+                return
             await guild.get_channel(config.log_ids[guild.id]).send(embed=self.embeds.unban(guild, user))
 
     # --------------------- VOICE STATES --------------------------------
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
+            if member.guild.id not in config.log_ids:
+                return
             if before.channel and after.channel:
                 if before.channel.id != after.channel.id:
                     if not after.afk: #REGULAR SWITCH

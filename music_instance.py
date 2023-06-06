@@ -8,7 +8,7 @@ import asyncio
 from urllib.request import urlopen
 import json
 import re
-
+import dicts
 import config
 import helpers
 from embedder import Embed
@@ -148,7 +148,7 @@ class MusicBotInstance:
 
     async def timeout(self, guild_id):
         state = self.states[guild_id]
-        tm = config.music_settings["PlayTimeout"]
+        tm = dicts.music_settings["PlayTimeout"]
         message = await state.last_inter.text_channel.send(f"I am left alone, I will leave VC in {tm} seconds!")
         if state.voice.is_playing():
             state.voice.pause()
@@ -219,7 +219,7 @@ class MusicBotInstance:
             return self.add_from_playlist(inter, url, playnow=playnow)
         else:
             if not song.radio_mode:
-                with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
+                with YoutubeDL(dicts.YTDL_OPTIONS) as ytdl:
                     track_info = ytdl.extract_info(url, download=False)
                 song.track_info.set_result(track_info)
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
@@ -245,7 +245,7 @@ class MusicBotInstance:
 
     def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
-        with YoutubeDL(config.YTDL_OPTIONS) as ytdl:
+        with YoutubeDL(dicts.YTDL_OPTIONS) as ytdl:
             playlist_info = ytdl.extract_info(url, download=False)
 
         if not state.voice:
@@ -281,7 +281,7 @@ class MusicBotInstance:
                 if not state.current_song.radio_mode:
                     link = current_track.get("url", None)
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=link, **config.FFMPEG_OPTIONS))
+                        source=link, **dicts.FFMPEG_OPTIONS))
                     if state.current_song.original_message:
                         try:
                             await state.current_song.original_message.delete()
@@ -301,8 +301,8 @@ class MusicBotInstance:
                         except:
                             pass
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=current_track, **config.FFMPEG_OPTIONS))
-                    if (current_track == config.radio_url):
+                        source=current_track, **dicts.FFMPEG_OPTIONS))
+                    if (current_track == dicts.radio_url):
                         asyncio.create_task(self.radio_message(state))
 
                 await self.play_before_interrupt(guild_id)
@@ -396,12 +396,12 @@ class MusicBotInstance:
                 if state.current_song.radio_mode:
                     state.voice.stop()
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=track_info, **config.FFMPEG_OPTIONS))
+                        source=track_info, **dicts.FFMPEG_OPTIONS))
                 elif helpers.get_duration(track_info) == "Live":
                     link = track_info.get("url", None)
                     state.voice.stop()
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=link, **config.FFMPEG_OPTIONS))
+                        source=link, **dicts.FFMPEG_OPTIONS))
                 else:
                     state.voice.resume()
             state.paused = False
@@ -493,7 +493,7 @@ class MusicBotInstance:
             await inter.orig_inter.send("I am not playing anything!")
 
     async def radio_message(self, state):
-        url = config.radio_widget
+        url = dicts.radio_widget
         name = ""
         while state.current_song and state.current_song.radio_mode:
             try:

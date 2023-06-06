@@ -3,7 +3,7 @@ from disnake.ext import commands
 import asyncio
 import openai
 import math
-
+import dicts
 from music_instance import MusicBotInstance, Interaction
 import helpers
 import config
@@ -118,7 +118,7 @@ class MusicBotLeader(MusicBotInstance):
             await assigned_instance.play(new_inter, query)
 
         @self.bot.slash_command(description="Plays anime radio or custom online radio")
-        async def radio(inter, url=config.radio_url):
+        async def radio(inter, url=dicts.radio_url):
             if await self.check_dm(inter):
                 return
             await inter.response.defer()
@@ -315,7 +315,7 @@ class MusicBotLeader(MusicBotInstance):
             try:
                 await message.delete()
                 await message.author.send(
-                    f"Do NOT try to invite anyone to another servers {config.emojis['banned']}")
+                    f"Do NOT try to invite anyone to another servers {dicts.emojis['banned']}")
             except:
                 pass
             return True
@@ -462,8 +462,8 @@ class MusicBotLeader(MusicBotInstance):
     async def check_dm(self, inter):
         if not inter.guild:
             if inter.author.id in config.admin_ids[569924343010689025]:
-                await inter.send(f"{config.dm_error_admin}")
+                await inter.send(f"{dicts.dm_error_admin}")
             else:
-                await inter.send(f"{config.dm_error}")
+                await inter.send(f"{dicts.dm_error}")
             return True
         return False

@@ -2,7 +2,7 @@ import disnake
 import config
 import helpers
 import asyncio
-
+import dicts
 
 class SelectionPanel(disnake.ui.View, disnake.ui.Select):
     def __init__(self, songs, func, inter, song, bot):
@@ -16,7 +16,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         for song in songs:
             title = song['title']
             suffix = song['url_suffix'][:song['url_suffix'].find("&")]
-            sz = config.music_settings["SelectionPanelMaxNameLen"]
+            sz = dicts.music_settings["SelectionPanelMaxNameLen"]
             if len(title) > sz:
                 title = title[:sz]+"..."
             if song['duration'] == 0:
@@ -24,7 +24,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
             options.append(disnake.SelectOption(
                 label=f"{title} : {song['duration']}", value=suffix))
         disnake.ui.View.__init__(
-            self, timeout=config.music_settings["SelectionPanelTimeout"])
+            self, timeout=dicts.music_settings["SelectionPanelTimeout"])
         disnake.ui.Select.__init__(self,
                                    placeholder="Choose your song!", options=options, custom_id="songs")
         self.add_item(self)
@@ -39,7 +39,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
             self.done = True
         else:
             try:
-                await inter.author.send(f"Don't you even try to use someone's selection panel once again. {config.emojis['dead']}")
+                await inter.author.send(f"Don't you even try to use someone's selection panel once again. {dicts.emojis['dead']}")
             except:
                 pass
 

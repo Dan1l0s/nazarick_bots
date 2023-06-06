@@ -167,3 +167,10 @@ def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
     if chunk != "":
         chunks.append(chunk)
     return chunks
+
+def parse_key(key):
+    s = key.split('_')
+    res = ""
+    for i in range(0, len(s)):
+        res += ((s[i][0].upper() + s[i][1:]) if i == 0 else s[i]) + " "
+    return res
