@@ -116,6 +116,38 @@ guild_update = [
     'system_channel_flags',
 ]
 
+guild_scheduled_event = [
+    'name',
+    'description',
+    'privacy_level',
+    'status',
+    'entity_type',
+    #'channel',
+    'location',
+    #'image',
+]
+
+sticker_ent = [
+    'name',
+    'emoji',
+    'type',
+    'format_type',
+    'description',
+    'available',
+]
+
+threads = [
+    'name',
+    'archived',
+    'locked',
+    'auto_archive_duration',
+    'type',
+    'slowmode_delay',
+    'invitable',
+    #'flags',
+    #'applied_tags',
+]
+
 channel_create = [
     'name',
     'type',
@@ -129,7 +161,7 @@ channel_create = [
     'slowmode_delay',
     'default_thread_slowmode_delay',
     'nsfw',
-    'available_tags',
+    #'available_tags',
     'default_reaction',
 ]
 
@@ -145,7 +177,7 @@ channel_update = [
     'default_auto_archive_duration',
     'slowmode_delay',
     'default_thread_slowmode_delay',
-    'available_tags',
+    #'available_tags',
     'default_reaction',
 ]
 
