@@ -16,14 +16,7 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + " : ERROR : " + str(err) + "\n")
         f.close()
 
-    def skip(self, inter):
-        if not self.state:
-            return
-        abs_path = self.get_path(inter.guild.id)
-        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
-        f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track in VC: {inter.guild.voice_client.channel}\n")
-        f.close()
+#---------------- BASIC BOT ----------------------------------------------------------------
 
     def enabled(self, bot):
         if not self.state:
@@ -34,15 +27,26 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STARTUP : Bot is logged as {bot.user}\n")
         f.close()
 
-    def logged(self, entry):
+    def lost_connection(self, bot):
         if not self.state:
             return
-        abs_path = self.get_path(entry.user.guild.id)
+        abs_path = self.get_path("general")
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
-        f.write(datetime.datetime.now().strftime("%H:%M:%S") +
-                f" : AUDIT_LOG : {entry.user} did {entry.action} to {entry.target}\n".replace('AuditLogAction.', ''))
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : BOT : Bot {bot.user} lost connection to Discord servers\n")
         f.close()
 
+#---------------- MUSIC BOT ----------------------------------------------------------------
+
+    def skip(self, inter):
+        if not self.state:
+            return
+        abs_path = self.get_path(inter.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track in VC: {inter.guild.voice_client.channel}\n")
+        f.close()
+    
     def added(self, guild, track):
         if not self.state:
             return
@@ -79,6 +83,8 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
+#---------------- ACTIONS ----------------------------------------------------------------
+
     def switched(self, member, before, after):
         if not self.state:
             return
@@ -106,143 +112,279 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} left VC {before.channel.name}\n")
         f.close()
 
-    def log_voice_state_update(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
-        if before.channel and after.channel:
-            if before.channel.id != after.channel.id:
-                self.logger.switched(member, before, after)
-            else:
-                if before.deaf != after.deaf:
-                    if before.deaf:
-                        self.logger.guild_undeafened(member)
-                    else:
-                        self.logger.guild_deafened(member)
-                elif before.mute != after.mute:
-                    if before.mute:
-                        self.logger.guild_unmuted(member)
-                    else:
-                        self.logger.guild_muted(member)
-                elif before.self_deaf != after.self_deaf:
-                    if before.self_deaf:
-                        self.logger.undeafened(member)
-                    else:
-                        self.logger.deafened(member)
-                elif before.self_mute != after.self_mute:
-                    if before.self_mute:
-                        self.logger.unmuted(member)
-                    else:
-                        self.logger.muted(member)
-        elif before.channel:
-            self.logger.disconnected(member, before)
-        else:
-            self.logger.connected(member, after)
-
-    def guild_deafened(self, member):
+    def deaf(self, member, after):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was deafened by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + (f" : VC : User {member} was deafened in guild\n" if after.deaf else f" : VC : User {member} was undeafened in guild\n"))
         f.close()
 
-    def guild_undeafened(self, member):
+    def mute(self, member, after):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was undeafened by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + (f" : VC : User {member} was muted in guild\n" if after.mute else f" : VC : User {member} was unmuted in guild\n"))
         f.close()
 
-    def guild_muted(self, member):
+    def self_deaf(self, member, after):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was muted by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + (f" : VC : User {member} deafened themself\n" if after.self_deaf else f" : VC : User {member} undeafened themself\n"))
         f.close()
 
-    def guild_unmuted(self, member):
+    def self_mute(self, member, after):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} was unmuted by guild admin\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + (f" : VC : User {member} muted themself\n" if after.self_mute else f" : VC : User {member} unmuted themself\n"))
         f.close()
 
-    def deafened(self, member):
+    def self_video(self, member, after):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} deafened themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + (f" : VC : User {member} turned on their camera\n" if after.self_video else f" : VC : User {member} turned off their camera\n"))
         f.close()
 
-    def undeafened(self, member):
+    def self_stream(self, member, after):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} undeafened themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + (f" : VC : User {member} started sharing their screen\n" if after.self_stream else f" : VC : User {member} stopped sharing their screen\n"))
         f.close()
 
-    def muted(self, member):
+    def member_join(self, member):
         if not self.state:
             return
         abs_path = self.get_path(member.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} muted themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : GUILD : User {member} has joined the server\n")
         f.close()
 
-    def unmuted(self, member):
+    def member_remove(self, payload):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(payload.guild_id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} unmuted themself\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : GUILD : User {payload.user} has left the server\n")
         f.close()
 
-    def video_on(self, member):
+    def member_update(self, after):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(after.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} turned on their camera\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : GUILD : User {after.name} has left the server\n")
         f.close()
 
-    def video_off(self, member):
+#---------------- ENTRY_ACTION ----------------------------------------------------------------
+
+    def entry_channel_create(self, entry):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(entry.user.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} turned off their camera\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created channel {entry.target.name}\n")
         f.close()
 
-    def stream_on(self, member):
+    def entry_channel_update(self, entry):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(entry.user.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} went live\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated channel {entry.target.name}\n")
+        f.close()    
+
+    def entry_channel_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted channel {entry.before.name}\n")
         f.close()
 
-    def stream_off(self, member):
+    def entry_thread_create(self, entry):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(entry.user.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : VC : User {member} shutted their stream\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created thread {entry.target.name}\n")
         f.close()
+
+    def entry_thread_update(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated thread {entry.target.name}\n")
+        f.close()    
+
+    def entry_thread_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted thread {entry.before.name}\n")
+        f.close()
+
+    def entry_role_create(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created role {entry.target.name}\n")
+        f.close()
+
+    def entry_role_update(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated role {entry.target.name}\n")
+        f.close()    
+
+    def entry_role_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted role {entry.before.name}\n")
+        f.close()
+
+    def entry_emoji_create(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created emoji {entry.target.name}\n")
+        f.close()
+
+    def entry_emoji_update(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated emoji {entry.target.name}\n")
+        f.close()    
+
+    def entry_emoji_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted emoji {entry.before.name}\n")
+        f.close()
+
+    def entry_invite_create(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created an invite\n")
+        f.close()
+
+    def entry_invite_update(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated an invite\n")
+        f.close()    
+
+    def entry_invite_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted an invite\n")
+        f.close()
+
+    def entry_sticker_create(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created a sticker\n")
+        f.close()
+
+    def entry_sticker_update(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated a sticker\n")
+        f.close()    
+
+    def entry_sticker_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted a sticker\n")
+        f.close()
+
+    def entry_guild_scheduled_event_create(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has created a scheduled guild event\n")
+        f.close()
+
+    def entry_guild_scheduled_event_update(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated a scheduled guild event\n")
+        f.close()    
+
+    def entry_guild_scheduled_event_delete(self, entry):
+        if not self.state:
+            return
+        abs_path = self.get_path(entry.user.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted a scheduled guild event\n")
+        f.close()    
+
+#---------------- GPT ----------------------------------------------------------------
 
     def gpt(self, member, messages, guild_id="gpt"):
         if not self.state:
@@ -262,6 +404,8 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : GPT : User {member} cleared their chatGPT history\n")
         f.close()
 
+#---------------- HELPING METHODS  ----------------------------------------------------------------
+
     def get_path(self, dir_name: str):
         if not self.state:
             return
@@ -272,3 +416,4 @@ class Logger:
         rel_path = f"logs/{dir_name}/{file_name}"
         abs_path = os.path.join(script_dir, rel_path)
         return abs_path
+

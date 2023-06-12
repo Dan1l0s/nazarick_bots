@@ -38,7 +38,7 @@ radio_widget = "http://anison.fm/status.php?widget=true"
 dm_error = "You are not allowed to DM me, trash. The only reason I serve you is the order of the Supreme Beings.\nProceed to your guild, where I MUST follow your commands."
 dm_error_admin = "I am sorry, my master, but I can't follow your order. Please, proceed to any of your guilds, where I can serve you."
 
-#----------------ENTRY EMBED DICTS
+#----------------LOG BOT & EMBEDDER DICTS
 permissions_list = [
                     'add_reactions',
                     'administrator',
@@ -198,4 +198,26 @@ role_delete = [
     #'permissions',
     #'icon',
     #'emoji',
+]
+
+on_v_s_update = [
+    'deaf',
+    'mute',
+    'self_deaf',
+    'self_mute',
+    'self_stream',
+    'self_video',
+    'suppress',
+    'requested_to_speak_at',
+    #'afk',
+    #'channel',
+]
+
+member_update = [
+    'display_name',
+    'pending',
+    'name',
+    'raw_status',
+    'premium_since',
+    'current_timeout',
 ]

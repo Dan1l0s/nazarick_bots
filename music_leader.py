@@ -22,10 +22,6 @@ class MusicBotLeader(MusicBotInstance):
         openai.api_key = config.openai_api_key
 
         @self.bot.event
-        async def on_audit_log_entry_create(entry):
-            self.logger.logged(entry)
-
-        @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             self.log_voice_state_update(member, before, after)
 
@@ -267,46 +263,6 @@ class MusicBotLeader(MusicBotInstance):
             await helpers.unmute_admin(member)
             return True
         return False
-
-    def log_voice_state_update(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
-        if before.channel and after.channel:
-            if before.channel.id != after.channel.id:
-                self.logger.switched(member, before, after)
-            else:
-                if before.deaf != after.deaf:
-                    if before.deaf:
-                        self.logger.guild_undeafened(member)
-                    else:
-                        self.logger.guild_deafened(member)
-                elif before.mute != after.mute:
-                    if before.mute:
-                        self.logger.guild_unmuted(member)
-                    else:
-                        self.logger.guild_muted(member)
-                elif before.self_deaf != after.self_deaf:
-                    if before.self_deaf:
-                        self.logger.undeafened(member)
-                    else:
-                        self.logger.deafened(member)
-                elif before.self_mute != after.self_mute:
-                    if before.self_mute:
-                        self.logger.unmuted(member)
-                    else:
-                        self.logger.muted(member)
-                elif before.self_video != after.self_video:
-                    if before.self_video:
-                        self.logger.video_off(member)
-                    else:
-                        self.logger.video_on(member)
-                elif before.self_stream != after.self_stream:
-                    if before.self_stream:
-                        self.logger.stream_off(member)
-                    else:
-                        self.logger.stream_on(member)
-        elif before.channel:
-            self.logger.disconnected(member, before)
-        else:
-            self.logger.connected(member, after)
 
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 

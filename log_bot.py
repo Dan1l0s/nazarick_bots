@@ -4,6 +4,7 @@ import disnake
 from selection import *
 from logger import *
 from embedder import *
+import dicts
 import helpers
 import config
 
@@ -49,26 +50,32 @@ class AutoLog():
             if entry.user.guild.id not in config.log_ids:
                 return
             s = ''.join(('entry_', f'{entry.action}'[15:]))
+            if hasattr(self.logger, s):
+                log = getattr(self.logger, s)
+                log(entry)
             if hasattr(self.embeds, s):
                 s = getattr(self.embeds,s)
                 await entry.guild.get_channel(config.log_ids[entry.guild.id]).send(embed=s(entry))  
                 
         @self.bot.event
-        async def on_raw_member_update(member):
-            if member.guild.id not in config.log_ids:
+        async def on_member_update(before, after):
+            if before.guild.id not in config.log_ids:
                 return
-            await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.profile_upd(member))
+            self.logger.member_update(after)
+            await before.guild.get_channel(config.log_ids[before.guild.id]).send(embed=self.embeds.profile_upd(before, after))
 
         @self.bot.event
         async def on_raw_member_remove(payload):
             if payload.guild_id not in config.log_ids:
                 return
+            self.logger.member_remove(payload)
             await payload.user.guild.get_channel(config.log_ids[payload.user.guild.id]).send(embed=self.embeds.member_remove(payload))
 
         @self.bot.event
         async def on_member_join(member):
             if member.guild.id not in config.log_ids:
                 return
+            self.logger.member_join(member)
             await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.member_join(member))
 
         @self.bot.event
@@ -90,32 +97,38 @@ class AutoLog():
                 return
             if before.channel and after.channel:
                 if before.channel.id != after.channel.id:
+                    self.logger.switched(member, before, after)
                     if not after.afk: #REGULAR SWITCH
                         await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.switched(member, before, after))
                     else: #AFK
                         await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.afk(member, after))
                 else:
-                    if before.mute != after.mute: #SERVER MUTE
-                        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.sv_mute(member, after))
-                    elif before.deaf != after.deaf: #SERVER DEAF
-                        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.sv_deaf(member, after))
-                    elif before.self_deaf != after.self_deaf: #SELF DEAF
-                        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.self_deaf(member, after))
-                    elif before.self_mute != after.self_mute: #SELF MUTE
-                        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.self_mute(member, after))
-                    elif before.self_stream != after.self_stream: #STREAM
-                        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.stream(member,after))
-                    elif before.self_video != after.self_video: #VIDEO
-                        await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.video(member, after))
-                    #await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.voice_update(member))
+                    for attr in dir(after):
+                        if attr in dicts.on_v_s_update:
+                            if getattr(after, attr) != getattr(before, attr) and hasattr(self.embeds, attr):
+                                log = getattr(self.logger, attr)
+                                log(member, after)
+                                s = getattr(self.embeds, attr)
+                                await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=s(member,after))
             elif before.channel:
+                self.logger.disconnected(member, before)
                 await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.disconnected(member, before))
             else:
+                self.logger.connected(member, after)
                 await member.guild.get_channel(config.log_ids[member.guild.id]).send(embed=self.embeds.connected(member, after))
 
-        
+    # --------------------- RANDOM --------------------------------
+        @self.bot.event
+        async def on_ready():
+            self.logger.enabled(self.bot)
+            print(f"{self.name} is logged as {self.bot.user}")
+
+        @self.bot.event
+        async def on_disconnect():
+            self.logger.lost_connection(self.bot)
+            print(f"{self.name} has disconnected from Discord")
+
     async def run(self):
-        self.logger.enabled(self.bot)
         await self.bot.start(config.tokens[self.name])
         
     
