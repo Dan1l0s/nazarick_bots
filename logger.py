@@ -33,7 +33,7 @@ class Logger:
         abs_path = self.get_path("general")
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : BOT : Bot {bot.user} lost connection to Discord servers\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : ERROR : Bot {bot.user} lost connection to Discord servers\n")
         f.close()
 
 #---------------- MUSIC BOT ----------------------------------------------------------------
@@ -193,6 +193,33 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : GUILD : User {after.name} has left the server\n")
         f.close()
 
+    def status_upd(self, member):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : STATUS : User {member.name} has gone {member.status}\n")
+        f.close()
+
+    def activity_upd(self, member, old_user_status, new_user_status):
+        if not self.state:
+            return
+        abs_path = self.get_path(member.guild.id)
+        f = open(f'{abs_path}.txt', "a", encoding='utf-8')
+        f.write(
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : STATUS : User {member.name} has updated their activities\n")
+        if old_user_status.activities != new_user_status.activities and old_user_status.activities:
+            fin = []
+            for acts in old_user_status.activities:
+                if acts not in new_user_status.activities:
+                    fin += [f' - {acts.actname}']
+            for acts in new_user_status.activities:
+                if acts not in old_user_status.activities:
+                    fin += [f' + {acts.actname}']        
+            fin = '\n'.join(fin)
+        f.write(fin + "\n") 
+        f.close()    
 #---------------- ENTRY_ACTION ----------------------------------------------------------------
 
     def entry_channel_create(self, entry):

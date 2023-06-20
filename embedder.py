@@ -684,6 +684,58 @@ class Embed:
         embed.set_thumbnail(url=user.display_avatar.url)
         return embed
 
+    def get_status(self, member):
+        embed = disnake.Embed(
+            description=f"**{member.mention}'s status: {member.status}**",
+            color=disnake.Colour.from_rgb(
+                *dicts.embed_colors["member_action"]),
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
+        embed.set_footer(text=f'{member.guild.name}')
+        if member.activity != None:
+            for acts in member.activities:
+                #embed.add_field(name = acts.name, value = acts.type)
+                if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
+                    embed.add_field(name = "**Listening to spotify:**", value = f'{acts.artists[0]} - "{acts.title}"\n Track url : {acts.track_url}', inline = False)
+                    embed.set_thumbnail(url = f"{acts.album_cover_url}")
+                elif f"{type(acts)}" != "<class 'NoneType'>":
+                    x = f'{acts.type}'[13:]
+                    embed.add_field(name = f"**{x}**", value = f"{acts.name}", inline = False)
+        return embed
+
+    def activity_update(self, member, old_user_status, new_user_status):
+        embed = disnake.Embed(
+            description=f"**{member.mention}'s has updated their status/activities**",
+            color=disnake.Colour.from_rgb(
+                *dicts.embed_colors["member_action"]),
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
+        embed.set_footer(text=f'{member.guild.name}')
+        if old_user_status.status != new_user_status.status:
+            embed.add_field(name = "", value = "", inline = False)
+            embed.add_field(name = "**Old Status**", value = f'```{helpers.parse_key(old_user_status.status)}```', inline = True)
+            embed.add_field(name = "**Current Status**", value = f'```{helpers.parse_key(new_user_status.status)}```', inline = True)
+        if old_user_status.activities != new_user_status.activities and old_user_status.activities:
+            fin = []
+            for acts in old_user_status.activities:
+                if acts not in new_user_status.activities:
+                    fin += [f'{acts.actname}']
+            fin = '\n'.join(fin)
+            embed.add_field(name = "**Finished Activities :**", value = f"```{fin}```", inline = False)
+        if member.activity != None:
+            embed.add_field(name = "**Current Activities : **", value = "", inline = False)
+            for acts in member.activities:
+                #embed.add_field(name = acts.name, value = acts.type)
+                if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
+                    embed.add_field(name = "**Listening to spotify:**", value = f'```{acts.artists[0]} - "{acts.title}"```Track url : {acts.track_url}', inline = False)
+                    embed.set_thumbnail(url = f"{acts.album_cover_url}")
+                elif f"{type(acts)}" != "<class 'NoneType'>":
+                    x = f'{acts.type}'[13:]
+                    embed.add_field(name = f"**{x}**", value = f"```{acts.name}```", inline = False)
+        return embed
+
 # --------------------- MESSAGES --------------------------------
 
     def message_edit(self, before, after):
@@ -695,8 +747,8 @@ class Embed:
         )
         embed.set_author(name = before.author, icon_url = before.author.display_avatar.url)
         embed.set_footer(text=f'{before.guild.name}')
-        embed.add_field(name="** Before: **", value = f'`{before.content}`')
-        embed.add_field(name="** After: **", value = f'`{after.content}`')
+        embed.add_field(name="** Before: **", value = f'```{before.content}```', inline = False)
+        embed.add_field(name="** After: **", value = f'```{after.content}```', inline = False)
         return embed
     
     def message_pin(self, before, after):
@@ -708,8 +760,8 @@ class Embed:
         )
         embed.set_author(name = before.guild.name, icon_url = before.guild.icon.url)
         embed.set_footer(text=f'{before.guild.name}')
-        embed.add_field(name="** Message Author: **", value = f'{before.author.mention}')
-        embed.add_field(name="** Message Content: **", value = f'`{after.content}`\n')
+        embed.add_field(name="** Message Author: **", value = f'{before.author.mention}', inline = False)
+        embed.add_field(name="** Message Content: **", value = f'```{after.content}```\n', inline = False)
         return embed
     
     def message_unpin(self, before, after):
@@ -721,8 +773,8 @@ class Embed:
         )
         embed.set_author(name = before.guild.name, icon_url = before.guild.icon.url)
         embed.set_footer(text=f'{before.guild.name}')
-        embed.add_field(name="** Message Author: **", value = f'{before.author.mention}\n')
-        embed.add_field(name="** Message Content: **", value = f'`{after.content}`\n')
+        embed.add_field(name="** Message Author: **", value = f'{before.author.mention}\n', inline = False)
+        embed.add_field(name="** Message Content: **", value = f'```{after.content}```\n', inline = False)
         return embed
     
     def message_delete(self, message):
@@ -734,7 +786,7 @@ class Embed:
         )
         embed.set_author(name = message.author, icon_url = message.author.display_avatar.url)
         embed.set_footer(text=f'{message.channel.guild.name}')
-        embed.add_field(name="** Message Content: **", value = f'`{message.content}`\n')
+        embed.add_field(name="** Message Content: **", value = f'```{message.content}```\n', inline = False)
         return embed
     
 # --------------------- VOICE STATES --------------------------------
