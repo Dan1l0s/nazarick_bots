@@ -1,7 +1,6 @@
 import disnake
 from disnake.ext import commands
-from youtube_search import YoutubeSearch
-from yt_dlp import YoutubeDL
+import functools
 import random
 import asyncio
 from urllib.request import urlopen
@@ -89,16 +88,18 @@ class MusicBotInstance:
     file_logger = None
     embedder = None
     states = None
+    process_pool = None
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
-    def __init__(self, name, file_logger):
+    def __init__(self, name, file_logger, process_pool):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
         self.name = name
         self.file_logger = file_logger
         self.embedder = Embed()
         self.states = {}
+        self.process_pool = process_pool
 
         @self.bot.event
         async def on_ready():
@@ -150,6 +151,9 @@ class MusicBotInstance:
         return self.states[guild_id].voice.channel
 
 # *_______Helpers________________________________________________________________________________________________________________________________________
+
+    async def run_in_process(self, func, *args, **kwargs):
+        return await asyncio.get_running_loop().run_in_executor(self.process_pool, functools.partial(func, *args, **kwargs))
 
     async def timeout(self, guild_id):
         state = self.states[guild_id]
@@ -221,11 +225,12 @@ class MusicBotInstance:
         state = self.states[inter.guild.id]
         if "list" in url:
             await self.add_from_url_to_queue(inter, song, url[:url.find("list")-1], playnow=playnow)
-            return self.add_from_playlist(inter, url, playnow=playnow)
+            await self.add_from_playlist(inter, url, playnow=playnow)
+            return
         else:
             if not song.radio_mode:
-                with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
-                    track_info = ytdl.extract_info(url, download=False)
+                track_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+
                 song.track_info.set_result(track_info)
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                     embed = self.embedder.songs(
@@ -242,27 +247,25 @@ class MusicBotInstance:
                 song.track_info.set_result(url)
 
     async def select_song(self, inter, song, query):
-        songs = YoutubeSearch(query, max_results=5).to_dict()
+        songs = await self.run_in_process(helpers.yt_search, query)
         select = SelectionPanel(
             songs, self.add_from_url_to_queue, inter, song, self)
         await inter.orig_inter.delete_original_response()
         await select.send()
 
-    def add_from_playlist(self, inter, url, *, playnow=False):
+    async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
-        with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
-            playlist_info = ytdl.extract_info(url, download=False)
-
+        playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
         if not state.voice:
             return
         if playnow:
             for entry in playlist_info['entries'][1:][::-1]:
-                song = Song(inter.author)
+                song = Song(author=inter.author)
                 song.track_info.set_result(entry)
                 state.song_queue.insert(0, song)
         else:
             for entry in playlist_info['entries'][1:]:
-                song = Song(inter.author)
+                song = Song(author=inter.author)
                 song.track_info.set_result(entry)
                 state.song_queue.append(song)
 

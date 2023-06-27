@@ -197,7 +197,7 @@ class Embed:
 
     def entry_kick(self, entry):
         embed = disnake.Embed(
-            description=f'**{entry.user.mention} kicked member `{entry.target.name}`**',
+            description=f'**{entry.user.mention} kicked member {entry.target.mention}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
@@ -209,7 +209,7 @@ class Embed:
 
     def entry_ban(self, entry):
         embed = disnake.Embed(
-            description=f'**{entry.user.mention} banned member `{entry.target.name}`**',
+            description=f'**{entry.user.mention} banned member {entry.target.mention}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
@@ -221,7 +221,7 @@ class Embed:
 
     def entry_unban(self, entry):
         embed = disnake.Embed(
-            description=f'**{entry.user.mention} unbanned user `{entry.target.name}`**',
+            description=f'**{entry.user.mention} unbanned user {entry.target.mention}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
@@ -648,7 +648,7 @@ class Embed:
 
     def switched(self, member, before, after):
         embed = disnake.Embed(
-            description=f'**{member.mention} switched from `{before.channel.mention}` to `{after.channel.mention}`**',
+            description=f'**{member.mention} switched from {before.channel.mention} to {after.channel.mention}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -658,7 +658,7 @@ class Embed:
 
     def connected(self, member, after):
         embed = disnake.Embed(
-            description=f"**{member.mention} joined voice channel `{after.channel.mention}`**",
+            description=f"**{member.mention} joined voice channel {after.channel.mention}**",
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -668,7 +668,7 @@ class Embed:
 
     def disconnected(self, member, before):
         embed = disnake.Embed(
-            description=f'**{member.mention} left voice channel `{before.channel.mention}`**',
+            description=f'**{member.mention} left voice channel {before.channel.mention}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -678,7 +678,7 @@ class Embed:
 
     def afk(self, member, after):
         embed = disnake.Embed(
-            description=f'**{member.mention} has gone AFK in `{after.channel.mention}`**',
+            description=f'**{member.mention} has gone AFK in {after.channel.mention}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -884,7 +884,7 @@ class Embed:
 
     def message_delete(self, message):
         embed = disnake.Embed(
-            description=f'**:wastebasket: A Message sent by {message.author} has been deleted in `{message.channel.mention}`.**',
+            description=f'**:wastebasket: A Message sent by {message.author} has been deleted in {message.channel.mention}.**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now()

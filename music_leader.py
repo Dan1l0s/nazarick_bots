@@ -14,8 +14,8 @@ class MusicBotLeader(MusicBotInstance):
     instances = None
     chatgpt_messages = None
 
-    def __init__(self, name, logger):
-        super().__init__(name, logger)
+    def __init__(self, name, logger, process_pool):
+        super().__init__(name, logger, process_pool)
         self.instances = []
         self.instances.append(self)
         self.instance_count = 0
@@ -24,7 +24,6 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-
             await self.on_voice_event(member, before, after)
 
             if await self.temp_channels(member, before, after):

@@ -2,6 +2,9 @@ import disnake
 from datetime import datetime, timezone
 import time
 import re
+import public_config
+from yt_dlp import YoutubeDL
+from youtube_search import YoutubeSearch
 
 import private_config
 
@@ -176,3 +179,12 @@ def parse_key(key):
     for i in range(0, len(s)):
         res += ((s[i][0].upper() + s[i][1:]) if i == 0 else s[i]) + " "
     return res
+
+
+def ytdl_extract_info(url, download=True):
+    with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
+        return ytdl.extract_info(url, download=download)
+
+
+def yt_search(query, max_results=5):
+    return YoutubeSearch(query, max_results=max_results).to_dict()
