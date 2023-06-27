@@ -58,15 +58,6 @@ class MusicBotLeader(MusicBotInstance):
         #         return
             # await channel.send(f"Greetings! {member.mention}, welcome to the Great Tomb of Nazarick.")
 
-        @self.bot.slash_command(description="temporary command")
-        async def welcome(inter, member: disnake.Member):
-            if await self.check_dm(inter):
-                return
-            await inter.response.defer()
-            embed = self.embedder.welcome_message(member)
-            await inter.delete_original_response()
-            await inter.channel.send(embed=embed)
-
         @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
             if await self.check_dm(inter):

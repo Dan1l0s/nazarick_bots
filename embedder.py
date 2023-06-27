@@ -54,7 +54,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.after):
             if attr in public_config.channel_create:
@@ -117,7 +118,8 @@ class Embed:
             tags = '\n'.join(tags)
             embed.add_field(name="**Tag Updates**", value=tags, inline=False)
 
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -127,7 +129,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -137,7 +140,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.after):
             if attr in public_config.threads:
@@ -158,7 +162,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.after):
             if attr in public_config.threads:
@@ -185,7 +190,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -195,7 +201,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.add_field(name="**REASON:**", value=f'{entry.reason}')
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
@@ -206,7 +213,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.add_field(name="**REASON:**", value=f'{entry.reason}')
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
@@ -217,7 +225,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -227,7 +236,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -237,7 +247,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         if hasattr(entry.before, "nick"):
             if entry.before.nick != None:
                 embed.add_field(name="**Old Nickname:**",
@@ -263,7 +274,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         for y in range(len(x)):
             embed.add_field(name=f"Role added:", value=x[y].name)
         for y in range(len(z)):
@@ -277,7 +289,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -287,7 +300,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.after, "name"):
             embed.add_field(name="**Role name:**", value=entry.after.name)
@@ -299,7 +313,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.after, "name"):
             embed.add_field(name="**New Role name:**", value=entry.after.name)
@@ -327,7 +342,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.before):
             if attr in public_config.role_delete:
@@ -341,7 +357,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.before):
             if attr in public_config.guild_update:
@@ -358,7 +375,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         embed.add_field(name="**Members Removed:**",
                         value=entry.extra.members_removed, inline=False)
@@ -372,7 +390,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.after, 'channel'):
             embed.add_field(name="**Channel:**",
@@ -389,7 +408,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -399,7 +419,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.before, 'channel'):
             embed.add_field(name="**Channel:**",
@@ -416,7 +437,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         embed.add_field(name="**Emoji:**",
                         value=entry.after.name, inline=False)
@@ -428,7 +450,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         embed.add_field(name="**Old Emoji Name:**",
                         value=entry.before.name, inline=False)
@@ -443,7 +466,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         embed.add_field(name="**Emoji:**",
                         value=entry.before.name, inline=False)
@@ -455,7 +479,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.before):
             if attr in public_config.sticker_ent:
@@ -469,7 +494,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.before):
             if attr in public_config.sticker_ent:
@@ -483,7 +509,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         for attr in dir(entry.before):
             if attr in public_config.sticker_ent:
@@ -497,7 +524,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         embed.add_field(name="**Channel from which the messages were deleted**",
                         value=entry.extra.channel.mention, inline=False)
@@ -511,7 +539,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -521,7 +550,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -531,7 +561,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
@@ -541,7 +572,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.after, 'channel'):
             embed.add_field(name="**Channel**",
@@ -560,7 +592,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.after, 'channel'):
             embed.add_field(name="", value="", inline=False)
@@ -585,7 +618,8 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         if hasattr(entry.before, 'channel'):
             embed.add_field(name="**Channel**",
@@ -604,17 +638,17 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=entry.user.name, icon_url=entry.user.avatar.url)
+        embed.set_author(name=entry.user.name,
+                         icon_url=entry.user.display_avatar.url)
         embed.set_footer(text=f'{entry.user.guild.name}')
         return embed
 
 
 # --------------------- CHANNEL SWITCHING --------------------------------
 
-
     def switched(self, member, before, after):
         embed = disnake.Embed(
-            description=f'**{member.mention} switched from `{before.channel.name}` to `{after.channel.name}`**',
+            description=f'**{member.mention} switched from `{before.channel.mention}` to `{after.channel.mention}`**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -624,7 +658,7 @@ class Embed:
 
     def connected(self, member, after):
         embed = disnake.Embed(
-            description=f"**{member.mention} joined voice channel `{after.channel.name}`**",
+            description=f"**{member.mention} joined voice channel `{after.channel.mention}`**",
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -634,7 +668,7 @@ class Embed:
 
     def disconnected(self, member, before):
         embed = disnake.Embed(
-            description=f'**{member.mention} left voice channel `{before.channel.name}`**',
+            description=f'**{member.mention} left voice channel `{before.channel.mention}`**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -644,11 +678,11 @@ class Embed:
 
     def afk(self, member, after):
         embed = disnake.Embed(
-            description=f'**{member.mention} has gone AFK in `{after.channel.name}`**',
+            description=f'**{member.mention} has gone AFK in `{after.channel.mention}`**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         return embed
 
@@ -850,7 +884,7 @@ class Embed:
 
     def message_delete(self, message):
         embed = disnake.Embed(
-            description=f'**:wastebasket:A Message sent by {message.author} has been deleted in `{message.channel}`.**',
+            description=f'**:wastebasket: A Message sent by {message.author} has been deleted in `{message.channel.mention}`.**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now()
@@ -870,7 +904,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         if after.mute:
             embed.add_field(name=f":microphone2:** Server Mute**", value="Yes")
@@ -884,7 +918,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         if after.deaf:
             embed.add_field(name=f":mute:** Server Deafen**", value="Yes")
@@ -898,7 +932,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         if after.self_mute:
             embed.add_field(name=f":microphone2:** Muted**", value="Yes")
@@ -912,7 +946,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         if after.self_deaf:
             embed.add_field(name=f":mute:** Deafened**", value="Yes")
@@ -940,7 +974,7 @@ class Embed:
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
-        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         if after.self_video:
             embed.add_field(

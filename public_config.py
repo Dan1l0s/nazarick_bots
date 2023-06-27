@@ -13,7 +13,7 @@ embed_colors = {
     "member_action": [150, 255, 255],
     "other_action": [150, 150, 255],
     "voice_update":  [255, 255, 255],
-    "welcome_message": [126, 211, 33],
+    "welcome_message": [0, 0, 0],
     "message": [144, 19, 254],
     "ban_leave": [255, 0, 0],
 }
