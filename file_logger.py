@@ -1,9 +1,11 @@
-import datetime
-import helpers
-import os
 import disnake
+import datetime
+import os
 
-class Logger:
+import helpers
+
+
+class FileLogger:
     def __init__(self, state: bool):
         self.state = state
 
@@ -16,12 +18,12 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + " : ERROR : " + str(err) + "\n")
         f.close()
 
-#---------------- BASIC BOT ----------------------------------------------------------------
+# ---------------- BASIC BOT ----------------------------------------------------------------
 
     def enabled(self, bot):
         if not self.state:
             return
-        abs_path = self.get_path("general")
+        abs_path = self.get_path_no_date("general")
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STARTUP : Bot is logged as {bot.user}\n")
@@ -30,13 +32,13 @@ class Logger:
     def lost_connection(self, bot):
         if not self.state:
             return
-        abs_path = self.get_path("general")
+        abs_path = self.get_path_no_date("general")
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ERROR : Bot {bot.user} lost connection to Discord servers\n")
         f.close()
 
-#---------------- MUSIC BOT ----------------------------------------------------------------
+# ---------------- MUSIC BOT ----------------------------------------------------------------
 
     def skip(self, inter):
         if not self.state:
@@ -46,7 +48,7 @@ class Logger:
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : SKIP : Skipped track in VC: {inter.guild.voice_client.channel}\n")
         f.close()
-    
+
     def added(self, guild, track):
         if not self.state:
             return
@@ -83,7 +85,7 @@ class Logger:
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STOP : Finished playing in VC: {inter.guild.voice_client.channel}\n")
         f.close()
 
-#---------------- ACTIONS ----------------------------------------------------------------
+# ---------------- ACTIONS ----------------------------------------------------------------
 
     def switched(self, member, before, after):
         if not self.state:
@@ -196,7 +198,7 @@ class Logger:
     def status_upd(self, member):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(member.guild.id, "status")
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STATUS : User {member.name} has gone {member.status}\n")
@@ -205,22 +207,21 @@ class Logger:
     def activity_upd(self, member, old_user_status, new_user_status):
         if not self.state:
             return
-        abs_path = self.get_path(member.guild.id)
+        abs_path = self.get_path(member.guild.id, "status")
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : STATUS : User {member.name} has updated their activities\n")
-        if old_user_status.activities != new_user_status.activities and old_user_status.activities:
-            fin = []
-            for acts in old_user_status.activities:
-                if acts not in new_user_status.activities:
-                    fin += [f' - {acts.actname}']
-            for acts in new_user_status.activities:
-                if acts not in old_user_status.activities:
-                    fin += [f' + {acts.actname}']        
-            fin = '\n'.join(fin)
-        f.write(fin + "\n") 
-        f.close()    
-#---------------- ENTRY_ACTION ----------------------------------------------------------------
+        fin = []
+        for acts in old_user_status.activities:
+            if acts not in new_user_status.activities:
+                fin += [f' - {acts.actname}']
+        for acts in new_user_status.activities:
+            if acts not in old_user_status.activities:
+                fin += [f' + {acts.actname}']
+        fin = '\n'.join(fin)
+        f.write(fin + "\n")
+        f.close()
+# ---------------- ENTRY_ACTION ----------------------------------------------------------------
 
     def entry_channel_create(self, entry):
         if not self.state:
@@ -238,7 +239,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated channel {entry.target.name}\n")
-        f.close()    
+        f.close()
 
     def entry_channel_delete(self, entry):
         if not self.state:
@@ -265,7 +266,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated thread {entry.target.name}\n")
-        f.close()    
+        f.close()
 
     def entry_thread_delete(self, entry):
         if not self.state:
@@ -292,7 +293,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated role {entry.target.name}\n")
-        f.close()    
+        f.close()
 
     def entry_role_delete(self, entry):
         if not self.state:
@@ -319,7 +320,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated emoji {entry.target.name}\n")
-        f.close()    
+        f.close()
 
     def entry_emoji_delete(self, entry):
         if not self.state:
@@ -346,7 +347,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated an invite\n")
-        f.close()    
+        f.close()
 
     def entry_invite_delete(self, entry):
         if not self.state:
@@ -373,7 +374,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated a sticker\n")
-        f.close()    
+        f.close()
 
     def entry_sticker_delete(self, entry):
         if not self.state:
@@ -400,7 +401,7 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has updated a scheduled guild event\n")
-        f.close()    
+        f.close()
 
     def entry_guild_scheduled_event_delete(self, entry):
         if not self.state:
@@ -409,14 +410,14 @@ class Logger:
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : ENTRY : User {entry.user} has deleted a scheduled guild event\n")
-        f.close()    
+        f.close()
 
-#---------------- GPT ----------------------------------------------------------------
+# ---------------- GPT ----------------------------------------------------------------
 
     def gpt(self, member, messages, guild_id="gpt"):
         if not self.state:
             return
-        abs_path = self.get_path(guild_id)
+        abs_path = self.get_path_no_date(guild_id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : GPT : User {member} used GPT with the query: `{messages[0]}` and got response `{messages[1]}`\n")
@@ -425,15 +426,26 @@ class Logger:
     def gpt_clear(self, member, guild_id="gpt"):
         if not self.state:
             return
-        abs_path = self.get_path(guild_id)
+        abs_path = self.get_path_no_date(guild_id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
             datetime.datetime.now().strftime("%H:%M:%S") + f" : GPT : User {member} cleared their chatGPT history\n")
         f.close()
 
-#---------------- HELPING METHODS  ----------------------------------------------------------------
+# ---------------- HELPING METHODS  ----------------------------------------------------------------
 
-    def get_path(self, dir_name: str):
+    def get_path(self, file_name: str, sub_dir_name: str = "dates"):
+        if not self.state:
+            return
+        dir_name = datetime.datetime.now().strftime('%d-%m-%Y')
+        if not os.path.exists(f"logs/{sub_dir_name}/{dir_name}"):
+            os.makedirs(f"logs/{sub_dir_name}/{dir_name}")
+        script_dir = os.path.dirname(__file__)
+        rel_path = f"logs/{sub_dir_name}/{dir_name}/{file_name}"
+        abs_path = os.path.join(script_dir, rel_path)
+        return abs_path
+
+    def get_path_no_date(self, dir_name: str):
         if not self.state:
             return
         if not os.path.exists(f"logs/{dir_name}"):
@@ -443,4 +455,3 @@ class Logger:
         rel_path = f"logs/{dir_name}/{file_name}"
         abs_path = os.path.join(script_dir, rel_path)
         return abs_path
-

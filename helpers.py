@@ -1,12 +1,13 @@
-import config
 import disnake
 from datetime import datetime, timezone
 import time
 import re
 
+import private_config
+
 
 def is_admin(member):
-    if member.guild and member.guild.id not in config.admin_ids or member.id not in config.admin_ids[member.guild.id]:
+    if member.guild and member.guild.id not in private_config.admin_ids or member.id not in private_config.admin_ids[member.guild.id]:
         return False
     return True
 
@@ -30,13 +31,13 @@ def is_mentioned(member, message):
 
 async def create_private(member):
 
-    if member.guild.id not in config.categories_ids:
+    if member.guild.id not in private_config.categories_ids:
         return
     possible_channel_name = f"{member.display_name}'s private"
 
     guild = member.guild
     category = disnake.utils.get(
-        guild.categories, id=config.categories_ids[guild.id])
+        guild.categories, id=private_config.categories_ids[guild.id])
 
     tmp_channel = await category.create_voice_channel(name=possible_channel_name)
 
@@ -53,7 +54,7 @@ async def create_private(member):
 
 
 async def unmute_bots(member):
-    if member.id in config.bot_ids.values():
+    if member.id in private_config.bot_ids.values():
         if member.voice.mute:
             await member.edit(mute=False)
         if member.voice.deaf:
@@ -61,7 +62,7 @@ async def unmute_bots(member):
 
 
 async def unmute_admin(member):
-    if member.guild.id in config.supreme_beings_ids and member.id in config.supreme_beings_ids[member.guild.id]:
+    if member.guild.id in private_config.supreme_beings_ids and member.id in private_config.supreme_beings_ids[member.guild.id]:
         if member.voice.mute:
             await member.edit(mute=False)
         if member.voice.deaf:
@@ -69,7 +70,7 @@ async def unmute_admin(member):
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id not in config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in config.supreme_beings_ids[member.guild.id]:
+        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in private_config.supreme_beings_ids[member.guild.id]:
             await entry.user.move_to(None)
             try:
                 await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
@@ -167,6 +168,7 @@ def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
     if chunk != "":
         chunks.append(chunk)
     return chunks
+
 
 def parse_key(key):
     s = key.split('_')

@@ -2,14 +2,14 @@ import disnake
 from disnake.ext import commands
 from youtube_search import YoutubeSearch
 from yt_dlp import YoutubeDL
-from threading import Thread
 import random
 import asyncio
 from urllib.request import urlopen
 import json
 import re
-import dicts
-import config
+
+import private_config
+import public_config
 import helpers
 from embedder import Embed
 from selection import SelectionPanel
@@ -86,23 +86,23 @@ class GuildState():
 class MusicBotInstance:
     bot = None
     name = None
-    logger = None
+    file_logger = None
     embedder = None
     states = None
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
-    def __init__(self, name, logger):
-        self.bot = commands.Bot(command_prefix="?", intents=disnake.Intents.all(
+    def __init__(self, name, file_logger):
+        self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
         self.name = name
-        self.logger = logger
+        self.file_logger = file_logger
         self.embedder = Embed()
         self.states = {}
 
         @self.bot.event
         async def on_ready():
-            self.logger.enabled(self.bot)
+            self.file_logger.enabled(self.bot)
             for guild in self.bot.guilds:
                 self.states[guild.id] = GuildState(guild)
             print(f"{self.name} is logged as {self.bot.user}")
@@ -110,7 +110,7 @@ class MusicBotInstance:
         @self.bot.event
         async def on_message(message):
             if not message.guild:
-                if message.author.id in config.admin_ids[569924343010689025]:
+                if message.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
                     await message.reply("Your attention is an honor for me, my master.")
                 return
             await self.check_mentions(message)
@@ -123,8 +123,13 @@ class MusicBotInstance:
         async def on_guild_join(guild):
             self.states[guild.id] = GuildState(guild)
 
+        @self.bot.event
+        async def on_disconnect():
+            print(f"{self.name} has disconnected from Discord")
+            self.file_logger.lost_connection(self.bot)
+
     async def run(self):
-        await self.bot.start(config.tokens[self.name])
+        await self.bot.start(private_config.tokens[self.name])
 
 # *_______ForLeader________________________________________________________________________________________________________________________________________
 
@@ -148,7 +153,7 @@ class MusicBotInstance:
 
     async def timeout(self, guild_id):
         state = self.states[guild_id]
-        tm = dicts.music_settings["PlayTimeout"]
+        tm = public_config.music_settings["PlayTimeout"]
         message = await state.last_inter.text_channel.send(f"I am left alone, I will leave VC in {tm} seconds!")
         if state.voice.is_playing():
             state.voice.pause()
@@ -219,7 +224,7 @@ class MusicBotInstance:
             return self.add_from_playlist(inter, url, playnow=playnow)
         else:
             if not song.radio_mode:
-                with YoutubeDL(dicts.YTDL_OPTIONS) as ytdl:
+                with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
                     track_info = ytdl.extract_info(url, download=False)
                 song.track_info.set_result(track_info)
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
@@ -228,7 +233,7 @@ class MusicBotInstance:
                     song.original_message = await inter.text_channel.send("", embed=embed)
                 if respond:
                     await inter.orig_inter.delete_original_response()
-                self.logger.added(state.guild, track_info)
+                self.file_logger.added(state.guild, track_info)
             else:
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                     song.original_message = await inter.text_channel.send("Radio was added to queue!")
@@ -245,7 +250,7 @@ class MusicBotInstance:
 
     def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
-        with YoutubeDL(dicts.YTDL_OPTIONS) as ytdl:
+        with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
             playlist_info = ytdl.extract_info(url, download=False)
 
         if not state.voice:
@@ -281,7 +286,7 @@ class MusicBotInstance:
                 if not state.current_song.radio_mode:
                     link = current_track.get("url", None)
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=link, **dicts.FFMPEG_OPTIONS))
+                        source=link, **public_config.FFMPEG_OPTIONS))
                     if state.current_song.original_message:
                         try:
                             await state.current_song.original_message.delete()
@@ -290,7 +295,7 @@ class MusicBotInstance:
                     embed = self.embedder.songs(
                         state.current_song.author, current_track, "Playing this song!")
                     await state.last_inter.text_channel.send("", embed=embed)
-                    self.logger.playing(state.guild, current_track)
+                    self.file_logger.playing(state.guild, current_track)
                 else:
                     if len(state.song_queue) > 0 and not state.song_queue[0].radio_mode:
                         state.song_queue.append(state.current_song)
@@ -301,8 +306,8 @@ class MusicBotInstance:
                         except:
                             pass
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=current_track, **dicts.FFMPEG_OPTIONS))
-                    if (current_track == dicts.radio_url):
+                        source=current_track, **public_config.FFMPEG_OPTIONS))
+                    if (current_track == public_config.radio_url):
                         asyncio.create_task(self.radio_message(state))
 
                 await self.play_before_interrupt(guild_id)
@@ -318,7 +323,7 @@ class MusicBotInstance:
             await self.abort_play(guild_id)
         except Exception as err:
             print(f"Exception in play_loop: {err}")
-            self.logger.error(err, state.guild)
+            self.file_logger.error(err, state.guild)
             pass
 
     async def play_before_interrupt(self, guild_id):
@@ -382,7 +387,7 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         if not state.voice:
             return
-        self.logger.finished(inter)
+        self.file_logger.finished(inter)
         await self.abort_play(inter.guild.id, message=f"DJ {inter.author.display_name} decided to stop!")
 
     async def pause(self, inter):
@@ -396,12 +401,12 @@ class MusicBotInstance:
                 if state.current_song.radio_mode:
                     state.voice.stop()
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=track_info, **dicts.FFMPEG_OPTIONS))
+                        source=track_info, **public_config.FFMPEG_OPTIONS))
                 elif helpers.get_duration(track_info) == "Live":
                     link = track_info.get("url", None)
                     state.voice.stop()
                     state.voice.play(disnake.FFmpegPCMAudio(
-                        source=link, **dicts.FFMPEG_OPTIONS))
+                        source=link, **public_config.FFMPEG_OPTIONS))
                 else:
                     state.voice.resume()
             state.paused = False
@@ -430,7 +435,7 @@ class MusicBotInstance:
         if not state.voice:
             return
         state.skip_flag = True
-        self.logger.skip(inter)
+        self.file_logger.skip(inter)
         await inter.orig_inter.send("Skipped current track!")
 
     async def queue(self, inter):
@@ -493,7 +498,7 @@ class MusicBotInstance:
             await inter.orig_inter.send("I am not playing anything!")
 
     async def radio_message(self, state):
-        url = dicts.radio_widget
+        url = public_config.radio_widget
         name = ""
         while state.current_song and state.current_song.radio_mode:
             try:
@@ -517,7 +522,7 @@ class MusicBotInstance:
                     return
                 state.last_radio_message = data
                 await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
-                self.logger.radio(state.last_inter.guild, data)
+                self.file_logger.radio(state.last_inter.guild, data)
                 await asyncio.sleep(1)
             except:
                 await asyncio.sleep(1)
