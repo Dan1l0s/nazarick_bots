@@ -169,9 +169,14 @@ class AutoLog():
         @ self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            self.file_logger.lost_connection(self.bot)
-            global gl_flag
-            gl_flag = False
+            # self.file_logger.lost_connection(self.bot)
+            # global gl_flag
+            # gl_flag = False
+
+        @self.bot.event
+        async def on_connect():
+            print(f"{self.name} has connected to Discord")
+            # await self.status_check()
 
     # --------------------- SLASH COMMANDS --------------------------------
 

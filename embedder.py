@@ -535,7 +535,7 @@ class Embed:
 
     def entry_message_bulk_delete(self, entry):
         embed = disnake.Embed(
-            description=f"**{entry.user.mention} has deleted {entry.extra.count} message(s) from {entry.target.mention}**",
+            description=f"**{entry.user.mention} has deleted {entry.extra['count']} message(s) from {entry.target.mention}**",
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now())
@@ -928,7 +928,7 @@ class Embed:
 
     def self_mute(self, member, after):
         embed = disnake.Embed(
-            description=f"**{member.mention} updated their own voice state**",
+            description=f"**{member.mention} updated their voice state**",
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -942,7 +942,7 @@ class Embed:
 
     def self_deaf(self, member, after):
         embed = disnake.Embed(
-            description=f"**{member.mention} updated their own voice state**",
+            description=f"**{member.mention} updated their voice state**",
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["voice_update"]),
             timestamp=datetime.datetime.now())
@@ -963,9 +963,9 @@ class Embed:
         embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
         if after.self_stream:
-            embed.add_field(name=f":tv:** Stream Enabled**", value="Enabled")
+            embed.add_field(name=f":tv:** Stream enabled**", value="Yes")
         else:
-            embed.add_field(name=f":tv:** Stream Enabled**", value="Disabled")
+            embed.add_field(name=f":tv:** Stream enabled**", value="No")
         return embed
 
     def self_video(self, member, after):
@@ -978,8 +978,8 @@ class Embed:
         embed.set_footer(text=f'{member.guild.name}')
         if after.self_video:
             embed.add_field(
-                name=f":video_camera:** Video Enabled**", value="Enabled")
+                name=f":video_camera:** Video enabled**", value="Yes")
         else:
             embed.add_field(
-                name=f":video_camera:** Video Enabled**", value="Disabled")
+                name=f":video_camera:** Video enabled**", value="No")
         return embed

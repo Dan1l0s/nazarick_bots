@@ -129,6 +129,11 @@ class MusicBotInstance:
             print(f"{self.name} has disconnected from Discord")
             self.file_logger.lost_connection(self.bot)
 
+        @self.bot.event
+        async def on_connect():
+            print(f"{self.name} has connected to Discord")
+            self.file_logger.lost_connection(self.bot)
+
     async def run(self):
         await self.bot.start(private_config.tokens[self.name])
 
@@ -207,10 +212,7 @@ class MusicBotInstance:
     async def process_song_query(self, inter, query, *, song=None, playnow=False, radio=False):
         state = self.states[inter.guild.id]
         if not song:
-            if radio:
-                song = Song(author=inter.author, radio_mode=radio)
-            else:
-                song = Song(author=inter.author)
+            song = Song(author=inter.author, radio_mode=radio)
             if playnow:
                 state.song_queue.insert(0, song)
             else:
@@ -229,8 +231,16 @@ class MusicBotInstance:
             return
         else:
             if not song.radio_mode:
-                track_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
-
+                try:
+                    track_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+                except:
+                    if respond:
+                        await inter.orig_inter.delete_original_response()
+                    await inter.text_channel.send(
+                        "Error processing video, try another one!")
+                    if not state.current_song:
+                        await state.voice.disconnect()
+                    return
                 song.track_info.set_result(track_info)
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                     embed = self.embedder.songs(
@@ -255,7 +265,17 @@ class MusicBotInstance:
 
     async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
-        playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+        msg = await inter.text_channel.send("Processing playlist...")
+        try:
+            playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+        except:
+            await msg.delete()
+            await inter.text_channel.send(
+                "Error processing playlist, there are unavailable videos!")
+            return
+
+        await msg.edit("Playlist has been processed!")
+
         if not state.voice:
             return
         if playnow:
@@ -268,6 +288,7 @@ class MusicBotInstance:
                 song = Song(author=inter.author)
                 song.track_info.set_result(entry)
                 state.song_queue.append(song)
+        await msg.delete()
 
     async def play_loop(self, guild_id):
         state = self.states[guild_id]
