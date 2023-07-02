@@ -10,7 +10,7 @@ import private_config
 
 
 def is_admin(member):
-    if member.guild and member.guild.id not in private_config.admin_ids or member.id not in private_config.admin_ids[member.guild.id]:
+    if (member.guild) and (member.guild.id not in private_config.admin_ids or member.id not in private_config.admin_ids[member.guild.id]):
         return False
     return True
 

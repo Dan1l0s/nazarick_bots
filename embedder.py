@@ -326,7 +326,7 @@ class Embed:
         # PERMISSIONS
         if hasattr(entry.after, "permissions"):
             perms = []
-            for attr in dir(entry.after):
+            for attr in dir(entry.after.permissions):
                 if attr in public_config.permissions_list:
                     if (getattr(entry.before.permissions, attr) != getattr(entry.after.permissions, attr)):
                         perms += [f"{public_config.emojis['true']} {helpers.parse_key(attr)}"] if getattr(
@@ -841,7 +841,7 @@ class Embed:
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now()
         )
-        embed.set_author(name=before.author,
+        embed.set_author(name=before.author.name,
                          icon_url=before.author.display_avatar.url)
         embed.set_footer(text=f'{before.guild.name}')
         embed.add_field(name="** Before: **",

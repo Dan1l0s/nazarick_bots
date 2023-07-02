@@ -1,13 +1,17 @@
-# ----------------RANDOM DICTS
+# ---------------- RANDOM DICTS
+
+# emojis used by bots
 emojis = {
     "dead": "<:dead:1087767664342077450>",
     "banned": "<a:Banned:774353769550315540>",
     "rage": "<a:Reeeee:774363284731854889>",
+    "roflan": "<:RoflanEbalo:913349767826919455>",
     "albedo_talking": "<a:AlbedoTalking:1093989362112409610>",
     "true": ":white_check_mark:",
     "false": ":no_entry:",
 }
 
+# colors used in embeds
 embed_colors = {
     "songs": [0, 0, 0],
     "member_action": [150, 255, 255],
@@ -21,28 +25,35 @@ embed_colors = {
 
 # ---------------- BASIC BOT SETTINGS
 
+# yt-dlp configuration
 YTDL_OPTIONS = {
     'format': 'bestaudio/best', 'noplaylist': False,
     'simulate': True, 'key': 'FFmpegExtractAudio', 'forceduration': True, 'quiet': True, 'no_warnings': True
 }
 
+# ffmpeg configuration
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'
 }
 
+# settings for music bots
 music_settings = {
     "SelectionPanelTimeout": 30,
     "PlayTimeout": 30,
     "SelectionPanelMaxNameLen": 40,
 }
 
+# default radio url and radio widget to parse for music bots
 radio_url = "http://pool.anison.fm:9000/AniSonFM(320)"
 radio_widget = "http://anison.fm/status.php?widget=true"
 
+# string values for direct messages errors
 dm_error = "You are not allowed to DM me, trash. The only reason I serve you is the order of the Supreme Beings.\nProceed to your guild, where I MUST follow your commands."
 dm_error_admin = "I am sorry, my master, but I can't follow your order. Please, proceed to any of your guilds, where I can serve you."
 
 # ----------------LOG BOT & EMBEDDER DICTS
+
+# list of permissions to be logged
 permissions_list = [
     'add_reactions',
     'administrator',
@@ -95,6 +106,7 @@ permissions_list = [
     'view_guild_insights',
 ]
 
+# list of guild settings to be logged
 guild_update = [
     'afk_channel',
     'system_channel',
@@ -120,6 +132,7 @@ guild_update = [
     'system_channel_flags',
 ]
 
+# list of guild events to be logged
 guild_scheduled_event = [
     'name',
     'description',
@@ -131,6 +144,7 @@ guild_scheduled_event = [
     # 'image',
 ]
 
+# list of stickers properties to be logged
 sticker_ent = [
     'name',
     'emoji',
@@ -140,6 +154,7 @@ sticker_ent = [
     'available',
 ]
 
+# list of threads properties to be logged
 threads = [
     'name',
     'archived',
@@ -152,6 +167,7 @@ threads = [
     # 'applied_tags',
 ]
 
+# list of channel properties logged when channel is created
 channel_create = [
     'name',
     'type',
@@ -169,6 +185,7 @@ channel_create = [
     'default_reaction',
 ]
 
+# list of channel properties logged when channel is updated
 channel_update = [
     'name',
     'type',
@@ -185,6 +202,7 @@ channel_update = [
     'default_reaction',
 ]
 
+# list of invite properties to be logged
 invites = [
     'max_age',
     'code',
@@ -194,6 +212,7 @@ invites = [
     'max_uses',
 ]
 
+# list of role properties to be logged when role is deleted
 role_delete = [
     'colour',
     'mentionable',
@@ -204,6 +223,7 @@ role_delete = [
     # 'emoji',
 ]
 
+# list of voice state properties to be logged
 on_v_s_update = [
     'deaf',
     'mute',
@@ -217,6 +237,7 @@ on_v_s_update = [
     # 'channel',
 ]
 
+# list of member properties to be logged
 member_update = [
     'display_name',
     'pending',

@@ -197,21 +197,6 @@ class AutoLog():
                 return
             await inter.send(embed=self.embedder.get_status(member))
 
-        @ self.bot.slash_command(description="Stop checking current status of user")
-        async def stopstatus(inter: disnake.AppCmdInter):
-            if await self.check_dm(inter):
-                return
-            await inter.send("Stopping status_check running")
-            global gl_flag
-            gl_flag = False
-
-        @ self.bot.slash_command(description="Check current status of users")
-        async def startstatus(inter: disnake.AppCmdInter):
-            if await self.check_dm(inter):
-                return
-            await inter.send("Starting status_check running")
-            await self.status_check()
-
     # --------------------- METHODS --------------------------------
 
     async def run(self):

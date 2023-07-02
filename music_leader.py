@@ -31,8 +31,6 @@ class MusicBotLeader(MusicBotInstance):
 
             if await self.unmute_clients(member, before, after):
                 return
-            # for instance in self.instances:
-            #     await instance.check_timeout(member, before, after)
 
         @self.bot.event
         async def on_message(message):
@@ -44,18 +42,6 @@ class MusicBotLeader(MusicBotInstance):
                 return
             await self.check_message_content(message)
             await self.check_mentions(message)
-
-        # @self.bot.event
-        # async def on_member_join(member):
-        #     if member.guild.id in config.welcome_ids:
-        #         channel = config.welcome_ids[member.guild.id]
-        #         if not channel:
-        #             return
-        #     elif member.guild.system_channel:
-        #         channel = member.guild.system_channel
-        #     else:
-        #         return
-            # await channel.send(f"Greetings! {member.mention}, welcome to the Great Tomb of Nazarick.")
 
         @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
@@ -300,7 +286,7 @@ class MusicBotLeader(MusicBotInstance):
                 pass
         return False
 
-        # *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
+# *______InstanceRelated____________________________________________________________________________________________________________________________________________________________________________________
 
     async def get_available_instance(self, inter):
         guild_id = inter.guild.id
