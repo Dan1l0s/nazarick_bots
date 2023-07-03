@@ -750,7 +750,7 @@ class Embed:
 
     def ban(self, guild, user):
         embed = disnake.Embed(
-            description=f'**:CatBan: {user.mention} has been banned from {guild.name}**',
+            description=f'**{public_config.emojis["cat_ban"]} {user.mention} has been banned from {guild.name}**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["ban_leave"]),
             timestamp=datetime.datetime.now()
@@ -764,7 +764,7 @@ class Embed:
         embed = disnake.Embed(
             description=f'**:ballot_box_with_check: {user.mention} has been unbanned from {guild.name}**',
             color=disnake.Colour.from_rgb(
-                *public_config.embed_colors["welcome_message"]),
+                *public_config.embed_colors["other_action"]),
             timestamp=datetime.datetime.now()
         )
         embed.set_author(name=user.name, icon_url=user.display_avatar.url)
@@ -884,7 +884,7 @@ class Embed:
 
     def message_delete(self, message):
         embed = disnake.Embed(
-            description=f'**:wastebasket: A Message sent by {message.author} has been deleted in {message.channel.mention}.**',
+            description=f'**:wastebasket: A Message sent by {message.author.mention} has been deleted in {message.channel.mention}.**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["message"]),
             timestamp=datetime.datetime.now()

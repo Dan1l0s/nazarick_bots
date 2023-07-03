@@ -1,5 +1,5 @@
 import asyncio
-import concurrent.futures as pool
+import concurrent.futures as process_pool
 
 from music_leader import MusicBotLeader
 from music_instance import MusicBotInstance
@@ -8,13 +8,13 @@ from log_bot import AutoLog
 
 
 async def main():
-    process_pool = pool.ProcessPoolExecutor()
+    pool = process_pool.ProcessPoolExecutor()
     file_logger = FileLogger(True)
 
-    music_leader = MusicBotLeader("music_main", file_logger, process_pool)
-    music_instance1 = MusicBotInstance("music_assistant1", file_logger, process_pool)
-    music_instance2 = MusicBotInstance("music_assistant2", file_logger, process_pool)
-    music_instance3 = MusicBotInstance("music_assistant3", file_logger, process_pool)
+    music_leader = MusicBotLeader("music_main", file_logger, pool)
+    music_instance1 = MusicBotInstance("music_assistant1", file_logger, pool)
+    music_instance2 = MusicBotInstance("music_assistant2", file_logger, pool)
+    music_instance3 = MusicBotInstance("music_assistant3", file_logger, pool)
 
     music_leader.add_instance(music_instance1)
     music_leader.add_instance(music_instance2)

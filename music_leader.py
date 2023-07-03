@@ -227,7 +227,7 @@ class MusicBotLeader(MusicBotInstance):
 
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
-        if after.channel and after.channel.name == "Создать приват":
+        if after.channel and after.channel.name == public_config.temporary_channels_settings['channel_name']:
             await helpers.create_private(member)
             return True
         if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:

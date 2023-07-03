@@ -4,6 +4,7 @@
 emojis = {
     "dead": "<:dead:1087767664342077450>",
     "banned": "<a:Banned:774353769550315540>",
+    "cat_ban": "<:CatBan:774376067699179540>",
     "rage": "<a:Reeeee:774363284731854889>",
     "roflan": "<:RoflanEbalo:913349767826919455>",
     "albedo_talking": "<a:AlbedoTalking:1093989362112409610>",
@@ -41,6 +42,12 @@ music_settings = {
     "SelectionPanelTimeout": 30,
     "PlayTimeout": 30,
     "SelectionPanelMaxNameLen": 40,
+}
+
+# settings for temporary channels
+temporary_channels_settings = {
+    "bitrate": 384000,
+    "channel_name": "Создать приват"
 }
 
 # default radio url and radio widget to parse for music bots

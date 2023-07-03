@@ -53,7 +53,7 @@ async def create_private(member):
     perms.manage_permissions = True
     perms.manage_channels = True
     await tmp_channel.set_permissions(member, overwrite=perms)
-    await tmp_channel.edit(bitrate=384000)
+    await tmp_channel.edit(bitrate=public_config.temporary_channels_settings['bitrate'])
 
 
 async def unmute_bots(member):
