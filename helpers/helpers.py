@@ -2,11 +2,11 @@ import disnake
 from datetime import datetime, timezone
 import time
 import re
-import public_config
 from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
 
-import private_config
+import configs.private_config as private_config
+import configs.public_config as public_config
 
 
 def is_admin(member):

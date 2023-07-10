@@ -3,10 +3,12 @@ from disnake.ext import commands
 import asyncio
 import openai
 
-import private_config
-import public_config
-import helpers
-from music_instance import MusicBotInstance, Interaction
+import configs.private_config as private_config
+import configs.public_config as public_config
+
+import helpers.helpers as helpers
+
+from bots.music_instance import MusicBotInstance, Interaction
 
 
 class MusicBotLeader(MusicBotInstance):
@@ -56,17 +58,6 @@ class MusicBotLeader(MusicBotInstance):
             await inter.send("Done!")
             await asyncio.sleep(5)
             await inter.delete_original_response()
-
-        @ self.bot.slash_command(description="Clears custom amount of messages")
-        async def clear(inter: disnake.AppCmdInter, amount: int):
-            if await self.check_dm(inter):
-                return
-            if helpers.is_admin(inter.author):
-                await inter.channel.purge(limit=amount+1)
-                await inter.send(f"Cleared {amount} messages")
-                await asyncio.sleep(5)
-                return await inter.delete_original_response()
-            return await inter.send(f"Unathorized attempt to clear messages!")
 
         @ self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):

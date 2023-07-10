@@ -3,15 +3,17 @@ from disnake.ext import commands
 import functools
 import random
 import asyncio
-from urllib.request import urlopen
 import json
 import re
+from urllib.request import urlopen
 
-import private_config
-import public_config
-import helpers
-from embedder import Embed
-from selection import SelectionPanel
+
+import configs.private_config as private_config
+import configs.public_config as public_config
+
+import helpers.helpers as helpers
+from helpers.embedder import Embed
+from helpers.selection import SelectionPanel
 
 
 class Interaction():

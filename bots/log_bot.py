@@ -2,12 +2,14 @@ import disnake
 from disnake.ext import commands
 import asyncio
 
-import private_config
-import public_config
-import helpers
-from selection import *
-from file_logger import *
-from embedder import *
+import configs.private_config as private_config
+import configs.public_config as public_config
+
+import helpers.helpers as helpers
+
+from helpers.selection import SelectionPanel
+from helpers.file_logger import FileLogger
+from helpers.embedder import Embed
 
 
 gl_flag = True

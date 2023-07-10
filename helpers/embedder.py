@@ -1,9 +1,10 @@
 import disnake
 import datetime
 
-import private_config
-import public_config
-import helpers
+import configs.private_config as private_config
+import configs.public_config as public_config
+
+import helpers.helpers as helpers
 
 
 class Embed:

@@ -1,11 +1,12 @@
 import asyncio
 import concurrent.futures as process_pool
 
-from music_leader import MusicBotLeader
-from music_instance import MusicBotInstance
-from file_logger import FileLogger
-from log_bot import AutoLog
-from admin_bot import AdminBot
+from bots.music_leader import MusicBotLeader
+from bots.music_instance import MusicBotInstance
+from bots.log_bot import AutoLog
+from bots.admin_bot import AdminBot
+
+from helpers.file_logger import FileLogger
 
 
 async def main():

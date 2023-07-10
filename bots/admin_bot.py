@@ -2,10 +2,10 @@ import disnake
 from disnake.ext import commands
 import asyncio
 
-import private_config
-import public_config
-import helpers
-from embedder import Embed
+import configs.private_config as private_config
+import configs.public_config as public_config
+import helpers.helpers as helpers
+from helpers.embedder import Embed
 
 
 class AdminBot():
@@ -105,7 +105,7 @@ class AdminBot():
             await inter.send(embed=disnake.Embed(color=0, description=self.help()))
 
     def add_music_instance(self, bot):
-        self.instances.append(bot)
+        self.music_instances.append(bot)
 
     def set_log_bot(self, bot):
         self.log_bot = bot
@@ -117,13 +117,14 @@ class AdminBot():
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+        ff = False
         if after.channel and after.channel.name == public_config.temporary_channels_settings['channel_name']:
             await helpers.create_private(member)
-            return True
+            ff = True
         if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:
             await before.channel.delete()
-            return True
-        return False
+            ff = True
+        return ff
 
     async def unmute_clients(self, member, after: disnake.VoiceState):
         ff = False

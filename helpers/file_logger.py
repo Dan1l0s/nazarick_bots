@@ -2,7 +2,7 @@ import disnake
 import datetime
 import os
 
-import helpers
+import helpers.helpers as helpers
 
 
 class FileLogger:
@@ -441,7 +441,7 @@ class FileLogger:
         if not os.path.exists(f"logs/{sub_dir_name}/{dir_name}"):
             os.makedirs(f"logs/{sub_dir_name}/{dir_name}")
         script_dir = os.path.dirname(__file__)
-        rel_path = f"logs/{sub_dir_name}/{dir_name}/{file_name}"
+        rel_path = f"../logs/{sub_dir_name}/{dir_name}/{file_name}"
         abs_path = os.path.join(script_dir, rel_path)
         return abs_path
 
@@ -452,6 +452,6 @@ class FileLogger:
             os.makedirs(f"logs/{dir_name}")
         file_name = datetime.datetime.now().strftime('%d-%m-%Y')
         script_dir = os.path.dirname(__file__)
-        rel_path = f"logs/{dir_name}/{file_name}"
+        rel_path = f"../logs/{dir_name}/{file_name}"
         abs_path = os.path.join(script_dir, rel_path)
         return abs_path
