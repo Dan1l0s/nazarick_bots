@@ -57,19 +57,27 @@ async def create_private(member):
 
 
 async def unmute_bots(member):
+    ff = False
     if member.id in private_config.bot_ids.values():
         if member.voice.mute:
             await member.edit(mute=False)
+            ff = True
         if member.voice.deaf:
             await member.edit(deafen=False)
+            ff = True
+    return ff
 
 
 async def unmute_admin(member):
+    ff = False
     if member.guild.id in private_config.supreme_beings_ids and member.id in private_config.supreme_beings_ids[member.guild.id]:
         if member.voice.mute:
             await member.edit(mute=False)
+            ff = True
         if member.voice.deaf:
             await member.edit(deafen=False)
+            ff = True
+
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
@@ -79,6 +87,7 @@ async def unmute_admin(member):
                 await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
             except:
                 pass
+    return ff
 
 
 def get_guild_name(guild):
@@ -188,3 +197,11 @@ def ytdl_extract_info(url, download=True):
 
 def yt_search(query, max_results=5):
     return YoutubeSearch(query, max_results=max_results).to_dict()
+
+
+async def set_bitrate(guild):
+    voice_channels = guild.voice_channels
+    bitrate_value = public_config.bitrate_values[guild.premium_tier]
+    for channel in voice_channels:
+        if channel.bitrate != bitrate_value:
+            await channel.edit(bitrate=bitrate_value)

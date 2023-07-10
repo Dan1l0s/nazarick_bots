@@ -253,3 +253,6 @@ member_update = [
     'premium_since',
     'current_timeout',
 ]
+
+# list of bitrate values to be set
+bitrate_values = {0: 96000, 1: 128000, 2: 256000, 3: 384000}

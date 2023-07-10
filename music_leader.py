@@ -2,7 +2,6 @@ import disnake
 from disnake.ext import commands
 import asyncio
 import openai
-import math
 
 import private_config
 import public_config
@@ -26,9 +25,6 @@ class MusicBotLeader(MusicBotInstance):
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             await self.on_voice_event(member, before, after)
 
-            if await self.temp_channels(member, before, after):
-                return
-
             if await self.unmute_clients(member, before, after):
                 return
 
@@ -40,14 +36,10 @@ class MusicBotLeader(MusicBotInstance):
                 if message.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
                     await message.reply("Your attention is an honor for me, my master.")
                 return
-            await self.check_message_content(message)
-            await self.check_mentions(message)
 
-        @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
-        async def bitrate(inter):
-            if await self.check_dm(inter):
-                return
-            await self.set_bitrate(inter, 384000)
+            if message.guild.get_member(private_config.bot_ids["moderate"]) == None:
+                await self.check_message_content(message)
+            await self.check_mentions(message)
 
         @ self.bot.slash_command(description="Clears voice channel (authorized use only)")
         async def purge(inter):
@@ -226,16 +218,10 @@ class MusicBotLeader(MusicBotInstance):
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
 
-    async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
-        if after.channel and after.channel.name == public_config.temporary_channels_settings['channel_name']:
-            await helpers.create_private(member)
-            return True
-        if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:
-            await before.channel.delete()
-            return True
-        return False
-
     async def unmute_clients(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+        if member.guild.get_member(private_config.bot_ids["moderate"]) != None:
+            return False
+
         if after.channel:
             await helpers.unmute_bots(member)
             await helpers.unmute_admin(member)
@@ -303,6 +289,24 @@ class MusicBotLeader(MusicBotInstance):
             return self
         return None
 
+    async def find_instance(self, inter):
+        guild = inter.guild
+        for instance in self.instances:
+            if guild in instance.guilds:
+                voice = instance.bot.get_guild(inter.guild.id).voice_client
+                if voice and voice.channel == inter.author.voice.channel:
+                    return instance
+        for instance in self.instances:
+            if guild in instance.guilds:
+                voice = instance.bot.get_guild(inter.guild.id).voice_client
+                if not voice or not voice.is_connected() or helpers.get_members_cont(voice.channel.members) == 1:
+                    return instance
+        if not helpers.is_admin(inter.author):
+            return None
+        for instance in self.instances:
+            if guild in instance.guilds:
+                return instance
+
     async def get_playing_instance(self, inter):
         guild_id = inter.guild.id
         author_vc = None
@@ -316,18 +320,6 @@ class MusicBotLeader(MusicBotInstance):
         return None
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
-
-    async def set_bitrate(self, inter, desired_bitrate):
-        if not helpers.is_admin(inter.author):
-            return await inter.send("Unauthorized access, you are not the Supreme Being!")
-        await inter.send("Processing...")
-
-        for channel in inter.guild.voice_channels:
-            await channel.edit(bitrate=desired_bitrate)
-
-        await inter.edit_original_response("Done!")
-        await asyncio.sleep(5)
-        await inter.delete_original_response()
 
     async def gpt_helper(self, inter, message):
         if inter.orig_inter:
@@ -362,24 +354,6 @@ class MusicBotLeader(MusicBotInstance):
             await inter.text_channel.send(chunks[i])
         messages_list.append({"role": "assistant", "content": response})
         self.file_logger.gpt(inter.author, [message, response])
-
-    async def find_instance(self, inter):
-        guild = inter.guild
-        for instance in self.instances:
-            if guild in instance.guilds:
-                voice = instance.bot.get_guild(inter.guild.id).voice_client
-                if voice and voice.channel == inter.author.voice.channel:
-                    return instance
-        for instance in self.instances:
-            if guild in instance.guilds:
-                voice = instance.bot.get_guild(inter.guild.id).voice_client
-                if not voice or not voice.is_connected() or helpers.get_members_cont(voice.channel.members) == 1:
-                    return instance
-        if not helpers.is_admin(inter.author):
-            return None
-        for instance in self.instances:
-            if guild in instance.guilds:
-                return instance
 
     def help(self):
         ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"

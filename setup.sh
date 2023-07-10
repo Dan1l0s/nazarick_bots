@@ -6,14 +6,14 @@ function detect_platform  {
     echo "Cheking platform..."
     if [ $OSTYPE = "msys" ]
     then
-        echo "Platform Windows"
+        echo "Platform: Windows"
         python=python
         platform="Windows"
         return 0
     fi 
     if [ $OSTYPE = "linux-gnu" ] || [ $OSTYPE = "linux" ]
     then
-        echo "Platform Linux"
+        echo "Platform: Linux"
         python=python3
         platform="Linux"
         return 0
@@ -77,27 +77,27 @@ function install_package {
     eval "$python -m pip install --upgrade $1"
 }
 function check_ffmpeg {
-    echo "Checking ffmpeg..."
+    echo "Checking FFmpeg..."
     eval "command -v ffmpeg" 
     status=$?
     if [ $status = 0 ]
     then
-        echo "ffmpeg is installed"
+        echo "FFmpeg is installed"
     else 
-        echo "ffmpeg is not installed"
+        echo "FFmpeg is not installed"
         install_ffmpeg
     fi
 }
 function install_ffmpeg {
     if [ $platform = "Linux" ]
     then
-        echo "Installing ffmpeg..."
+        echo "Installing FFmpeg..."
         eval "sudo apt install ffmpeg"
         check_ffmpeg
     fi 
     if [ $platform = "Windows" ]
     then
-        echo "Please install ffmpeg from: https://www.gyan.dev/ffmpeg/builds/ and add it to path, to enable voice related bot functionality"
+        echo "Please install FFmpeg from: https://www.gyan.dev/ffmpeg/builds/ and add it to path, to enable voice related bot functionality"
     fi 
 }
 
