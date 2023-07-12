@@ -136,7 +136,7 @@ class MusicBotInstance:
         @self.bot.event
         async def on_connect():
             print(f"{self.name} has connected to Discord")
-            self.file_logger.lost_connection(self.bot)
+            # self.file_logger.lost_connection(self.bot)
 
     async def run(self):
         await self.bot.start(self.token)

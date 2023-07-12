@@ -1,6 +1,7 @@
 import disnake
 from disnake.ext import commands
 import asyncio
+import aiosqlite
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -34,6 +35,7 @@ class AdminBot():
         async def on_ready():
             self.file_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
+            self.bot.loop.create_task(self.scan_channels())
 
         @self.bot.event
         async def on_disconnect():
@@ -43,7 +45,7 @@ class AdminBot():
         @self.bot.event
         async def on_connect():
             print(f"{self.name} has connected to Discord")
-            self.file_logger.lost_connection(self.bot)
+            # self.file_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_message(message):
@@ -94,7 +96,7 @@ class AdminBot():
             if await self.check_dm(inter):
                 return
             if helpers.is_admin(inter.author):
-                await inter.channel.purge(limit=amount+1)
+                await inter.channel.purge(limit=amount)
                 await inter.send(f"Cleared {amount} messages")
                 await asyncio.sleep(5)
                 return await inter.delete_original_response()
@@ -114,6 +116,79 @@ class AdminBot():
     async def run(self):
         await self.bot.start(self.token)
 
+# *_______LevelingSystem____________________________________________________________________________________________________________________________________________________________________________________________
+
+    def get_roles_from_exp(self, xp, guild_id):
+        ans = []
+        ranks = private_config.REQUIRED_EXP[guild_id]
+        prev_rank = self.get_prev_rank(xp, ranks)
+        curr_rank_flag = False
+        for xp_req, rank_id, remove_flag in ranks[::-1]:
+            if xp >= xp_req:
+                if not curr_rank_flag:
+                    ans.append(rank_id)
+                    curr_rank_flag = True
+                elif not remove_flag:
+                    ans.append(rank_id)
+        return ans, prev_rank
+
+    def get_prev_rank(self, xp, ranks):
+        curr_rank_flag = False
+        for xp_req, rank_id, remove_flag in ranks[::-1]:
+            if xp >= xp_req and remove_flag:
+                if not curr_rank_flag:
+                    curr_rank_flag = True
+                else:
+                    return rank_id
+        return None
+
+    async def scan_channels(self):
+        while not self.bot.is_closed():
+            db = await aiosqlite.connect('bot_database.db')
+            await db.execute('CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER)')
+
+            for guild in self.bot.guilds:
+                if guild.id not in private_config.REQUIRED_EXP.keys():
+                    continue
+
+                for channel in guild.voice_channels:
+                    if helpers.get_members_count(channel.members) > 1:
+                        for member in channel.members:
+                            if member.bot:
+                                continue
+                            cursor = await db.cursor()
+                            await cursor.execute('''SELECT voice_xp FROM users_xp_data WHERE user_id = ? AND guild_id = ?''', (str(member.id), str(guild.id),))
+                            user_xp = await cursor.fetchone()
+                            if user_xp:
+                                new_user_xp = user_xp[0] + 1
+                                await cursor.execute('''UPDATE users_xp_data SET voice_xp = ? 
+                                              WHERE user_id = ? AND guild_id = ?''', (user_xp[0] + 1, str(member.id), str(guild.id)))
+                            else:
+                                new_user_xp = 1
+                                await cursor.execute('''INSERT INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) 
+                                VALUES (?, ?, ?, ?)''', (str(guild.id), str(member.id), 1, 0))
+
+                            await db.commit()
+
+                            new_ranks, old_rank = self.get_roles_from_exp(
+                                new_user_xp, guild.id)
+
+                            new_roles = []
+
+                            for rank_id in new_ranks:
+                                rank = guild.get_role(rank_id)
+                                if rank and rank not in member.roles:
+                                    new_roles.append(rank)
+                            if len(new_roles) > 0:
+                                await member.add_roles(*new_roles)
+
+                            if old_rank:
+                                old_role = guild.get_role(old_rank)
+                                if old_role and old_role in member.roles:
+                                    await member.remove_roles(old_role)
+
+            await db.close()
+            await asyncio.sleep(10)
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
