@@ -10,6 +10,25 @@ from bots.admin_bot import AdminBot
 from helpers.file_logger import FileLogger
 
 
+async def validate_bots(leaders, instances, admins, loggers):
+    if len(leaders) + len(instances) + len(admins) + len(loggers) == 0:
+        print(
+            f"No bots to run. You can add some in configs/private_config.py via bots field")
+    if len(leaders) > 1:
+        print(f"Cannot run more than one MusicLeader at the same time. Please delete a few MusicLeader bots in configs/private_config.py")
+        return False
+    if len(admins) > 1:
+        print(f"Cannot run more than one Admin at the same time. Please delete a few Admin bots in configs/private_config.py")
+        return False
+    if len(loggers) > 1:
+        print(f"Cannot run more than one Logger at the same time. Please delete a few Logger bots in configs/private_config.py")
+        return False
+    if len(instances) > 0 and len(leaders) == 0:
+        print(f"MusicInstance bots may be used only with MusicLeader. Please add MusicLeader bot or delete all existing MusicInstance bots in configs/private_config.py")
+        return False
+    return True
+
+
 async def main():
     pool = process_pool.ProcessPoolExecutor()
     file_logger = FileLogger(True)
@@ -38,15 +57,13 @@ async def main():
             bot = AdminBot(specification[0], specification[2], file_logger)
             admins.append(bot)
         else:
-            print(f"WARNING: There is no bot type {specification[1]}, this bot specification will be ignored")
+            print(
+                f"WARNING: There is no bot type {specification[1]}, this bot specification will be ignored")
             continue
-        tasks.append(bot.run())
-    if len(admins) > 0:
-        if len(loggers) == 0:
-            print(f"FATAL: Admin bot must have logger bot")
-            return
-        if len(loggers) > 1:
-            print(f"WARNING: Created more than one logger bot. Only first one will be used in other bots")
+    if not await validate_bots(leaders, instances, admins, loggers):
+        loop = asyncio.get_running_loop()
+        loop.stop()
+        return
     for leader in leaders:
         for instance in instances:
             if leader != instance:
@@ -55,6 +72,13 @@ async def main():
         for instance in instances:
             admin.add_music_instance(instance)
         admin.set_log_bot(loggers[0])
+    
+    for instance in instances:
+        tasks.append(instance.run())
+    for admin in admins:
+        tasks.append(admin.run())
+    for logger in loggers:
+        tasks.append(logger.run())
     await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
