@@ -91,13 +91,15 @@ class MusicBotInstance:
     embedder = None
     states = None
     process_pool = None
+    token = None
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
-    def __init__(self, name, file_logger, process_pool):
+    def __init__(self, name, token, file_logger, process_pool):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
         self.name = name
+        self.token = token
         self.file_logger = file_logger
         self.embedder = Embed()
         self.states = {}
@@ -137,7 +139,7 @@ class MusicBotInstance:
             self.file_logger.lost_connection(self.bot)
 
     async def run(self):
-        await self.bot.start(private_config.tokens[self.name])
+        await self.bot.start(self.token)
 
 # *_______ForLeader________________________________________________________________________________________________________________________________________
 

@@ -12,10 +12,11 @@ class AdminBot():
     music_instances = None
     log_bot = None
 
-    def __init__(self, name, logger):
+    def __init__(self, name, token, logger):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="with the subordinates", type=disnake.ActivityType.playing))
         self.name = name
+        self.token = token
         self.file_logger = logger
         self.embedder = Embed()
         self.music_instances = []
@@ -111,7 +112,7 @@ class AdminBot():
         self.log_bot = bot
 
     async def run(self):
-        await self.bot.start(private_config.tokens[self.name])
+        await self.bot.start(self.token)
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________

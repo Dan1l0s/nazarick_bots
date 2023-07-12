@@ -15,8 +15,8 @@ class MusicBotLeader(MusicBotInstance):
     instances = None
     chatgpt_messages = None
 
-    def __init__(self, name, logger, process_pool):
-        super().__init__(name, logger, process_pool)
+    def __init__(self, name, token, logger, process_pool):
+        super().__init__(name, token, logger, process_pool)
         self.instances = []
         self.instances.append(self)
         self.instance_count = 0
@@ -207,7 +207,6 @@ class MusicBotLeader(MusicBotInstance):
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def unmute_clients(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         if member.guild.get_member(private_config.bot_ids["moderate"]) != None:

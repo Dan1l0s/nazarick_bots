@@ -1,4 +1,5 @@
 import asyncio
+import configs.private_config
 import concurrent.futures as process_pool
 
 from bots.music_leader import MusicBotLeader
@@ -13,36 +14,47 @@ async def main():
     pool = process_pool.ProcessPoolExecutor()
     file_logger = FileLogger(True)
 
-    music_leader = MusicBotLeader("music_main", file_logger, pool)
-    music_instance1 = MusicBotInstance("music_assistant1", file_logger, pool)
-    music_instance2 = MusicBotInstance("music_assistant2", file_logger, pool)
-    music_instance3 = MusicBotInstance("music_assistant3", file_logger, pool)
-
-    music_leader.add_instance(music_instance1)
-    music_leader.add_instance(music_instance2)
-    music_leader.add_instance(music_instance3)
-
-    log_bot = AutoLog("logs", file_logger)
-
-    admin_bot = AdminBot("moderate", file_logger)
-
-    admin_bot.add_music_instance(music_leader)
-    admin_bot.add_music_instance(music_instance1)
-    admin_bot.add_music_instance(music_instance2)
-    admin_bot.add_music_instance(music_instance3)
-    admin_bot.set_log_bot(log_bot)
-
+    leaders = []
+    instances = []
+    admins = []
+    loggers = []
     tasks = []
-    tasks.append(music_leader.run())
 
-    tasks.append(music_instance1.run())
-    tasks.append(music_instance2.run())
-    tasks.append(music_instance3.run())
-
-    tasks.append(log_bot.run())
-
-    tasks.append(admin_bot.run())
-
+    for specification in configs.private_config.bots:
+        bot = None
+        if specification[1] == "MusicLeader":
+            bot = MusicBotLeader(
+                specification[0], specification[2], file_logger, pool)
+            leaders.append(bot)
+            instances.append(bot)
+        elif specification[1] == "MusicInstance":
+            bot = MusicBotInstance(
+                specification[0], specification[2], file_logger, pool)
+            instances.append(bot)
+        elif specification[1] == "Logger":
+            bot = AutoLog(specification[0], specification[2], file_logger)
+            loggers.append(bot)
+        elif specification[1] == "Admin":
+            bot = AdminBot(specification[0], specification[2], file_logger)
+            admins.append(bot)
+        else:
+            print(f"WARNING: There is no bot type {specification[1]}, this bot specification will be ignored")
+            continue
+        tasks.append(bot.run())
+    if len(admins) > 0:
+        if len(loggers) == 0:
+            print(f"FATAL: Admin bot must have logger bot")
+            return
+        if len(loggers) > 1:
+            print(f"WARNING: Created more than one logger bot. Only first one will be used in other bots")
+    for leader in leaders:
+        for instance in instances:
+            if leader != instance:
+                leader.add_instance(instance)
+    for admin in admins:
+        for instance in instances:
+            admin.add_music_instance(instance)
+        admin.set_log_bot(loggers[0])
     await asyncio.gather(*tasks)
 
 if __name__ == '__main__':

@@ -43,18 +43,19 @@ class UserStatus():
 
 
 class AutoLog():
-
+    token = None
     name = None
     bot = None
     embedder = None
     file_logger = None
 
-    def __init__(self, name, file_logger):
+    def __init__(self, name, token, file_logger):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="everyone o_o", type=disnake.ActivityType.watching))
         self.name = name
         self.embedder = Embed()
         self.file_logger = file_logger
+        self.token = token
 
     # --------------------- MESSAGES --------------------------------
         @self.bot.event
@@ -202,7 +203,7 @@ class AutoLog():
     # --------------------- METHODS --------------------------------
 
     async def run(self):
-        await self.bot.start(private_config.tokens[self.name])
+        await self.bot.start(self.token)
 
     async def check_dm(self, inter):
         if not inter.guild:
