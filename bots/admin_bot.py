@@ -79,7 +79,7 @@ class AdminBot():
         async def purge(inter):
             if await self.check_dm(inter):
                 return
-            if inter.author.id != private_config.admin_ids[inter.guild.id][0]:
+            if inter.guild.id not in private_config.admin_ids.keys() or inter.author.id != private_config.admin_ids[inter.guild.id][0]:
                 return await inter.send("Unauthorized access, you are not the Greatest Supreme Being!")
             tasks = []
             for member in inter.author.voice.channel.members:
@@ -95,17 +95,18 @@ class AdminBot():
         async def clear(inter: disnake.AppCmdInter, amount: int):
             if await self.check_dm(inter):
                 return
-            if helpers.is_admin(inter.author):
-                await inter.channel.purge(limit=amount)
-                await inter.send(f"Cleared {amount} messages")
-                await asyncio.sleep(5)
-                return await inter.delete_original_response()
-            return await inter.send(f"Unathorized attempt to clear messages!")
-
-        @ self.bot.slash_command(description="Reviews list of commands")
-        async def help(inter: disnake.AppCmdInter):
-            await inter.response.defer()
-            await inter.send(embed=disnake.Embed(color=0, description=self.help()))
+            if not helpers.is_admin(inter.author):
+                return await inter.send(f"Unathorized attempt to clear messages!")
+            
+            await inter.channel.purge(limit=amount)
+            await inter.send(f"Cleared {amount} messages")
+            await asyncio.sleep(5)
+            return await inter.delete_original_response()
+            
+        # @ self.bot.slash_command(description="Reviews list of commands")
+        # async def help(inter: disnake.AppCmdInter):
+        #     await inter.response.defer()
+        #     await inter.send(embed=disnake.Embed(color=0, description=self.help()))
 
     def add_music_instance(self, bot):
         self.music_instances.append(bot)
@@ -188,7 +189,7 @@ class AdminBot():
                                     await member.remove_roles(old_role)
 
             await db.close()
-            await asyncio.sleep(10)
+            await asyncio.sleep(60)
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 

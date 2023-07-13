@@ -43,22 +43,6 @@ class MusicBotLeader(MusicBotInstance):
                 await self.check_message_content(message)
             await self.check_mentions(message)
 
-        @ self.bot.slash_command(description="Clears voice channel (authorized use only)")
-        async def purge(inter):
-            if await self.check_dm(inter):
-                return
-            if inter.author.id != private_config.admin_ids[inter.guild.id][0]:
-                return await inter.send("Unauthorized access, you are not the Greatest Supreme Being!")
-            tasks = []
-            for member in inter.author.voice.channel.members:
-                if member != inter.author and member.id not in private_config.bot_ids.values():
-                    tasks.append(member.move_to(None))
-            await asyncio.gather(*tasks)
-
-            await inter.send("Done!")
-            await asyncio.sleep(5)
-            await inter.delete_original_response()
-
         @ self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
             if await self.check_dm(inter):

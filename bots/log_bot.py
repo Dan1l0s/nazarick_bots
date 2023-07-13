@@ -58,6 +58,15 @@ class AutoLog():
         self.token = token
 
     # --------------------- MESSAGES --------------------------------
+
+        @self.bot.event
+        async def on_message(message):
+            if not message.guild:
+                if message.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
+                    await message.reply("Your attention is an honor for me, my master.")
+                return
+            await self.check_mentions(message)
+
         @self.bot.event
         async def on_message_edit(before, after):
             if before.author.guild and before.author.guild.id not in private_config.log_ids:
@@ -265,3 +274,19 @@ class AutoLog():
                 new_user.activities.append(new_act)
             newlist.append(new_user)
         return newlist
+    
+    async def check_mentions(self, message):
+        if len(message.role_mentions) > 0 or len(message.mentions) > 0:
+            client = message.guild.me
+            if helpers.is_mentioned(client, message):
+                if helpers.is_admin(message.author):
+                    if "ping" in message.content.lower() or "пинг" in message.content.lower():
+                        return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
+                    else:
+                        return await message.reply("At your service, my master.")
+                else:
+                    try:
+                        await message.author.timeout(duration=10, reason="Ping by lower life form")
+                    except:
+                        pass
+                    return await message.reply(f"How dare you tag me? Know your place, trash")
