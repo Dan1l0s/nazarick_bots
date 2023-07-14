@@ -178,13 +178,12 @@ class Host:
         if os.system(f"git fetch") !=0 :
             os.system("git stash pop")
             return "Failed to fetch updates from origin"
+        if os.system(f"git branch --force {branch} origin/{branch}") != 0:
+            os.system("git stash pop")
+            return "Failed to force local branch {branch} to remote"
         if os.system(f"git checkout {branch}") != 0:
             os.system("git stash pop")
             return f"Failed to checkout at {branch}"
-        if os.system(f"git reset --hard origin/{branch}") != 0:
-            os.system(f"git checkout {active_branch}")
-            os.system("git stash pop")
-            return "Failed to reset local branch {branch} to remote"
         if was_running:
             await self.run()
         return f"Updated to branch {branch}"
