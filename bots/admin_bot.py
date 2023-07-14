@@ -183,6 +183,7 @@ class AdminBot():
         tasks = []
         db = await aiosqlite.connect('bot_database.db')
         await db.execute('CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER)')
+        await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, voice_xp INTEGER, text_xp INTEGER, rank_id TEXT, remove_flag INTEGER)''')
         cursor = await db.cursor()
         for guild in self.bot.guilds:
             await cursor.execute('''SELECT voice_xp, text_xp, rank_id, remove_flag FROM ranks_data WHERE guild_id = ? ORDER BY voice_xp DESC''', (str(guild.id),))
