@@ -16,7 +16,7 @@ This project is a group of discord-bots written in python, made in the setting o
 
 One of the features of this project is a unique system of music bots. Several instances can be on the server at the same time playing in different channels, but the user interacts with only one bot using slash commands, which controls which bot will connect to the voice channel.
 
-![Multiple instances playback demo](MULTIPLE_INSTANCES_DEMO)
+![Multiple instances playback demo](https://github.com/Dan1l0s/discord_bots/assets/47472342/44c61df8-d019-4a2f-b733-0f44b83ddf91)
 
 Music bots also accept user requests, both as links and text queries. If a text query is received, the user will be prompted to select from several relevant options.
 
@@ -47,7 +47,7 @@ The bot also allows you to automatically display information about new members o
 
 Admin bot allows moderators to clear messages, fix voice channels bitrate and do other admin stuff. Also it allows all users to create temporary channels which they can manage by connecting to a certain channel:
 
-![Multiple instances playback demo](MULTIPLE_INSTANCES_DEMO)
+![Temporary channels demo](https://github.com/Dan1l0s/discord_bots/assets/47472342/69d95c18-8422-43db-8ac7-2a055db34dd3)
 
 In addition, admin bot has access to OpenAI API which allows users to interact ChatGPT using `/gpt` slash-command, replying to any message of this bot or just typing requests in bot's DM. This bot is useful as it parses ChatGPT's replies into chunks and, for example, decorates code into fine-looking blocks:
 
@@ -81,7 +81,6 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 ### How to launch code
 
 1. Rename `private_config_example.py` to `private_config.py`
-2. In `private_config.py` you have to edit all required variables (bot tokens, openai api key and bot ids):
- <!-- code link placeholder -->
+2. In `private_config.py` you have to edit all required variables (bots' info, openai api key and bot ids)
 3. To launch code just execute `main.py` file
 4. (Optional) Edit whatever you like in `public_config.py`, also you can add different ids to `private_config.py`, there are prompts to help you get started
