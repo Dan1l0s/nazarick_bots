@@ -81,6 +81,24 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 ### How to launch code
 
 1. Rename `private_config_example.py` to `private_config.py`
-2. In `private_config.py` you have to edit all required variables (bots' info, openai api key and bot ids)
-3. To launch code just execute `main.py` file
-4. (Optional) Edit whatever you like in `public_config.py`, also you can add different ids to `private_config.py`, there are prompts to help you get started
+2. In `private_config.py` you have to edit all required variables (bots' info, openai api key and bot ids):
+```python
+# bots' specifications, value type: [[string, string, string], [string, string, string], ...]
+# bot_type can be one of a folowing values: MusicLeader, MusicInstance, Admin, Logger
+bots = {
+    ["bot_name1", "bot_type1", "bot_token1"],
+    ["bot_name1", "bot_type1", "bot_token1"],
+}
+
+
+# openai api key, value type: string
+openai_api_key = "api_key"
+
+
+# bots' discord ids, values type: {string: int}
+bot_ids = {
+    "bot_name1": bot_id1, "bot_name2": bot_id2,
+}
+```
+4. To launch code just execute `main.py` file
+5. (Optional) Edit whatever you like in `public_config.py`, also you can add different ids to `private_config.py`, there are prompts to help you get started
