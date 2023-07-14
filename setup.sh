@@ -108,4 +108,5 @@ install_package yt_dlp
 install_package youtube_search
 install_package disnake[voice]
 install_package openai
+install_package aiosqlite
 check_ffmpeg

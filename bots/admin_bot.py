@@ -97,44 +97,44 @@ class AdminBot():
                 return
             if not helpers.is_admin(inter.author):
                 return await inter.send(f"Unathorized attempt to clear messages!")
-            
+
             await inter.channel.purge(limit=amount)
             await inter.send(f"Cleared {amount} messages")
             await asyncio.sleep(5)
             return await inter.delete_original_response()
 
         @ self.bot.slash_command(description="Recreates database")
-        async def recreate_db(inter: disnake.AppCmdInter):
+        async def fill_ranks(inter: disnake.AppCmdInter):
             if await self.check_dm(inter):
                 return
             if not inter.author.id in private_config.supreme_beings_ids[inter.guild.id]:
                 return await inter.send(f"Unathorized attempt to recreate database!")
-            
-            db = await aiosqlite.connect('bot_database.db')
-    
-            await db.execute('''DROP TABLE IF EXISTS ranks_data''')
-            await db.execute('''DROP TABLE IF EXISTS users_xp_data''')
 
-            await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, 
-                            voice_xp INTEGER, text_xp INTEGER,
-                            rank_id TEXT, remove_flag INTEGER)''')
-            
-            cursor = await db.cursor()
-
-            for guild, ranks in private_config.REQUIRED_EXP.items():
-                for rank in ranks:
-                    await cursor.execute('''INSERT INTO ranks_data (guild_id, voice_xp, text_xp, rank_id, remove_flag) 
-                                        VALUES (?, ?, ?, ?, ?)''', (str(guild), rank[0], rank[1], rank[2], rank[3]))
-            
-            await db.commit()
-            await db.close()
-
+            await self.fill_ranks_data()
 
             await inter.send(f"Done!")
             await asyncio.sleep(5)
             return await inter.delete_original_response()
 
-            
+        @ self.bot.slash_command(description="Resets database")
+        async def reset_db(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return
+            if not inter.author.id in private_config.supreme_beings_ids[inter.guild.id]:
+                return await inter.send(f"Unathorized attempt to recreate database!")
+
+            db = await aiosqlite.connect('bot_database.db')
+
+            await db.execute('''DROP TABLE IF EXISTS users_xp_data''')
+
+            await db.close()
+
+            await self.fill_ranks_data()
+
+            await inter.send(f"Done!")
+            await asyncio.sleep(5)
+            return await inter.delete_original_response()
+
         # @ self.bot.slash_command(description="Reviews list of commands")
         # async def help(inter: disnake.AppCmdInter):
         #     await inter.response.defer()
@@ -173,7 +173,7 @@ class AdminBot():
                 else:
                     return rank_id
         return None
-    
+
     async def scan_timer(self):
         while not self.bot.is_closed():
             asyncio.create_task(self.scan_channels())
@@ -207,7 +207,7 @@ class AdminBot():
                             VALUES (?, ?, ?, ?)''', (str(guild.id), str(member.id), voice_xp, text_xp, ))
 
                         await db.commit()
-            
+
                         if not ranks:
                             continue
 
@@ -232,8 +232,28 @@ class AdminBot():
         await db.close()
         await asyncio.gather(*tasks)
 
+    async def fill_ranks_data(self):
+        db = await aiosqlite.connect('bot_database.db')
+
+        await db.execute('''DROP TABLE IF EXISTS ranks_data''')
+
+        await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, 
+                            voice_xp INTEGER, text_xp INTEGER,
+                            rank_id TEXT, remove_flag INTEGER)''')
+
+        cursor = await db.cursor()
+
+        for guild, ranks in private_config.REQUIRED_EXP.items():
+            for rank in ranks:
+                await cursor.execute('''INSERT INTO ranks_data (guild_id, voice_xp, text_xp, rank_id, remove_flag) 
+                                        VALUES (?, ?, ?, ?, ?)''', (str(guild), rank[0], rank[1], rank[2], rank[3]))
+
+        await db.commit()
+        await db.close()
+
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         ff = False

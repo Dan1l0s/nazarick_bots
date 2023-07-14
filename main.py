@@ -38,7 +38,8 @@ async def main():
             bot = AdminBot(specification[0], specification[2], file_logger)
             admins.append(bot)
         else:
-            print(f"WARNING: There is no bot type {specification[1]}, this bot specification will be ignored")
+            print(f"""WARNING: There is no bot type {specification[1]}, 
+                this bot specification will be ignored""")
             continue
         tasks.append(bot.run())
     if len(admins) > 0:
@@ -46,7 +47,8 @@ async def main():
             print(f"FATAL: Admin bot must have logger bot")
             return
         if len(loggers) > 1:
-            print(f"WARNING: Created more than one logger bot. Only first one will be used in other bots")
+            print(f"""WARNING: Created more than one logger bot. 
+                Only first one will be used in other bots""")
     for leader in leaders:
         for instance in instances:
             if leader != instance:
