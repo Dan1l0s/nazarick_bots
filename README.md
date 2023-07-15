@@ -16,7 +16,9 @@ This project is a group of discord-bots written in python, made in the setting o
 
 One of the features of this project is a unique system of music bots. Several instances can be on the server at the same time playing in different channels, but the user interacts with only one bot using slash commands, which controls which bot will connect to the voice channel.
 
-![Multiple instances playback demo](https://github.com/Dan1l0s/discord_bots/assets/47472342/44c61df8-d019-4a2f-b733-0f44b83ddf91)
+<p align="center">
+  <img src="https://github.com/Dan1l0s/discord_bots/assets/47472342/44c61df8-d019-4a2f-b733-0f44b83ddf91" alt="Multiple instances playback demo"/>
+</p>
 
 Music bots also accept user requests, both as links and text queries. If a text query is received, the user will be prompted to select from several relevant options.
 
@@ -37,21 +39,29 @@ Music bots currently support the following commands:
 
 Logger bot allows you to print to the text channel information about all events that occur on the server: the connection of participants to the voice channels, the actions of moderators, and so on in the form of fine-looking embes:
 
-![Logger bot default log messages example](https://i.imgur.com/tJ26hOs.png)
+<p align="center">
+  <img src="https://i.imgur.com/tJ26hOs.png" alt="Logger bot default log messages example"/>
+</p>
 
 The bot also allows you to automatically display information about new members on the server by sending welcome messages:
 
-![Logger bot welcome message example](https://i.imgur.com/uF0vHPN.png)
+<p align="center">
+  <img src="https://i.imgur.com/uF0vHPN.png" alt="Logger bot welcome message example"/>
+</p>
 
 ### Admin bot
 
 Admin bot allows moderators to clear messages, fix voice channels bitrate and do other admin stuff. Also it allows all users to create temporary channels which they can manage by connecting to a certain channel:
 
-![Temporary channels demo](https://github.com/Dan1l0s/discord_bots/assets/47472342/69d95c18-8422-43db-8ac7-2a055db34dd3)
+<p align="center">
+  <img src="https://github.com/Dan1l0s/discord_bots/assets/47472342/69d95c18-8422-43db-8ac7-2a055db34dd3" alt="Temporary channels demo"/>
+</p>
 
 In addition, admin bot has access to OpenAI API which allows users to interact ChatGPT using `/gpt` slash-command, replying to any message of this bot or just typing requests in bot's DM. This bot is useful as it parses ChatGPT's replies into chunks and, for example, decorates code into fine-looking blocks:
 
-![ChatGPT code decoration and interaction example](https://i.imgur.com/uWCU08k.png)
+<p align="center">
+  <img src="https://i.imgur.com/uWCU08k.png" alt="ChatGPT code decoration and interaction example"/>
+</p>
 
 ## How to install and launch
 
