@@ -2,8 +2,10 @@ import disnake
 from datetime import datetime, timezone
 import time
 import re
+import aiosqlite
 from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
+from enum import Enum
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -33,14 +35,13 @@ def is_mentioned(member, message):
 
 
 async def create_private(member):
-
-    if member.guild.id not in private_config.categories_ids:
+    category_id = await get_server_option(member.guild.id, ServerOption.PRIVATE_CATEGORY)
+    if not category_id:
         return
     possible_channel_name = f"{member.display_name}'s private"
 
     guild = member.guild
-    category = disnake.utils.get(
-        guild.categories, id=private_config.categories_ids[guild.id])
+    category = guild.get_channel(int(category_id))
 
     tmp_channel = await category.create_voice_channel(name=possible_channel_name)
 
@@ -168,7 +169,7 @@ def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
                 length = 0
 
         if (line.count('`') % 6 == 0):
-            line = line.replace('```', '\`\`\`')
+            line = line.replace('```', '\\`\\`\\`')
 
         chunk += line
         length += len(line)
@@ -205,3 +206,73 @@ async def set_bitrate(guild):
     for channel in voice_channels:
         if channel.bitrate != bitrate_value:
             await channel.edit(bitrate=bitrate_value)
+
+
+class ServerOption(Enum):
+    LOG_CHANNEL = 1,
+    STATUS_LOG_CHANNEL = 2,
+    WELCOME_CHANNEL = 3,
+    PRIVATE_CATEGORY = 4,
+    PRIVATE_CHANNEL = 5,
+
+    def to_str(self):
+        match self:
+            case ServerOption.LOG_CHANNEL:
+                return "log_channel"
+            case ServerOption.WELCOME_CHANNEL:
+                return "welcome_channel"
+            case ServerOption.STATUS_LOG_CHANNEL:
+                return "status_log_channel"
+            case ServerOption.PRIVATE_CATEGORY:
+                return "private_category"
+            case ServerOption.PRIVATE_CHANNEL:
+                return "private_channel"
+            case _:
+                return "unknown"
+
+
+async def ensure_server_option_table():
+    db = await aiosqlite.connect('bot_database.db')
+    await db.execute('''CREATE TABLE IF NOT EXISTS server_options (
+                        guild_id TEXT PRIMARY KEY,
+                        log_channel TEXT,
+                        status_log_channel TEXT,
+                        welcome_channel TEXT,
+                        private_category TEXT,
+                        private_channel TEXT
+                     )''')
+    await db.commit()
+    await db.close()
+
+
+async def get_server_option(guild_id, option_type: ServerOption):
+    if not guild_id:
+        return None
+    opt_str = option_type.to_str()
+    if opt_str == "unknown":
+        return None
+    await ensure_server_option_table()
+    db = await aiosqlite.connect('bot_database.db')
+    cursor = await db.cursor()
+    await cursor.execute(f"SELECT {opt_str} FROM server_options WHERE guild_id = ?", (str(guild_id),))
+    res = await cursor.fetchone()
+    ans = None
+    if res:
+        ans = res[0]
+    await db.close()
+    return ans
+
+
+async def set_server_option(guild_id, option_type: ServerOption, value):
+    if not guild_id:
+        return
+    opt_str = option_type.to_str()
+    if opt_str == "unknown":
+        return None
+    await ensure_server_option_table()
+    db = await aiosqlite.connect('bot_database.db')
+    cursor = await db.cursor()
+    await cursor.execute(f"INSERT OR IGNORE INTO server_options (guild_id) VALUES(?)", (str(guild_id),))
+    await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (str(value), str(guild_id),))
+    await db.commit()
+    await db.close()

@@ -7,6 +7,7 @@ import configs.private_config as private_config
 import configs.public_config as public_config
 import helpers.helpers as helpers
 from helpers.embedder import Embed
+from helpers.helpers import ServerOption
 
 
 class AdminBot():
@@ -56,6 +57,31 @@ class AdminBot():
 
             await self.check_message_content(message)
             await self.check_mentions(message)
+
+        @ self.bot.slash_command(description="Allows admin to set category for created private channels")
+        async def set_private_category(inter, category: disnake.CategoryChannel = commands.Param(description='Select category in which private channels will be created')):
+            if await self.check_dm(inter):
+                return
+
+            if not helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.send("Processing...")
+            await helpers.set_server_option(inter.guild.id, ServerOption.PRIVATE_CATEGORY, category.id)
+            await inter.edit_original_response(f'New private channels will be created in {category.name}')
+    
+        @ self.bot.slash_command(description="Allows admin to set voice channel for creating private channels")
+        async def set_private_channel(inter, vc: disnake.VoiceChannel = commands.Param(description='Select voice channel for private channels creation')):
+            if await self.check_dm(inter):
+                return
+
+            if not helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.send("Processing...")
+            await helpers.set_server_option(inter.guild.id, ServerOption.PRIVATE_CHANNEL, vc.id)
+            await inter.edit_original_response(f'Private channels will be created upon joining {vc.name}')
+
 
         @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
@@ -180,7 +206,6 @@ class AdminBot():
             await asyncio.sleep(60)
 
     async def scan_channels(self):
-        tasks = []
         db = await aiosqlite.connect('bot_database.db')
         await db.execute('CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER)')
         await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, voice_xp INTEGER, text_xp INTEGER, rank_id TEXT, remove_flag INTEGER)''')
@@ -204,7 +229,7 @@ class AdminBot():
                         else:
                             voice_xp = 1
                             text_xp = 0
-                            await cursor.execute('''INSERT INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) 
+                            await cursor.execute('''INSERT INTO users_xp_data (guild_id, user_id, voice_xp, text_xp)
                             VALUES (?, ?, ?, ?)''', (str(guild.id), str(member.id), voice_xp, text_xp, ))
 
                         await db.commit()
@@ -221,24 +246,23 @@ class AdminBot():
                             if rank and rank not in member.roles:
                                 new_roles.append(rank)
                         if len(new_roles) > 0:
-                            tasks.append(member.add_roles(*new_roles))
+                            asyncio.create_task(member.add_roles(*new_roles))
                         old_role = None
                         if old_rank:
                             old_role = guild.get_role(int(old_rank))
                             if old_role and old_role in member.roles:
-                                tasks.append(member.remove_roles(old_role))
+                                asyncio.create_task(member.remove_roles(old_role))
                             else:
                                 old_role = None
 
         await db.close()
-        await asyncio.gather(*tasks)
 
     async def fill_ranks_data(self):
         db = await aiosqlite.connect('bot_database.db')
 
         await db.execute('''DROP TABLE IF EXISTS ranks_data''')
 
-        await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, 
+        await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT,
                             voice_xp INTEGER, text_xp INTEGER,
                             rank_id TEXT, remove_flag INTEGER)''')
 
@@ -246,7 +270,7 @@ class AdminBot():
 
         for guild, ranks in private_config.REQUIRED_EXP.items():
             for rank in ranks:
-                await cursor.execute('''INSERT INTO ranks_data (guild_id, voice_xp, text_xp, rank_id, remove_flag) 
+                await cursor.execute('''INSERT INTO ranks_data (guild_id, voice_xp, text_xp, rank_id, remove_flag)
                                         VALUES (?, ?, ?, ?, ?)''', (str(guild), rank[0], rank[1], rank[2], rank[3]))
 
         await db.commit()
@@ -255,10 +279,16 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+        vc_id = await helpers.get_server_option(member.guild.id, ServerOption.PRIVATE_CHANNEL)
+        if not vc_id:
+            return
+        vc = self.bot.get_channel(int(vc_id))
+        if not vc:
+            return
+        
         ff = False
-        if after.channel and after.channel.name == public_config.temporary_channels_settings['channel_name']:
+        if after.channel and after.channel.name == vc.name:
             await helpers.create_private(member)
             ff = True
         if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:
@@ -281,7 +311,7 @@ class AdminBot():
                 await message.delete()
                 await message.author.send(
                     f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
-            except:
+            except BaseException:
                 pass
             return True
         return False
@@ -298,7 +328,7 @@ class AdminBot():
                 else:
                     try:
                         await message.author.timeout(duration=10, reason="Ping by lower life form")
-                    except:
+                    except BaseException:
                         pass
                     return await message.reply(f"How dare you tag me? Know your place, trash")
 

@@ -47,7 +47,6 @@ music_settings = {
 # settings for temporary channels
 temporary_channels_settings = {
     "bitrate": 384000,
-    "channel_name": "Создать приват"
 }
 
 # default radio url and radio widget to parse for music bots

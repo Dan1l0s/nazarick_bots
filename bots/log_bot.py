@@ -10,6 +10,7 @@ import helpers.helpers as helpers
 from helpers.selection import SelectionPanel
 from helpers.file_logger import FileLogger
 from helpers.embedder import Embed
+from helpers.helpers import ServerOption
 
 
 gl_flag = True
@@ -69,85 +70,106 @@ class AutoLog():
 
         @self.bot.event
         async def on_message_edit(before, after):
-            if before.author.guild and before.author.guild.id not in private_config.log_ids:
+            if not before.author.guild:
                 return
             if before.author.id in private_config.bot_ids.values():
                 return
+            guild_id = before.author.guild.id
+            channel_id = await helpers.get_server_option(guild_id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
+                return
+            channel = self.bot.get_channel(int(channel_id))
             if before.content != after.content:
-                await before.guild.get_channel(private_config.log_ids[before.guild.id]).send(embed=self.embedder.message_edit(before, after))
+                await channel.send(embed=self.embedder.message_edit(before, after))
             if before.pinned != after.pinned:
                 if before.pinned:
-                    await before.guild.get_channel(private_config.log_ids[before.guild.id]).send(embed=self.embedder.message_unpin(before, after))
+                    await channel.send(embed=self.embedder.message_unpin(before, after))
                 else:
-                    await before.guild.get_channel(private_config.log_ids[before.guild.id]).send(embed=self.embedder.message_pin(before, after))
+                    await channel.send(embed=self.embedder.message_pin(before, after))
 
         @self.bot.event
         async def on_message_delete(message):
-            if message.author.guild and message.author.guild.id not in private_config.log_ids:
+            if not message.author.guild:
                 return
+            channel_id = await helpers.get_server_option(message.author.guild.id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
+                return
+            channel = self.bot.get_channel(int(channel_id))
             if message.author.id not in private_config.bot_ids.values():
-                await self.bot.get_channel(private_config.log_ids[message.channel.guild.id]).send(embed=self.embedder.message_delete(message))
+                await channel.send(embed=self.embedder.message_delete(message))
 
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
         async def on_audit_log_entry_create(entry):
-            if entry.user.guild.id not in private_config.log_ids:
+            channel_id = await helpers.get_server_option(entry.user.guild.id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
                 return
-            s = ''.join(('entry_', f'{entry.action}'[15:]))
+            channel = self.bot.get_channel(int(channel_id))
+            s = f"entry_{str(entry.action)[15:]}"
             if hasattr(self.file_logger, s):
                 log = getattr(self.file_logger, s)
                 log(entry)
             if hasattr(self.embedder, s):
                 s = getattr(self.embedder, s)
-                await entry.guild.get_channel(private_config.log_ids[entry.guild.id]).send(embed=s(entry))
+                await channel.send(embed=s(entry))
 
         @self.bot.event
         async def on_member_update(before, after):
-            if before.guild.id not in private_config.log_ids:
+            channel_id = await helpers.get_server_option(before.guild.id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
                 return
+            channel = self.bot.get_channel(int(channel_id))
             self.file_logger.member_update(after)
-            await before.guild.get_channel(private_config.log_ids[before.guild.id]).send(embed=self.embedder.profile_upd(before, after))
+            await channel.send(embed=self.embedder.profile_upd(before, after))
 
         @self.bot.event
         async def on_raw_member_remove(payload):
-            if payload.guild_id not in private_config.log_ids:
+            channel_id = await helpers.get_server_option(payload.guild_id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
                 return
+            channel = self.bot.get_channel(int(channel_id))
             self.file_logger.member_remove(payload)
-            await payload.user.guild.get_channel(private_config.log_ids[payload.user.guild.id]).send(embed=self.embedder.member_remove(payload))
+            await channel.send(embed=self.embedder.member_remove(payload))
 
         @self.bot.event
         async def on_member_join(member):
-            if member.guild.id in private_config.welcome_ids:
-                channel = member.guild.get_channel(private_config.welcome_ids
-                                                   [member.guild.id])
-                await channel.send(embed=self.embedder.welcome_message(member))
-                message = await channel.send(f"{member.mention}")
+            welcome_channel_id = await helpers.get_server_option(member.guild.id, ServerOption.WELCOME_CHANNEL)
+            log_channel_id = await helpers.get_server_option(member.guild.id, ServerOption.LOG_CHANNEL)
+
+            if welcome_channel_id:
+                welcome_channel = self.bot.get_channel(int(welcome_channel_id))
+                await welcome_channel.send(embed=self.embedder.welcome_message(member))
+                message = await welcome_channel.send(f"{member.mention}")
                 await message.delete()
 
-            if member.guild.id in private_config.log_ids:
+            if log_channel_id:
+                log_channel = self.bot.get_channel(int(log_channel_id))
                 self.file_logger.member_join(member)
-                await member.guild.get_channel(private_config.log_ids[member.guild.id]).send(embed=self.embedder.member_join(member))
+                await log_channel.send(embed=self.embedder.member_join(member))
 
         @ self.bot.event
         async def on_member_ban(guild, user):
-            if guild.id not in private_config.log_ids:
+            channel_id = await helpers.get_server_option(guild.id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
                 return
-            await guild.get_channel(private_config.log_ids[guild.id]).send(embed=self.embedder.ban(guild, user))
+            channel = self.bot.get_channel(int(channel_id))
+            await channel.send(embed=self.embedder.ban(guild, user))
 
         @ self.bot.event
         async def on_member_unban(guild, user):
-            if guild.id not in private_config.log_ids:
+            channel_id = await helpers.get_server_option(guild.id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
                 return
-            await guild.get_channel(private_config.log_ids[guild.id]).send(embed=self.embedder.unban(guild, user))
+            channel = self.bot.get_channel(int(channel_id))
+            await channel.send(embed=self.embedder.unban(guild, user))
 
     # --------------------- VOICE STATES --------------------------------
         @ self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-            if member.guild.id not in private_config.log_ids:
+            channel_id = await helpers.get_server_option(member.guild.id, ServerOption.LOG_CHANNEL)
+            if not channel_id:
                 return
-
-            channel = member.guild.get_channel(
-                private_config.log_ids[member.guild.id])
+            channel = self.bot.get_channel(int(channel_id))
 
             if before.channel and after.channel:
                 if before.channel.id != after.channel.id:
@@ -209,6 +231,42 @@ class AutoLog():
                 return
             await inter.send(embed=self.embedder.get_status(member))
 
+        @ self.bot.slash_command(description="Allows admin to set log channel")
+        async def set_log_channel(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for logs')):
+            if await self.check_dm(inter):
+                return
+
+            if not helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.send("Processing...")
+            await helpers.set_server_option(inter.guild.id, ServerOption.LOG_CHANNEL, channel.id)
+            await inter.edit_original_response(f'New log channel is {channel.name}')
+
+        @ self.bot.slash_command(description="Allows admin to set status log channel")
+        async def set_status_log_channel(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
+            if await self.check_dm(inter):
+                return
+
+            if not helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.send("Processing...")
+            await helpers.set_server_option(inter.guild.id, ServerOption.STATUS_LOG_CHANNEL, channel.id)
+            await inter.edit_original_response(f'New status log channel is {channel.name}')
+
+        @ self.bot.slash_command(description="Allows admin to set welcome channel")
+        async def set_welcome_channel(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes')):
+            if await self.check_dm(inter):
+                return
+
+            if not helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.send("Processing...")
+            await helpers.set_server_option(inter.guild.id, ServerOption.WELCOME_CHANNEL, channel.id)
+            await inter.edit_original_response(f'New welcome channel is {channel.name}')
+
     # --------------------- METHODS --------------------------------
 
     async def run(self):
@@ -228,19 +286,21 @@ class AutoLog():
         global gl_flag
         gl_flag = True
         print("STARTED STATUS TRACKING")
-        while True:
+        while not self.bot.is_closed():
             old_list = {}
 
             for guild_num in range(len(guild_list)):
-                if guild_list[guild_num].id in private_config.log_ids:
+                status_log_channel_id = await helpers.get_server_option(guild_list[guild_num].id, ServerOption.STATUS_LOG_CHANNEL)
+                if status_log_channel_id:
                     old_list[guild_list[guild_num].id] = self.gen_status_and_activity_list(
                         guild_list[guild_num].members)
             await asyncio.sleep(0.1)
             for guild_num in range(len(guild_list)):
 
                 guild_id = guild_list[guild_num].id
+                status_log_channel_id = await helpers.get_server_option(guild_id, ServerOption.STATUS_LOG_CHANNEL)
 
-                if guild_id in private_config.log_ids:
+                if status_log_channel_id:
                     new_list = self.gen_status_and_activity_list(
                         guild_list[guild_num].members)
                     if len(new_list) == len(old_list[guild_id]):
@@ -256,7 +316,8 @@ class AutoLog():
                                 if old_member.activities != new_list[member_num].activities:
                                     self.file_logger.activity_upd(
                                         new_member, old_member, new_list[member_num])
-                                await new_member.guild.get_channel(private_config.status_log_ids[guild_id]).send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num]))
+                                channel = self.bot.get_channel(int(status_log_channel_id))
+                                asyncio.create_task(channel.send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num])))
             if not gl_flag:
                 print("STOPPED STATUS TRACKING")
                 break
@@ -274,7 +335,7 @@ class AutoLog():
                 new_user.activities.append(new_act)
             newlist.append(new_user)
         return newlist
-    
+
     async def check_mentions(self, message):
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
             client = message.guild.me

@@ -12,8 +12,7 @@ from helpers.file_logger import FileLogger
 
 async def validate_bots(leaders, instances, admins, loggers):
     if len(leaders) + len(instances) + len(admins) + len(loggers) == 0:
-        print(
-            f"No bots to run. You can add some in configs/private_config.py via bots field")
+        print(f"No bots to run. You can add some in configs/private_config.py via bots field")
     if len(leaders) > 1:
         print(f"Cannot run more than one MusicLeader at the same time. Please delete a few MusicLeader bots in configs/private_config.py")
         return False
@@ -71,7 +70,8 @@ async def main():
     for admin in admins:
         for instance in instances:
             admin.add_music_instance(instance)
-        admin.set_log_bot(loggers[0])
+        if len(loggers) > 0:
+            admin.set_log_bot(loggers[0])
 
     for instance in instances:
         tasks.append(instance.run())
