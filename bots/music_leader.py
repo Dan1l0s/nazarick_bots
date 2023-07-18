@@ -35,8 +35,11 @@ class MusicBotLeader(MusicBotInstance):
             if await self.check_gpt_interaction(message):
                 return
             if not message.guild:
-                if message.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
-                    await message.reply("Your attention is an honor for me, my master.")
+                try:
+                    if message.author.id in private_config.supreme_beings:
+                        await message.reply(private_config.on_message_supreme_being)
+                except:
+                    pass
                 return
 
             if message.guild.get_member(private_config.bot_ids["moderate"]) == None:
@@ -258,7 +261,7 @@ class MusicBotLeader(MusicBotInstance):
             if instance.contains_in_guild(guild_id) and instance.check_timeout(guild_id):
                 # print("Returned fair instance from timeout")
                 return instance
-        if helpers.is_admin(inter.author):
+        if await helpers.is_admin(inter.author):
             # print("Returned admin instance")
             return self
         return None
@@ -275,7 +278,7 @@ class MusicBotLeader(MusicBotInstance):
                 voice = instance.bot.get_guild(inter.guild.id).voice_client
                 if not voice or not voice.is_connected() or helpers.get_members_cont(voice.channel.members) == 1:
                     return instance
-        if not helpers.is_admin(inter.author):
+        if not await helpers.is_admin(inter.author):
             return None
         for instance in self.instances:
             if guild in instance.guilds:
@@ -344,9 +347,11 @@ class MusicBotLeader(MusicBotInstance):
 
     async def check_dm(self, inter):
         if not inter.guild:
-            if inter.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
-                await inter.send(f"{public_config.dm_error_admin}")
-            else:
+            try:
+                if inter.author.id in private_config.supreme_beings:
+                    await inter.send(f"{private_config.dm_error_supreme_being}")
+            except:
                 await inter.send(f"{public_config.dm_error}")
             return True
         return False
+

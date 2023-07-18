@@ -115,8 +115,11 @@ class MusicBotInstance:
         @self.bot.event
         async def on_message(message):
             if not message.guild:
-                if message.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
-                    await message.reply("Your attention is an honor for me, my master.")
+                try:
+                    if message.author.id in private_config.supreme_beings:
+                        await message.reply(private_config.on_message_supreme_being)
+                except:
+                    pass
                 return
             await self.check_mentions(message)
 
@@ -366,7 +369,7 @@ class MusicBotInstance:
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
             client = message.guild.me
             if helpers.is_mentioned(client, message):
-                if helpers.is_admin(message.author):
+                if await helpers.is_admin(message.author):
                     if "ping" in message.content.lower() or "пинг" in message.content.lower():
                         return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
                     else:

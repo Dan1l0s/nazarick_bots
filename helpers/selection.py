@@ -36,7 +36,7 @@ class SelectionPanel(disnake.ui.View, disnake.ui.Select):
         self.message = await self.inter.text_channel.send(view=self)
 
     async def callback(self, inter):
-        if inter.author == self.author or helpers.is_admin(inter.author):
+        if inter.author == self.author or await helpers.is_admin(inter.author):
             await self.message.delete()
             await self.func(self.inter, self.song, f"https://www.youtube.com/{inter.values[0]}", respond=False)
             self.done = True

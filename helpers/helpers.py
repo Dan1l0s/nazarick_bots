@@ -11,10 +11,8 @@ import configs.private_config as private_config
 import configs.public_config as public_config
 
 
-def is_admin(member):
-    if (member.guild) and (member.guild.id not in private_config.admin_ids or member.id not in private_config.admin_ids[member.guild.id]):
-        return False
-    return True
+async def is_admin(member):
+    return member.guild and member.id in await get_server_option(member.guild.id, ServerOption.ADMIN_IDS)
 
 
 def get_duration(info):
@@ -71,7 +69,7 @@ async def unmute_bots(member):
 
 async def unmute_admin(member):
     ff = False
-    if member.guild.id in private_config.supreme_beings_ids and member.id in private_config.supreme_beings_ids[member.guild.id]:
+    if await is_admin(member):
         if member.voice.mute:
             await member.edit(mute=False)
             ff = True
@@ -82,7 +80,7 @@ async def unmute_admin(member):
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in private_config.supreme_beings_ids[member.guild.id]:
+        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in await get_server_option(member.guild.id, ServerOption.ADMIN_IDS):
             await entry.user.move_to(None)
             try:
                 await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
@@ -208,12 +206,18 @@ async def set_bitrate(guild):
             await channel.edit(bitrate=bitrate_value)
 
 
+class ServerOptionDataType(Enum):
+    INT = 1,
+    INT_LIST = 2,
+
+
 class ServerOption(Enum):
     LOG_CHANNEL = 1,
     STATUS_LOG_CHANNEL = 2,
     WELCOME_CHANNEL = 3,
     PRIVATE_CATEGORY = 4,
     PRIVATE_CHANNEL = 5,
+    ADMIN_IDS = 6,
 
     def to_str(self):
         match self:
@@ -227,6 +231,25 @@ class ServerOption(Enum):
                 return "private_category"
             case ServerOption.PRIVATE_CHANNEL:
                 return "private_channel"
+            case ServerOption.ADMIN_IDS:
+                return "admin_ids"
+            case _:
+                return "unknown"
+
+    def get_type(self):
+        match self:
+            case ServerOption.LOG_CHANNEL:
+                return ServerOptionDataType.INT
+            case ServerOption.WELCOME_CHANNEL:
+                return ServerOptionDataType.INT
+            case ServerOption.STATUS_LOG_CHANNEL:
+                return ServerOptionDataType.INT
+            case ServerOption.PRIVATE_CATEGORY:
+                return ServerOptionDataType.INT
+            case ServerOption.PRIVATE_CHANNEL:
+                return ServerOptionDataType.INT
+            case ServerOption.ADMIN_IDS:
+                return ServerOptionDataType.INT_LIST
             case _:
                 return "unknown"
 
@@ -239,16 +262,17 @@ async def ensure_server_option_table():
                         status_log_channel TEXT,
                         welcome_channel TEXT,
                         private_category TEXT,
-                        private_channel TEXT
+                        private_channel TEXT,
+                        admin_ids TEXT
                      )''')
     await db.commit()
     await db.close()
 
 
-async def get_server_option(guild_id, option_type: ServerOption):
+async def request_server_option(guild_id, option: ServerOption):
     if not guild_id:
         return None
-    opt_str = option_type.to_str()
+    opt_str = option.to_str()
     if opt_str == "unknown":
         return None
     await ensure_server_option_table()
@@ -256,17 +280,33 @@ async def get_server_option(guild_id, option_type: ServerOption):
     cursor = await db.cursor()
     await cursor.execute(f"SELECT {opt_str} FROM server_options WHERE guild_id = ?", (str(guild_id),))
     res = await cursor.fetchone()
-    ans = None
-    if res:
-        ans = res[0]
     await db.close()
-    return ans
+    if not res:
+        return None
+    return res[0]
 
 
-async def set_server_option(guild_id, option_type: ServerOption, value):
+async def get_server_option(guild_id, option: ServerOption):
+    ans = await request_server_option(guild_id, option)
+    opt_type = option.get_type()
+    match opt_type:
+        case ServerOptionDataType.INT:
+            if not ans:
+                return None
+            else:
+                return int(ans)
+        case ServerOptionDataType.INT_LIST:
+            if not ans:
+                return []
+            else:
+                return eval(ans)
+    return None
+
+
+async def set_server_option(guild_id, option: ServerOption, value):
     if not guild_id:
         return
-    opt_str = option_type.to_str()
+    opt_str = option.to_str()
     if opt_str == "unknown":
         return None
     await ensure_server_option_table()

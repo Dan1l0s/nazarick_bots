@@ -24,6 +24,10 @@ class AdminBot():
         self.music_instances = []
 
         @self.bot.event
+        async def on_guild_join(guild):
+            await self.add_admin(guild.id, guild.owner_id)
+
+        @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
 
             if await self.temp_channels(member, before, after):
@@ -37,6 +41,8 @@ class AdminBot():
             self.file_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
             self.bot.loop.create_task(self.scan_timer())
+            for guild in self.bot.guilds:
+                await self.add_admin(guild.id, guild.owner_id)
 
         @self.bot.event
         async def on_disconnect():
@@ -51,8 +57,11 @@ class AdminBot():
         @self.bot.event
         async def on_message(message):
             if not message.guild:
-                if message.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
-                    await message.reply("Your attention is an honor for me, my master.")
+                try:
+                    if message.author.id in private_config.supreme_beings:
+                        await message.reply(private_config.on_message_supreme_being)
+                except:
+                    pass
                 return
 
             await self.check_message_content(message)
@@ -63,32 +72,45 @@ class AdminBot():
             if await self.check_dm(inter):
                 return
 
-            if not helpers.is_admin(inter.author):
+            if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
             await helpers.set_server_option(inter.guild.id, ServerOption.PRIVATE_CATEGORY, category.id)
             await inter.edit_original_response(f'New private channels will be created in {category.name}')
-    
+
         @ self.bot.slash_command(description="Allows admin to set voice channel for creating private channels")
         async def set_private_channel(inter, vc: disnake.VoiceChannel = commands.Param(description='Select voice channel for private channels creation')):
             if await self.check_dm(inter):
                 return
 
-            if not helpers.is_admin(inter.author):
+            if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
             await helpers.set_server_option(inter.guild.id, ServerOption.PRIVATE_CHANNEL, vc.id)
             await inter.edit_original_response(f'Private channels will be created upon joining {vc.name}')
 
+        @ self.bot.slash_command(description="Adds admin")
+        async def add_admin(inter, user: disnake.User = commands.Param(description='Select user for admin promotion')):
+            if await self.check_dm(inter):
+                return
+
+            if not await helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.send("Processing...")
+            if await self.add_admin(inter.guild.id, user.id):
+                await inter.edit_original_response(f'{user.display_name} is now admin')
+            else:
+                await inter.edit_original_response(f'{user.display_name} is already admin')
 
         @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
             if await self.check_dm(inter):
                 return
 
-            if not helpers.is_admin(inter.author):
+            if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
@@ -121,7 +143,7 @@ class AdminBot():
         async def clear(inter: disnake.AppCmdInter, amount: int):
             if await self.check_dm(inter):
                 return
-            if not helpers.is_admin(inter.author):
+            if not await helpers.is_admin(inter.author):
                 return await inter.send(f"Unathorized attempt to clear messages!")
 
             await inter.channel.purge(limit=amount)
@@ -133,7 +155,7 @@ class AdminBot():
         async def fill_ranks(inter: disnake.AppCmdInter):
             if await self.check_dm(inter):
                 return
-            if not inter.author.id in private_config.supreme_beings_ids[inter.guild.id]:
+            if not inter.author.id in await helpers.get_server_option(inter.guild.id, ServerOption.ADMIN_IDS):
                 return await inter.send(f"Unathorized attempt to recreate database!")
 
             await self.fill_ranks_data()
@@ -146,7 +168,7 @@ class AdminBot():
         async def reset_db(inter: disnake.AppCmdInter):
             if await self.check_dm(inter):
                 return
-            if not inter.author.id in private_config.supreme_beings_ids[inter.guild.id]:
+            if not inter.author.id in await helpers.get_server_option(inter.guild.id):
                 return await inter.send(f"Unathorized attempt to recreate database!")
 
             db = await aiosqlite.connect('bot_database.db')
@@ -279,6 +301,7 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         vc_id = await helpers.get_server_option(member.guild.id, ServerOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -286,7 +309,7 @@ class AdminBot():
         vc = self.bot.get_channel(int(vc_id))
         if not vc:
             return
-        
+
         ff = False
         if after.channel and after.channel.name == vc.name:
             await helpers.create_private(member)
@@ -320,7 +343,7 @@ class AdminBot():
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
             client = message.guild.me
             if helpers.is_mentioned(client, message):
-                if helpers.is_admin(message.author):
+                if await helpers.is_admin(message.author):
                     if "ping" in message.content.lower() or "пинг" in message.content.lower():
                         return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
                     else:
@@ -341,9 +364,18 @@ class AdminBot():
 
     async def check_dm(self, inter):
         if not inter.guild:
-            if inter.author.id in private_config.admin_ids[list(private_config.admin_ids.keys())[0]]:
-                await inter.send(f"{public_config.dm_error_admin}")
-            else:
+            try:
+                if inter.author.id in private_config.supreme_beings:
+                    await inter.send(f"{private_config.dm_error_supreme_being}")
+            except:
                 await inter.send(f"{public_config.dm_error}")
+            return True
+        return False
+
+    async def add_admin(self, guild_id, user_id):
+        admin_list = await helpers.get_server_option(guild_id, ServerOption.ADMIN_IDS)
+        if not user_id in admin_list:
+            admin_list.append(user_id)
+            await helpers.set_server_option(guild_id, ServerOption.ADMIN_IDS, admin_list)
             return True
         return False
