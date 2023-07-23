@@ -1,6 +1,7 @@
 import socket
 import sys
 
+
 def send():
     if len(sys.argv) < 4:
         print(f"Usage: python controller.py ADDRESS PORT COMMAND [optional_args]")
@@ -14,15 +15,23 @@ def send():
     sock = socket.socket(socket.AF_INET)
     print("Connecting...")
     try:
-        sock.connect((socket.gethostbyname(host),int(port)))
+        sock.connect((socket.gethostbyname(host), int(port)))
     except:
         print(f"Failed to connect to {host}:{port}")
-        return 
+        return
     print("Sending...")
     sock.sendall(command.encode('utf8'))
     print("Receiving...")
-    response = sock.recv(1024).decode('utf8')
+    response = ""
+    while True:
+        data = sock.recv(1024)
+        if data:
+            data = data.decode('utf8')
+            response += data
+        else:
+            break
     print(response)
+
 
 if __name__ == "__main__":
     send()

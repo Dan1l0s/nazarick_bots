@@ -33,7 +33,7 @@ class FileWithDates():
             lines = lines[:-1]
         if len(lines) != 0:
             lines[0] = self.buffer + lines[0]
-        tm = datetime.now().strftime('%d-%m-%Y')
+        tm = datetime.now().strftime('%d.%m.%Y | %H.%M.%S')
         tm_s = f"[{tm}]: "
         for line in lines: 
             if len(line) == 0:
@@ -52,17 +52,23 @@ class FileWithDates():
 class BotState(Enum):
     STOPPED = 0
     RUNNING = 1
+    SHUTDOWN = 2
 
 
 def exception_handler(loop, context):
     print("Caught exception")
 
+def force_exit():
+    sys.stdout = None
+    sys.stderr = None
+    exit()
 
 class Host:
     state = BotState.STOPPED
     errors = None
     process = None
     listener_socket = None
+    port = None
 
     def __init__(self, port):
         self.listener_socket = socket.socket(family=socket.AF_INET)
@@ -71,6 +77,7 @@ class Host:
         self.listener_socket.bind(('', port))
         self.listener_socket.listen(1600)
         self.listener_socket.setblocking(False)
+        self.port = port
         print("Host started")
 
     async def process_command(self, command):
@@ -115,9 +122,14 @@ class Host:
             print(f"Respond was not delivered because: {ex}")
 
         client.close()
+        if self.state == BotState.SHUTDOWN: 
+            force_exit()
 
-    async def start(self):
-        while True:
+    async def start(self, run: bool):
+        if run:
+            await self.run()
+            
+        while self.state != BotState.SHUTDOWN:
             client, addr = await asyncio.get_running_loop().sock_accept(self.listener_socket)
             asyncio.create_task(self.handle_client(client, addr))
 
@@ -178,27 +190,34 @@ class Host:
         if os.system(f"git fetch") !=0 :
             os.system("git stash pop")
             return "Failed to fetch updates from origin"
-        if os.system(f"git branch --force {branch} origin/{branch}") != 0:
-            os.system("git stash pop")
-            return "Failed to force local branch {branch} to remote"
-        if os.system(f"git checkout {branch}") != 0:
-            os.system("git stash pop")
-            return f"Failed to checkout at {branch}"
+        os.system(f"git checkout --detach")
+        os.system(f"git branch -f -D {branch}")
+        os.system(f"git checkout {branch}")
+        self.state = BotState.SHUTDOWN
+        self.listener_socket.close()
+        arg = ""
         if was_running:
-            await self.run()
+            arg = "-r"
+        cmd = f"python3.11 ./hosting/server_manager.py {self.port} {arg} &"
+        print(f"Executing: {cmd}\n")
+        os.system(cmd) 
         return f"Updated to branch {branch}"
+
     def get_current_branch(self):
         active_branch = os.popen("git rev-parse --abbrev-ref HEAD").read()
         return active_branch.replace('\n','')
 
 async def main():
-    if len(sys.argv) < 2:
-        print("Usage: python host.py PORT")
-        return
     h = Host(int(sys.argv[1]))
-    await h.start()
+    start = bool(len(sys.argv) > 2 and sys.argv[2] == "-r")
+    if start:
+        print("Starting bots...")
+    await h.start(start)
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python host.py PORT")
+        exit()
     f = FileWithDates("host")
     sys.stdout = f
     sys.stderr = f

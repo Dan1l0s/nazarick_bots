@@ -288,8 +288,8 @@ def convert_to_python(option: GuildOption, value):
 
 async def ensure_tables():
     db = await aiosqlite.connect('bot_database.db')
-    await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT PRIMARY KEY, user_id TEXT, voice_xp INTEGER, text_xp INTEGER)''')
-    await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT PRIMARY KEY, voice_xp INTEGER, rank_id TEXT, remove_flag INTEGER)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER, UNIQUE(guild_id, user_id))''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, rank_id TEXT, voice_xp INTEGER,  remove_flag INTEGER, UNIQUE(guild_id, rank_id))''')
     await db.execute('''CREATE TABLE IF NOT EXISTS server_options (
                         guild_id TEXT PRIMARY KEY,
                         log_channel TEXT,

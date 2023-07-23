@@ -374,7 +374,7 @@ class AdminBot():
     async def scan_timer(self):
         while not self.bot.is_closed():
             asyncio.create_task(self.scan_channels())
-            await asyncio.sleep(10)
+            await asyncio.sleep(60)
 
     async def scan_channels(self):
         for guild in self.bot.guilds:
