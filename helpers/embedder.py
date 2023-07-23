@@ -645,7 +645,7 @@ class Embed:
         return embed
 
 
-# --------------------- CHANNEL SWITCHING --------------------------------
+# --------------------- CHANNEL SWITCHING --------------------------------   
 
     def switched(self, member, before, after):
         embed = disnake.Embed(

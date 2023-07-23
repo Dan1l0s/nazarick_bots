@@ -42,7 +42,7 @@ class MusicBotLeader(MusicBotInstance):
                     pass
                 return
 
-            if message.guild.get_member(private_config.bot_ids["moderate"]) == None:
+            if self.bot.get_user(private_config.bot_ids["moderate"]) == None:
                 await self.check_message_content(message)
             await self.check_mentions(message)
 

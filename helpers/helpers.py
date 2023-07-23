@@ -1,4 +1,5 @@
 import disnake
+from typing import List
 from datetime import datetime, timezone
 import time
 import re
@@ -7,12 +8,24 @@ from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
 from enum import Enum
 
+import asyncio
 import configs.private_config as private_config
 import configs.public_config as public_config
 
 
+class Rank:
+    role_id: int
+    voice_xp: int
+    remove_on_promotion: bool
+
+    def __init__(self, role_od: int, voice_xp: int, remove_on_promotion: bool):
+        self.role_id = role_od
+        self.voice_xp = voice_xp
+        self.remove_on_promotion = remove_on_promotion
+
+
 async def is_admin(member):
-    return member.guild and member.id in await get_server_option(member.guild.id, ServerOption.ADMIN_IDS)
+    return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST)
 
 
 def get_duration(info):
@@ -33,7 +46,7 @@ def is_mentioned(member, message):
 
 
 async def create_private(member):
-    category_id = await get_server_option(member.guild.id, ServerOption.PRIVATE_CATEGORY)
+    category_id = await get_guild_option(member.guild.id, GuildOption.PRIVATE_CATEGORY)
     if not category_id:
         return
     possible_channel_name = f"{member.display_name}'s private"
@@ -78,9 +91,11 @@ async def unmute_admin(member):
             ff = True
 
         entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
+        if len(entry) < 2:
+            return ff
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in await get_server_option(member.guild.id, ServerOption.ADMIN_IDS):
+        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST):
             await entry.user.move_to(None)
             try:
                 await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
@@ -206,56 +221,75 @@ async def set_bitrate(guild):
             await channel.edit(bitrate=bitrate_value)
 
 
-class ServerOptionDataType(Enum):
-    INT = 1,
-    INT_LIST = 2,
-
-
-class ServerOption(Enum):
+class GuildOption(Enum):
     LOG_CHANNEL = 1,
     STATUS_LOG_CHANNEL = 2,
     WELCOME_CHANNEL = 3,
     PRIVATE_CATEGORY = 4,
     PRIVATE_CHANNEL = 5,
-    ADMIN_IDS = 6,
+    ADMIN_LIST = 6,
+    RANK_LIST = 7,
+    RANK = 8,
 
     def to_str(self):
         match self:
-            case ServerOption.LOG_CHANNEL:
+            case GuildOption.LOG_CHANNEL:
                 return "log_channel"
-            case ServerOption.WELCOME_CHANNEL:
+            case GuildOption.WELCOME_CHANNEL:
                 return "welcome_channel"
-            case ServerOption.STATUS_LOG_CHANNEL:
+            case GuildOption.STATUS_LOG_CHANNEL:
                 return "status_log_channel"
-            case ServerOption.PRIVATE_CATEGORY:
+            case GuildOption.PRIVATE_CATEGORY:
                 return "private_category"
-            case ServerOption.PRIVATE_CHANNEL:
+            case GuildOption.PRIVATE_CHANNEL:
                 return "private_channel"
-            case ServerOption.ADMIN_IDS:
-                return "admin_ids"
+            case GuildOption.ADMIN_LIST:
+                return "admin_list"
+            case GuildOption.RANK_LIST | GuildOption.RANK:
+                return "voice_xp, rank_id, remove_flag"
             case _:
-                return "unknown"
+                return None
 
-    def get_type(self):
+    def get_table(self):
         match self:
-            case ServerOption.LOG_CHANNEL:
-                return ServerOptionDataType.INT
-            case ServerOption.WELCOME_CHANNEL:
-                return ServerOptionDataType.INT
-            case ServerOption.STATUS_LOG_CHANNEL:
-                return ServerOptionDataType.INT
-            case ServerOption.PRIVATE_CATEGORY:
-                return ServerOptionDataType.INT
-            case ServerOption.PRIVATE_CHANNEL:
-                return ServerOptionDataType.INT
-            case ServerOption.ADMIN_IDS:
-                return ServerOptionDataType.INT_LIST
+            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST:
+                return "server_options"
+            case GuildOption.RANK_LIST | GuildOption.RANK:
+                return "ranks_data"
             case _:
-                return "unknown"
+                return None
 
 
-async def ensure_server_option_table():
+def convert_to_python(option: GuildOption, value):
+    to_int = [GuildOption.LOG_CHANNEL, GuildOption.WELCOME_CHANNEL, GuildOption.STATUS_LOG_CHANNEL, GuildOption.PRIVATE_CATEGORY, GuildOption.PRIVATE_CHANNEL]
+    to_int_list = [GuildOption.ADMIN_LIST]
+    match option:
+        case option if option in to_int:
+            if not value or not value[0]:
+                return None
+            else:
+                return int(value[0])
+        case option if option in to_int_list:
+            if not value or not value[0]:
+                return []
+            else:
+                return eval(value[0])
+        case GuildOption.RANK_LIST:
+            if not value:
+                return []
+            else:
+                ans = []
+                for rank in value:
+                    ans.append(Rank(int(rank["rank_id"]), rank["voice_xp"], bool(rank["remove_flag"])))
+                return ans
+        case _:
+            raise f"Wrong option {option}"
+
+
+async def ensure_tables():
     db = await aiosqlite.connect('bot_database.db')
+    await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT PRIMARY KEY, user_id TEXT, voice_xp INTEGER, text_xp INTEGER)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT PRIMARY KEY, voice_xp INTEGER, rank_id TEXT, remove_flag INTEGER)''')
     await db.execute('''CREATE TABLE IF NOT EXISTS server_options (
                         guild_id TEXT PRIMARY KEY,
                         log_channel TEXT,
@@ -263,56 +297,192 @@ async def ensure_server_option_table():
                         welcome_channel TEXT,
                         private_category TEXT,
                         private_channel TEXT,
-                        admin_ids TEXT
+                        admin_list TEXT
                      )''')
     await db.commit()
     await db.close()
 
 
-async def request_server_option(guild_id, option: ServerOption):
+async def request_guild_option(guild_id, option: GuildOption):
     if not guild_id:
         return None
     opt_str = option.to_str()
-    if opt_str == "unknown":
-        return None
-    await ensure_server_option_table()
+    opt_table = option.get_table()
+    if not opt_str or not opt_table:
+        raise f"Wrong option {option}"
+    await ensure_tables()
     db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
-    await cursor.execute(f"SELECT {opt_str} FROM server_options WHERE guild_id = ?", (str(guild_id),))
-    res = await cursor.fetchone()
+
+    match option:
+        case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST:
+            await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (str(guild_id),))
+            res = await cursor.fetchone()
+        case GuildOption.RANK_LIST:
+            await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (str(guild_id),))
+            res = await cursor.fetchall()
+        case _:
+            raise f"Wrong option {option}"
     await db.close()
-    if not res:
-        return None
-    return res[0]
+    return res
 
 
-async def get_server_option(guild_id, option: ServerOption):
-    ans = await request_server_option(guild_id, option)
-    opt_type = option.get_type()
-    match opt_type:
-        case ServerOptionDataType.INT:
-            if not ans:
-                return None
-            else:
-                return int(ans)
-        case ServerOptionDataType.INT_LIST:
-            if not ans:
-                return []
-            else:
-                return eval(ans)
-    return None
+async def get_guild_option(guild_id, option: GuildOption):
+    ans = await request_guild_option(guild_id, option)
+    return convert_to_python(option, ans)
 
 
-async def set_server_option(guild_id, option: ServerOption, value):
+async def add_guild_option(guild_id, option: GuildOption, value):
+    if not guild_id:
+        return
+
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
+    cursor = await db.cursor()
+    match option:
+        case GuildOption.RANK:
+            await cursor.execute(f"SELECT {option.to_str()} FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ?", (str(guild_id), str(value.role_id),))
+            res = await cursor.fetchone()
+            res = bool(res)
+            if not res:
+                await cursor.execute(f"INSERT INTO {option.get_table()} (guild_id, {option.to_str()}) VALUES(?, ?, ?, ?)", (str(guild_id), int(value.voice_xp), str(value.role_id), int(value.remove_on_promotion)))
+        case _:
+            raise f"Wrong option {option}"
+    await db.commit()
+    await db.close()
+    return not res
+
+
+async def remove_guild_option(guild_id, option: GuildOption, value):
+    if not guild_id:
+        return
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
+    cursor = await db.cursor()
+    match option:
+        case GuildOption.RANK:
+            await cursor.execute(f"SELECT {option.to_str()} FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ?", (str(guild_id), str(value),))
+            res = await cursor.fetchone()
+            res = bool(res)
+            if res:
+                await cursor.execute(f"DELETE FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ? ", (str(guild_id), str(value),))
+        case _:
+            raise f"Wrong option {option}"
+    await db.commit()
+    await db.close()
+    return res
+
+
+async def set_guild_option(guild_id, option: GuildOption, value):
     if not guild_id:
         return
     opt_str = option.to_str()
-    if opt_str == "unknown":
-        return None
-    await ensure_server_option_table()
+    opt_table = option.get_table()
+    if not opt_str or not opt_table:
+        raise f"Wrong option {option}"
+    await ensure_tables()
     db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
-    await cursor.execute(f"INSERT OR IGNORE INTO server_options (guild_id) VALUES(?)", (str(guild_id),))
+    await cursor.execute(f"INSERT OR IGNORE INTO {opt_table} (guild_id) VALUES(?)", (str(guild_id),))
     await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (str(value), str(guild_id),))
     await db.commit()
     await db.close()
+
+
+async def get_user_xp(guild_id: int, user_id: int):
+    if not guild_id or not user_id:
+        return None
+
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
+    cursor = await db.cursor()
+    await cursor.execute(f"SELECT voice_xp, text_xp FROM users_xp_data WHERE guild_id = ? AND user_id = ?", (str(guild_id), str(user_id),))
+    res = await cursor.fetchone()
+    await db.close()
+    if res:
+        return res["voice_xp"], res["text_xp"]
+    else:
+        return 0, 0
+
+
+async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], roles_to_add: List[any] = []):
+    if not member:
+        return
+    if not member.guild.me.guild_permissions.manage_roles:
+        return
+    guild = member.guild
+    highest_role = guild.me.top_role  
+    for role_id in roles_to_add:
+        if role_id in roles_to_remove:
+            continue
+        role = guild.get_role(int(role_id))
+        if role and not role.managed and role < highest_role:
+            asyncio.create_task(member.add_roles(role))
+    for role_id in roles_to_remove:
+        if role_id in roles_to_add:
+            continue
+        role = guild.get_role(int(role_id))
+        if role and not role.managed and role < highest_role:
+            asyncio.create_task(member.remove_roles(role))
+    
+
+
+async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None):
+    if not guild_id or not user_id or (voice_xp is None and text_xp is None):
+        return None
+
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
+    cursor = await db.cursor()
+    await cursor.execute(f"INSERT OR IGNORE INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) VALUES(?,?,?,?)", (str(guild_id), str(user_id), 0, 0))
+    if voice_xp is not None:
+        await cursor.execute(f"UPDATE users_xp_data SET voice_xp = ? WHERE guild_id = ? AND user_id = ?", (voice_xp, str(guild_id), str(user_id),))
+    if text_xp is not None:
+        await cursor.execute(f"UPDATE users_xp_data SET text_xp = ? WHERE guild_id = ? AND user_id = ?", (text_xp, str(guild_id), str(user_id),))
+    await db.commit()
+    await db.close()
+
+
+async def reset_xp(guild_id: int):
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
+    cursor = await db.cursor()
+    await cursor.execute(f"DELETE FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
+    await db.commit()
+    await db.close()
+
+
+async def reset_ranks(guild_id: int):
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db')
+    db.row_factory = aiosqlite.Row
+    cursor = await db.cursor()
+    await cursor.execute(f"DELETE FROM ranks_data WHERE guild_id = ?", (str(guild_id),))
+    await db.commit()
+    await db.close()
+
+
+async def add_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None):
+    if not guild_id or not user_id or (not voice_xp and not text_xp):
+        return None
+
+    v_xp, t_xp = await get_user_xp(guild_id, user_id)
+    if voice_xp:
+        v_xp += voice_xp
+    if text_xp:
+        t_xp += text_xp
+    await set_user_xp(guild_id, user_id, v_xp, t_xp)
+
+
+def sort_ranks(ranks, increasing: bool = True):
+    ans = sorted(ranks, key=lambda rank: (rank.voice_xp, rank.remove_on_promotion,))
+    if not increasing:
+        ans.reverse()
+    return ans

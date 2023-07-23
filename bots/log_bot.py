@@ -10,7 +10,7 @@ import helpers.helpers as helpers
 from helpers.selection import SelectionPanel
 from helpers.file_logger import FileLogger
 from helpers.embedder import Embed
-from helpers.helpers import ServerOption
+from helpers.helpers import GuildOption
 
 
 gl_flag = True
@@ -78,7 +78,7 @@ class AutoLog():
             if before.author.id in private_config.bot_ids.values():
                 return
             guild_id = before.author.guild.id
-            channel_id = await helpers.get_server_option(guild_id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(guild_id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -94,7 +94,7 @@ class AutoLog():
         async def on_message_delete(message):
             if not message.author.guild:
                 return
-            channel_id = await helpers.get_server_option(message.author.guild.id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(message.author.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -104,7 +104,7 @@ class AutoLog():
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
         async def on_audit_log_entry_create(entry):
-            channel_id = await helpers.get_server_option(entry.user.guild.id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(entry.user.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -118,7 +118,7 @@ class AutoLog():
 
         @self.bot.event
         async def on_member_update(before, after):
-            channel_id = await helpers.get_server_option(before.guild.id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(before.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -127,7 +127,7 @@ class AutoLog():
 
         @self.bot.event
         async def on_raw_member_remove(payload):
-            channel_id = await helpers.get_server_option(payload.guild_id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(payload.guild_id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -136,8 +136,8 @@ class AutoLog():
 
         @self.bot.event
         async def on_member_join(member):
-            welcome_channel_id = await helpers.get_server_option(member.guild.id, ServerOption.WELCOME_CHANNEL)
-            log_channel_id = await helpers.get_server_option(member.guild.id, ServerOption.LOG_CHANNEL)
+            welcome_channel_id = await helpers.get_guild_option(member.guild.id, GuildOption.WELCOME_CHANNEL)
+            log_channel_id = await helpers.get_guild_option(member.guild.id, GuildOption.LOG_CHANNEL)
 
             if welcome_channel_id:
                 welcome_channel = self.bot.get_channel(int(welcome_channel_id))
@@ -152,7 +152,7 @@ class AutoLog():
 
         @ self.bot.event
         async def on_member_ban(guild, user):
-            channel_id = await helpers.get_server_option(guild.id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -160,7 +160,7 @@ class AutoLog():
 
         @ self.bot.event
         async def on_member_unban(guild, user):
-            channel_id = await helpers.get_server_option(guild.id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -169,7 +169,7 @@ class AutoLog():
     # --------------------- VOICE STATES --------------------------------
         @ self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
-            channel_id = await helpers.get_server_option(member.guild.id, ServerOption.LOG_CHANNEL)
+            channel_id = await helpers.get_guild_option(member.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
@@ -234,8 +234,14 @@ class AutoLog():
                 return
             await inter.send(embed=self.embedder.get_status(member))
 
-        @ self.bot.slash_command(description="Allows admin to set log channel")
-        async def set_log_channel(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for logs')):
+        @ self.bot.slash_command()
+        async def set(inter):
+            pass
+        @ set.sub_command_group()
+        async def logs(inter):
+            pass
+        @ logs.sub_command(description="Allows admin to set channel for common logs")
+        async def common(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
             if await self.check_dm(inter):
                 return
 
@@ -243,11 +249,11 @@ class AutoLog():
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
-            await helpers.set_server_option(inter.guild.id, ServerOption.LOG_CHANNEL, channel.id)
-            await inter.edit_original_response(f'New log channel is {channel.name}')
+            await helpers.set_guild_option(inter.guild.id, GuildOption.LOG_CHANNEL, channel.id)
+            await inter.edit_original_response(f'New log channel is {channel.mention}')
 
-        @ self.bot.slash_command(description="Allows admin to set status log channel")
-        async def set_status_log_channel(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
+        @ logs.sub_command(description="Allows admin to set channel for status logs")
+        async def status(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
             if await self.check_dm(inter):
                 return
 
@@ -255,11 +261,11 @@ class AutoLog():
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
-            await helpers.set_server_option(inter.guild.id, ServerOption.STATUS_LOG_CHANNEL, channel.id)
-            await inter.edit_original_response(f'New status log channel is {channel.name}')
+            await helpers.set_guild_option(inter.guild.id, GuildOption.STATUS_LOG_CHANNEL, channel.id)
+            await inter.edit_original_response(f'New status log channel is {channel.mention}')
 
-        @ self.bot.slash_command(description="Allows admin to set welcome channel")
-        async def set_welcome_channel(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes')):
+        @ logs.sub_command(description="Allows admin to set channel for welcome logs")
+        async def welcome(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes logs')):
             if await self.check_dm(inter):
                 return
 
@@ -267,8 +273,8 @@ class AutoLog():
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
-            await helpers.set_server_option(inter.guild.id, ServerOption.WELCOME_CHANNEL, channel.id)
-            await inter.edit_original_response(f'New welcome channel is {channel.name}')
+            await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, channel.id)
+            await inter.edit_original_response(f'New welcome channel is {channel.mention}')
 
     # --------------------- METHODS --------------------------------
 
@@ -294,15 +300,16 @@ class AutoLog():
             old_list = {}
 
             for guild_num in range(len(guild_list)):
-                status_log_channel_id = await helpers.get_server_option(guild_list[guild_num].id, ServerOption.STATUS_LOG_CHANNEL)
+                status_log_channel_id = await helpers.get_guild_option(guild_list[guild_num].id, GuildOption.STATUS_LOG_CHANNEL)
                 if status_log_channel_id:
                     old_list[guild_list[guild_num].id] = self.gen_status_and_activity_list(
                         guild_list[guild_num].members)
             await asyncio.sleep(0.1)
             for guild_num in range(len(guild_list)):
-
+                if not guild_num in old_list:
+                    continue
                 guild_id = guild_list[guild_num].id
-                status_log_channel_id = await helpers.get_server_option(guild_id, ServerOption.STATUS_LOG_CHANNEL)
+                status_log_channel_id = await helpers.get_guild_option(guild_id, GuildOption.STATUS_LOG_CHANNEL)
 
                 if status_log_channel_id:
                     new_list = self.gen_status_and_activity_list(
