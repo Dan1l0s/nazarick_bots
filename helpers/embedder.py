@@ -990,7 +990,7 @@ class Embed:
         embed = disnake.Embed(
             description=f'**You got a new role!** {public_config.emojis["yay"]}' if len(roles_list) == 1 else f'**You got new roles!** {public_config.emojis["yay"]}',
             color=disnake.Colour.from_rgb(
-                *public_config.embed_colors["welcome"]),
+                *public_config.embed_colors["welcome_message"]),
             timestamp=datetime.datetime.now()
         )
         embed.set_author(name=guild.name,

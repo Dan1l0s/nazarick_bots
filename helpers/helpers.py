@@ -447,7 +447,8 @@ async def notify_roles_changed(member: disnake.Member, roles: List[any]):
         role = guild.get_role(int(role_id))
         if role and not role.managed and role < highest_role and role not in member.roles:
             roles_to_add.append(role.name)
-
+    if len(roles_to_add) == 0:
+        return
     embed = embedder.role_notification(guild, roles_to_add)
     try:
         await member.send(embed=embed)

@@ -1,18 +1,34 @@
 import socket
 import sys
+import os
+
+try:
+    os.chdir(os.path.dirname(__file__))
+    sys.path.append("..")
+    from configs.private_config import hosting_ip, hosting_port
+except:
+    pass
 
 
 def main():
     while True:
         sock = socket.socket(socket.AF_INET)
-        host = input('Input ADDRESS\n')
-        port = input('Input PORT\n')
+
+        try:
+            host = hosting_ip
+        except:
+            host = input('Input ADDRESS\n')
+
+        try:
+            port = hosting_port
+        except:
+            port = input('Input PORT\n')
+
         print("Connecting...")
         try:
             sock.connect((socket.gethostbyname(host), int(port)))
-        except Exception as e:
+        except:
             print(f"Failed to connect to {host}:{port}\n")
-            print(e)
             continue
         print(f"Connected to {host}:{port}\n")
         sock.close()
@@ -34,10 +50,10 @@ def main():
         try:
             sock = socket.socket(socket.AF_INET)
             sock.connect((socket.gethostbyname(host), int(port)))
-        except Exception as e:
+        except:
             print(f"Failed to connect to {host}:{port}\n")
-            print(e)
             continue
+
         print("Sending...")
         sock.sendall(cmd.encode('utf8'))
         print("Receiving...")

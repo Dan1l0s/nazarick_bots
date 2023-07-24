@@ -1,10 +1,17 @@
 import asyncio
 import socket
-import sys
-import os
 from enum import Enum
 import subprocess
 from datetime import datetime
+import sys
+import os
+
+try:
+    os.chdir(os.path.dirname(__file__))
+    sys.path.append("..")
+    from configs.private_config import hosting_ip, hosting_port
+except:
+    pass
 
 
 class FileWithDates():
@@ -12,8 +19,8 @@ class FileWithDates():
     buffer = None
 
     def __init__(self, filename):
-        if not os.path.exists(f"logs/{filename}"):
-            os.makedirs(f"logs/{filename}")
+        if not os.path.exists(f"../logs/{filename}"):
+            os.makedirs(f"../logs/{filename}")
         file_name = datetime.now().strftime('%d-%m-%Y') + ".txt"
         script_dir = os.path.dirname(__file__)
         rel_path = f"../logs/{filename}/{file_name}"
@@ -141,7 +148,7 @@ class Host:
             return "Bot is already running"
         self.errors = ""
         self.process = subprocess.Popen(
-            ["python3.11", "main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
         if not self.process:
             return "Failed to create bot process"
@@ -203,7 +210,7 @@ class Host:
         arg = ""
         if was_running:
             arg = "-r"
-        cmd = f"python3.11 ./hosting/server_manager.py {self.port} {arg} &"
+        cmd = f"python3.11 server_manager.py {self.port} {arg} &"
         print(f"Executing: {cmd}\n")
         os.system(cmd)
         return f"Updated to branch {branch}"
@@ -218,16 +225,19 @@ class Host:
 
 
 async def main():
-    h = Host(int(sys.argv[1]))
-    start = bool(len(sys.argv) > 2 and sys.argv[2] == "-r")
+    try:
+        port = hosting_port
+    except:
+        port = int(sys.argv[1])
+
+    h = Host(port)
+
+    start = bool(sys.argv[-1] == "-r")
     if start:
         print("Starting bots...")
     await h.start(start)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python host.py PORT")
-        exit()
     f = FileWithDates("host")
     sys.stdout = f
     sys.stderr = f

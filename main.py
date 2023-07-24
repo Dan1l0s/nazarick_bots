@@ -1,6 +1,7 @@
 import asyncio
 import configs.private_config
 import concurrent.futures as process_pool
+import os
 
 from bots.music_leader import MusicBotLeader
 from bots.music_instance import MusicBotInstance
@@ -29,6 +30,7 @@ async def validate_bots(leaders, instances, admins, loggers):
 
 
 async def main():
+    os.chdir(os.path.dirname(__file__))
     pool = process_pool.ProcessPoolExecutor()
     file_logger = FileLogger(True)
 
@@ -56,7 +58,7 @@ async def main():
             bot = AdminBot(specification[0], specification[2], file_logger)
             admins.append(bot)
         else:
-            print(f"""WARNING: There is no bot type {specification[1]}, 
+            print(f"""WARNING: There is no bot type {specification[1]},
                 this bot specification will be ignored""")
             continue
     if not await validate_bots(leaders, instances, admins, loggers):
