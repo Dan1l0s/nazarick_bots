@@ -995,6 +995,11 @@ class Embed:
         )
         embed.set_author(name=guild.name,
                          icon_url=guild.icon.url)
-        roles_list = '\n* '.join(roles_list)
-        embed.add_field(name="", value=f"* {roles_list}", inline=False)
+
+        roles = []
+        for role in roles_list:
+            roles.append(role.name)
+
+        roles = '\n* '.join(roles)
+        embed.add_field(name="", value=f"* {roles}", inline=False)
         return embed

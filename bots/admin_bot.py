@@ -393,8 +393,7 @@ class AdminBot():
                             continue
 
                         roles_to_remove, roles_to_add = self.get_roles_from_exp(v_xp, ranks, guild)
-                        await helpers.modify_roles(member, roles_to_remove=roles_to_remove, roles_to_add=roles_to_add)
-                        await helpers.notify_roles_changed(member, roles_to_add)
+                        roles_to_add = await helpers.modify_roles(member, roles_to_remove=roles_to_remove, roles_to_add=roles_to_add)
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________

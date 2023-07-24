@@ -421,35 +421,31 @@ async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], 
         return
     guild = member.guild
     highest_role = guild.me.top_role
-
+    roles = []
     for role_id in roles_to_add:
         if role_id in roles_to_remove:
             continue
         role = guild.get_role(int(role_id))
-        if role and not role.managed and role < highest_role:
-            asyncio.create_task(member.add_roles(role))
+        if role and not role.managed and role < highest_role and role not in member.roles:
+            roles.append(role)
+    asyncio.create_task(add_roles_and_notify(member, roles))
+    roles = []
     for role_id in roles_to_remove:
         if role_id in roles_to_add:
             continue
         role = guild.get_role(int(role_id))
-        if role and not role.managed and role < highest_role:
-            asyncio.create_task(member.remove_roles(role))
+        if role and not role.managed and role < highest_role and role in member.roles:
+            roles.append(role)
+    asyncio.create_task(member.remove_roles(*roles))
 
 
-async def notify_roles_changed(member: disnake.Member, roles: List[any]):
-    roles_to_add = []
-    guild = member.guild
-    highest_role = guild.me.top_role
+async def add_roles_and_notify(member: disnake.Member, roles: List[disnake.Role]):
+    if len(roles) == 0:
+        return
 
     embedder = Embed()
-
-    for role_id in roles:
-        role = guild.get_role(int(role_id))
-        if role and not role.managed and role < highest_role and role not in member.roles:
-            roles_to_add.append(role.name)
-    if len(roles_to_add) == 0:
-        return
-    embed = embedder.role_notification(guild, roles_to_add)
+    await member.add_roles(*roles)
+    embed = embedder.role_notification(member.guild, roles)
     try:
         await member.send(embed=embed)
     except:
