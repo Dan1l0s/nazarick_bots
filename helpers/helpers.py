@@ -11,6 +11,7 @@ from enum import Enum
 import asyncio
 import configs.private_config as private_config
 import configs.public_config as public_config
+from helpers.embedder import Embed
 
 
 class Rank:
@@ -323,6 +324,7 @@ async def request_guild_option(guild_id, option: GuildOption):
             await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (str(guild_id),))
             res = await cursor.fetchall()
         case _:
+            await db.close()
             raise f"Wrong option {option}"
     await db.close()
     return res
@@ -349,6 +351,7 @@ async def add_guild_option(guild_id, option: GuildOption, value):
             if not res:
                 await cursor.execute(f"INSERT INTO {option.get_table()} (guild_id, {option.to_str()}) VALUES(?, ?, ?, ?)", (str(guild_id), int(value.voice_xp), str(value.role_id), int(value.remove_on_promotion)))
         case _:
+            await db.close()
             raise f"Wrong option {option}"
     await db.commit()
     await db.close()
@@ -370,6 +373,7 @@ async def remove_guild_option(guild_id, option: GuildOption, value):
             if res:
                 await cursor.execute(f"DELETE FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ? ", (str(guild_id), str(value),))
         case _:
+            await db.close()
             raise f"Wrong option {option}"
     await db.commit()
     await db.close()
@@ -416,7 +420,8 @@ async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], 
     if not member.guild.me.guild_permissions.manage_roles:
         return
     guild = member.guild
-    highest_role = guild.me.top_role  
+    highest_role = guild.me.top_role
+
     for role_id in roles_to_add:
         if role_id in roles_to_remove:
             continue
@@ -429,7 +434,25 @@ async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], 
         role = guild.get_role(int(role_id))
         if role and not role.managed and role < highest_role:
             asyncio.create_task(member.remove_roles(role))
-    
+
+
+async def notify_roles_changed(member: disnake.Member, roles: List[any]):
+    roles_to_add = []
+    guild = member.guild
+    highest_role = guild.me.top_role
+
+    embedder = Embed()
+
+    for role_id in roles:
+        role = guild.get_role(int(role_id))
+        if role and not role.managed and role < highest_role and role not in member.roles:
+            roles_to_add.append(role.name)
+
+    embed = embedder.role_notification(guild, roles_to_add)
+    try:
+        await member.send(embed=embed)
+    except:
+        pass
 
 
 async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None):

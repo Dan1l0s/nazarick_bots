@@ -251,14 +251,14 @@ class Embed:
         embed.set_author(name=entry.user.name,
                          icon_url=entry.user.display_avatar.url)
         if hasattr(entry.before, "nick"):
-            if entry.before.nick != None:
+            if entry.before.nick is not None:
                 embed.add_field(name="**Old Nickname:**",
                                 value=f'`{entry.before.nick}`')
-            if entry.after.nick != None:
+            if entry.after.nick is not None:
                 embed.add_field(name="**New Nickname:**",
                                 value=f'`{entry.after.nick}`')
         if hasattr(entry.after, "timeout"):
-            if entry.after.timeout != None:
+            if entry.after.timeout is not None:
                 embed.add_field(name="**Timeout expiration date:**",
                                 value=entry.after.timeout.strftime("%d/%m %H:%M:%S"))
             else:
@@ -645,7 +645,8 @@ class Embed:
         return embed
 
 
-# --------------------- CHANNEL SWITCHING --------------------------------   
+# --------------------- CHANNEL SWITCHING --------------------------------
+
 
     def switched(self, member, before, after):
         embed = disnake.Embed(
@@ -782,7 +783,7 @@ class Embed:
         )
         embed.set_author(name=member.name, icon_url=member.display_avatar.url)
         embed.set_footer(text=f'{member.guild.name}')
-        if member.activity != None:
+        if member.activity is not None:
             for acts in member.activities:
                 # embed.add_field(name = acts.name, value = acts.type)
                 if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
@@ -818,7 +819,7 @@ class Embed:
             fin = '\n'.join(fin)
             embed.add_field(name="**Finished Activities :**",
                             value=f"```{fin}```", inline=False)
-        if member.activity != None:
+        if member.activity is not None:
             embed.add_field(name="**Current Activities : **",
                             value="", inline=False)
             for acts in member.activities:
@@ -983,4 +984,17 @@ class Embed:
         else:
             embed.add_field(
                 name=f":video_camera:** Video enabled**", value="No")
+        return embed
+
+    def role_notification(self, guild, roles_list):
+        embed = disnake.Embed(
+            description=f'**You got a new role!** {public_config.emojis["yay"]}' if len(roles_list) == 1 else f'**You got new roles!** {public_config.emojis["yay"]}',
+            color=disnake.Colour.from_rgb(
+                *public_config.embed_colors["welcome"]),
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_author(name=guild.name,
+                         icon_url=guild.icon.url)
+        roles_list = '\n* '.join(roles_list)
+        embed.add_field(name="", value=f"* {roles_list}", inline=False)
         return embed

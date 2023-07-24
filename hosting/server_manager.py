@@ -35,7 +35,7 @@ class FileWithDates():
             lines[0] = self.buffer + lines[0]
         tm = datetime.now().strftime('%d.%m.%Y | %H.%M.%S')
         tm_s = f"[{tm}]: "
-        for line in lines: 
+        for line in lines:
             if len(line) == 0:
                 continue
             self.file.write(f"{tm_s}{line}\n")
@@ -58,10 +58,12 @@ class BotState(Enum):
 def exception_handler(loop, context):
     print("Caught exception")
 
+
 def force_exit():
     sys.stdout = None
     sys.stderr = None
     exit()
+
 
 class Host:
     state = BotState.STOPPED
@@ -85,6 +87,7 @@ class Host:
         print(f"Processing command {args}")
         if len(args) == 0:
             return None
+        args[0] = args[0].lower()
         if args[0] == "run":
             return await self.run()
         if args[0] == "stop":
@@ -122,13 +125,13 @@ class Host:
             print(f"Respond was not delivered because: {ex}")
 
         client.close()
-        if self.state == BotState.SHUTDOWN: 
+        if self.state == BotState.SHUTDOWN:
             force_exit()
 
     async def start(self, run: bool):
         if run:
             await self.run()
-            
+
         while self.state != BotState.SHUTDOWN:
             client, addr = await asyncio.get_running_loop().sock_accept(self.listener_socket)
             asyncio.create_task(self.handle_client(client, addr))
@@ -159,13 +162,14 @@ class Host:
 
     async def status(self):
         active_branch = self.get_current_branch()
-        ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}"
+        current_commit = self.get_current_commit()
+        ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}"
         if self.state == BotState.RUNNING:
             while True:
                 data = self.process.stderr.read(1024)
                 if not data:
-                    break;
-                else: 
+                    break
+                else:
                     self.errors += data.decode("utf-8")
             if len(self.errors) == 0:
                 ans += "\nError status: No errors"
@@ -179,20 +183,21 @@ class Host:
             ans += await self.stop()
         ans += '\n' + await self.run()
         return ans
+
     async def update(self, branch):
-        active_branch = self.get_current_branch()
         was_running = False
         if self.state == BotState.RUNNING:
             await self.stop()
             was_running = True
         if os.system("git stash") != 0:
             return "Failed to stash local changes"
-        if os.system(f"git fetch") !=0 :
+        if os.system(f"git fetch") != 0:
             os.system("git stash pop")
             return "Failed to fetch updates from origin"
         os.system(f"git checkout --detach")
         os.system(f"git branch -f -D {branch}")
         os.system(f"git checkout {branch}")
+        os.system(f"git stash clear")
         self.state = BotState.SHUTDOWN
         self.listener_socket.close()
         arg = ""
@@ -200,12 +205,17 @@ class Host:
             arg = "-r"
         cmd = f"python3.11 ./hosting/server_manager.py {self.port} {arg} &"
         print(f"Executing: {cmd}\n")
-        os.system(cmd) 
+        os.system(cmd)
         return f"Updated to branch {branch}"
 
     def get_current_branch(self):
         active_branch = os.popen("git rev-parse --abbrev-ref HEAD").read()
-        return active_branch.replace('\n','')
+        return active_branch.replace('\n', '')
+
+    def get_current_commit(self):
+        current_commit = os.popen("git rev-parse HEAD").read()
+        return current_commit.replace('\n', '')
+
 
 async def main():
     h = Host(int(sys.argv[1]))
