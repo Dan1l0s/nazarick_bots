@@ -141,7 +141,8 @@ class AutoLog():
 
             if welcome_channel_id:
                 welcome_channel = self.bot.get_channel(int(welcome_channel_id))
-                await welcome_channel.send(embed=self.embedder.welcome_message(member))
+                user = self.bot.get_user(member.id)
+                await welcome_channel.send(embed=self.embedder.welcome_message(member, user))
                 message = await welcome_channel.send(f"{member.mention}")
                 await message.delete()
 
@@ -222,7 +223,8 @@ class AutoLog():
             if await self.check_dm(inter):
                 return
             await inter.response.defer()
-            embed = self.embedder.welcome_message(member)
+            user = self.bot.get_user(member.id)
+            embed = self.embedder.welcome_message(member, user)
             await inter.delete_original_response()
             await inter.channel.send(embed=embed)
             message = await inter.channel.send(f"{member.mention}")

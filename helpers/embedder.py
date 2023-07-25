@@ -647,7 +647,6 @@ class Embed:
 
 # --------------------- CHANNEL SWITCHING --------------------------------
 
-
     def switched(self, member, before, after):
         embed = disnake.Embed(
             description=f'**{member.mention} switched from {before.channel.mention} to {after.channel.mention}**',
@@ -690,9 +689,9 @@ class Embed:
 
 # --------------------- USER ACTIONS --------------------------------
 
-    def welcome_message(self, member):
+    def welcome_message(self, member, user):
         embed = disnake.Embed(
-            description=f'**{member.mention}, welcome to {helpers.get_guild_name(member.guild)}!**',
+            description=f'**{user.mention}, welcome to {helpers.get_guild_name(member.guild)}!**',
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["welcome_message"]),
             timestamp=datetime.datetime.now()

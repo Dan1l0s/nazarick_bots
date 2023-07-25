@@ -381,7 +381,7 @@ class AdminBot():
             ranks = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)
             ranks = helpers.sort_ranks(ranks)
             for channel in guild.voice_channels:
-                if helpers.get_members_count(channel.members) > 1:
+                if helpers.get_members_count(channel.members) > 1 and channel != guild.afk_channel:
                     for member in channel.members:
                         if member.bot:
                             continue
