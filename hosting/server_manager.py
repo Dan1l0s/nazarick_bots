@@ -9,7 +9,7 @@ import os
 try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
-    from configs.private_config import hosting_ip, hosting_port
+    from configs.private_config import hosting_port, backup_login, backup_password, backup_url
 except:
     pass
 
@@ -95,20 +95,24 @@ class Host:
         if len(args) == 0:
             return None
         args[0] = args[0].lower()
-        if args[0] == "run":
-            return await self.run()
-        if args[0] == "stop":
-            return await self.stop()
-        if args[0] == "status":
-            return await self.status()
-        if args[0] == "reboot":
-            return await self.reboot()
-        if args[0] == "update":
-            branch = "master"
-            if len(args) > 1:
-                branch = args[1]
-            return await self.update(branch)
-        return None
+        match args[0]:
+            case "run":
+                return await self.run()
+            case "stop":
+                return await self.stop()
+            case "status":
+                return await self.status()
+            case "reboot":
+                return await self.reboot()
+            case "backup":
+                return await self.backup()
+            case "update":
+                branch = "master"
+                if len(args) > 1:
+                    branch = args[1]
+                return await self.update(branch)
+            case _:
+                return None
 
     async def handle_client(self, client, addr):
         try:
@@ -135,6 +139,27 @@ class Host:
         if self.state == BotState.SHUTDOWN:
             force_exit()
 
+    async def backup_create(self):
+        while self.state == BotState.RUNNING:
+            hours = datetime.now().hour
+            minutes = datetime.now().minute
+            if (hours == 12 or hours == 0) and minutes == 0:
+                await self.commit_backup()
+                await asyncio.sleep(42900)
+            await asyncio.sleep(55)
+
+    async def commit_backup(self, manual=False):
+        ans = ""
+        files = ["bot_database.db"]
+        for file in files:
+            cmd = f'curl -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
+            print(f'cmd = {cmd}')
+            if os.system(cmd) != 0:
+                ans += f"\nFailed to commit {file}"
+        if ans == "":
+            ans = "Backup successful"
+        return ans
+
     async def start(self, run: bool):
         if run:
             await self.run()
@@ -143,9 +168,22 @@ class Host:
             client, addr = await asyncio.get_running_loop().sock_accept(self.listener_socket)
             asyncio.create_task(self.handle_client(client, addr))
 
+    async def backup(self):
+        ans = await self.commit_backup(manual=True)
+        return ans
+
     async def run(self):
         if self.state == BotState.RUNNING:
             return "Bot is already running"
+
+        try:
+            url = backup_url
+            login = backup_login
+            password = backup_password
+            asyncio.create_task(self.backup_create())
+        except:
+            pass
+
         self.errors = ""
         self.process = subprocess.Popen(
             ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -176,6 +214,8 @@ class Host:
                 data = self.process.stderr.read(1024)
                 if not data:
                     break
+                elif "Error in the pull function" in data.decode('utf-8') or "Will reconnect at" in data.decode('utf-8'):
+                    continue
                 else:
                     self.errors += data.decode("utf-8")
             if len(self.errors) == 0:

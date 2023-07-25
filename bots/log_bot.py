@@ -237,9 +237,11 @@ class AutoLog():
         @ self.bot.slash_command()
         async def set(inter):
             pass
+
         @ set.sub_command_group()
         async def logs(inter):
             pass
+
         @ logs.sub_command(description="Allows admin to set channel for common logs")
         async def common(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
             if await self.check_dm(inter):
