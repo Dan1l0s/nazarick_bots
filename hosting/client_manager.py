@@ -34,7 +34,7 @@ def main():
         sock.close()
         break
     while True:
-        cmd = input('Input your command or type "exit" to exit the program\n')
+        cmd = input('Input your command (type "help" to get commands list) or type "exit" to exit the program\n')
 
         if len(cmd) == 0:
             continue
@@ -42,8 +42,14 @@ def main():
         if cmd.lower() == 'exit':
             return 0
 
-        if len(cmd) == 0:
-            print("Command is empty, try again!")
+        if cmd.lower() == 'help':
+            print("""List of possible commands:
+    status - reveal current bot status
+    run - run bot if its offline
+    stop - stop the bot if its running
+    reboot - restart the bot
+    backup - create a manual backup
+    update {branch} - checkout to selected branch, master by default\n""")
             continue
 
         print("Connecting...")

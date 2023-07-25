@@ -255,3 +255,6 @@ member_update = [
 
 # list of bitrate values to be set
 bitrate_values = {0: 96000, 1: 128000, 2: 256000, 3: 384000}
+
+# list of files to backup
+bot_backup_files = ['bot_database.db']

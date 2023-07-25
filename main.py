@@ -2,6 +2,8 @@ import asyncio
 import configs.private_config
 import concurrent.futures as process_pool
 import os
+import signal
+import functools
 
 from bots.music_leader import MusicBotLeader
 from bots.music_instance import MusicBotInstance
@@ -29,10 +31,24 @@ async def validate_bots(leaders, instances, admins, loggers):
     return True
 
 
+def on_sigterm(loop, pool):
+    pool.shutdown(wait=True, cancel_futures=False)
+    loop.stop()
+    pass
+
+
 async def main():
     os.chdir(os.path.dirname(__file__))
     pool = process_pool.ProcessPoolExecutor()
     file_logger = FileLogger(True)
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(
+            signal.SIGTERM,
+            functools.partial(on_sigterm, loop, pool))
+    except:
+        pass
 
     leaders = []
     instances = []
