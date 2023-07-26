@@ -98,13 +98,13 @@ class Host:
             return None
         args[0] = args[0].lower()
         match args[0]:
-            case "run":
+            case "run" | "start":
                 return await self.run()
             case "stop":
                 return await self.stop()
             case "status":
                 return await self.status()
-            case "reboot":
+            case "reboot" | "reload" | "restart":
                 return await self.reboot()
             case "backup":
                 return await self.backup()

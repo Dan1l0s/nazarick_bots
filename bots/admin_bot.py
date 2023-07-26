@@ -68,6 +68,9 @@ class AdminBot():
             await self.check_message_content(message)
             await self.check_mentions(message)
 
+            if not message.author.bot:
+                await helpers.add_user_xp(message.guild.id, message.author.id, text_xp=1)
+
         @self.bot.slash_command()
         async def set(inter):
             pass
