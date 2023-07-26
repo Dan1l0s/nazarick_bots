@@ -239,14 +239,14 @@ class Host:
             was_running = True
 
         os.system("git -C .. stash")
-        if os.system(f"git -C .. fetch") != 0:
+        if os.system(f"git -C .. fetch --depth=1") != 0:
             os.system("git -C .. stash pop")
             return "Failed to fetch updates from origin"
         os.system(f"git -C .. checkout --detach")
         os.system(f"git -C .. branch -f -D {branch}")
         os.system(f"git -C .. checkout {branch}")
         os.system(f"git -C .. stash clear")
-        
+
         self.state = BotState.SHUTDOWN
         self.listener_socket.close()
         arg = ""
