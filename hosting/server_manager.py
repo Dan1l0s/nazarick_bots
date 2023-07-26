@@ -237,15 +237,16 @@ class Host:
         if self.state == BotState.RUNNING:
             await self.stop()
             was_running = True
-        if os.system("git stash") != 0:
-            return "Failed to stash local changes"
-        if os.system(f"git fetch") != 0:
-            os.system("git stash pop")
+
+        os.system("git -C .. stash")
+        if os.system(f"git -C .. fetch") != 0:
+            os.system("git -C .. stash pop")
             return "Failed to fetch updates from origin"
-        os.system(f"git checkout --detach")
-        os.system(f"git branch -f -D {branch}")
-        os.system(f"git checkout {branch}")
-        os.system(f"git stash clear")
+        os.system(f"git -C .. checkout --detach")
+        os.system(f"git -C .. branch -f -D {branch}")
+        os.system(f"git -C .. checkout {branch}")
+        os.system(f"git -C .. stash clear")
+        
         self.state = BotState.SHUTDOWN
         self.listener_socket.close()
         arg = ""
@@ -257,11 +258,11 @@ class Host:
         return f"Updated to branch {branch}"
 
     def get_current_branch(self):
-        active_branch = os.popen("git rev-parse --abbrev-ref HEAD").read()
+        active_branch = os.popen("git -C .. rev-parse --abbrev-ref HEAD").read()
         return active_branch.replace('\n', '')
 
     def get_current_commit(self):
-        current_commit = os.popen("git rev-parse HEAD").read()
+        current_commit = os.popen("git -C .. rev-parse HEAD").read()
         return current_commit.replace('\n', '')
 
 

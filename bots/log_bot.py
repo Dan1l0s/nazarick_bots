@@ -303,26 +303,26 @@ class AutoLog():
         while not self.bot.is_closed():
             old_list = {}
 
-            for guild_num in range(len(guild_list)):
-                status_log_channel_id = await helpers.get_guild_option(guild_list[guild_num].id, GuildOption.STATUS_LOG_CHANNEL)
+            for guild in guild_list:
+                status_log_channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
                 if status_log_channel_id:
-                    old_list[guild_list[guild_num].id] = self.gen_status_and_activity_list(
-                        guild_list[guild_num].members)
+                    old_list[guild.id] = self.gen_status_and_activity_list(
+                        guild.members)
             await asyncio.sleep(0.1)
-            for guild_num in range(len(guild_list)):
-                if not guild_num in old_list:
+            for guild in guild_list:
+                if not guild.id in old_list:
                     continue
-                guild_id = guild_list[guild_num].id
+                guild_id = guild.id
                 status_log_channel_id = await helpers.get_guild_option(guild_id, GuildOption.STATUS_LOG_CHANNEL)
 
                 if status_log_channel_id:
                     new_list = self.gen_status_and_activity_list(
-                        guild_list[guild_num].members)
+                        guild.members)
                     if len(new_list) == len(old_list[guild_id]):
                         for member_num in range(len(new_list)):
 
                             old_member = old_list[guild_id][member_num]
-                            new_member = guild_list[guild_num].members[member_num]
+                            new_member = guild.members[member_num]
 
                             if old_member != new_list[member_num] and not (new_member.bot and new_member.id not in private_config.bot_ids.values()):
                                 if old_member.status != new_list[member_num].status:
