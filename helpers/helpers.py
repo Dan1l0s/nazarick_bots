@@ -141,14 +141,14 @@ def get_welcome_time(date):
         else:
             return f"{amount} days ago"
 
-    amount = delta.hours
+    amount = delta.seconds // 3600
     if amount > 0:
         if amount == 1:
             return "an hour ago"
         else:
             return f"{amount} hours ago"
 
-    amount = delta.minutes
+    amount = delta.seconds // 60
     if amount <= 1:
         return "a minute ago"
     return f"{amount} minutes ago"
