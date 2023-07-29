@@ -354,4 +354,3 @@ class MusicBotLeader(MusicBotInstance):
                 await inter.send(f"{public_config.dm_error}")
             return True
         return False
-

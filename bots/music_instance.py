@@ -233,7 +233,7 @@ class MusicBotInstance:
     async def add_from_url_to_queue(self, inter, song, url, *, respond=True, playnow=False):
         state = self.states[inter.guild.id]
         if "list" in url:
-            await self.add_from_url_to_queue(inter, song, url[:url.find("list")-1], playnow=playnow)
+            await self.add_from_url_to_queue(inter, song, url[:url.find("list") - 1], playnow=playnow)
             await self.add_from_playlist(inter, url, playnow=playnow)
             return
         else:

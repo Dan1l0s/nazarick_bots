@@ -122,7 +122,7 @@ class AutoLog():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            self.file_logger.member_update(after)
+            # self.file_logger.member_update(after)
             await channel.send(embed=self.embedder.profile_upd(before, after))
 
         @self.bot.event

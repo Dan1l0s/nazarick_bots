@@ -192,7 +192,7 @@ class FileLogger:
         abs_path = self.get_path(after.guild.id)
         f = open(f'{abs_path}.txt', "a", encoding='utf-8')
         f.write(
-            datetime.datetime.now().strftime("%H:%M:%S") + f" : GUILD : User {after.name} has left the server\n")
+            datetime.datetime.now().strftime("%H:%M:%S") + f" : GUILD : User {after.name} updated their profile\n")
         f.close()
 
     def status_upd(self, member):

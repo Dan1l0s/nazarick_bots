@@ -341,6 +341,38 @@ class AdminBot():
             await asyncio.sleep(5)
             return await inter.delete_original_response()
 
+        @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to")
+        async def guilds_list(inter: disnake.AppCmdInter):
+            if await self.check_dm(inter):
+                return
+
+            try:
+                if inter.author.id not in private_config.supreme_beings:
+                    return await inter.send("Unauthorized access, you are not the Supreme Being!")
+            except:
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await inter.response.defer()
+
+            msg = f'```{self.name}:\n'
+            for guild in sorted(self.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
+                msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} member(s))').ljust(45)} : {guild.id}\n"
+            msg += '```'
+            await inter.edit_original_response(msg)
+
+            msg = f"```{self.log_bot.name}:\n"
+            for guild in sorted(self.log_bot.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
+                msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} member(s))').ljust(45)} : {guild.id}\n"
+            msg += '```'
+            await inter.channel.send(msg)
+            msg = '```'
+            for instance in self.music_instances:
+                msg += f"\n{instance.name}:\n"
+                for guild in sorted(instance.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
+                    msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} member(s))').ljust(45)} : {guild.id}\n"
+            msg += '```'
+            await inter.channel.send(msg)
+
     def add_music_instance(self, bot):
         self.music_instances.append(bot)
 
