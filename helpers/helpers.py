@@ -26,7 +26,17 @@ class Rank:
 
 
 async def is_admin(member):
-    return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST)
+    return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST) or is_supreme_being(member)
+
+
+def is_supreme_being(member):
+    try:
+        if member.id in private_config.supreme_beings:
+            return True
+        else:
+            return False
+    except:
+        return False
 
 
 def get_duration(info):

@@ -58,11 +58,8 @@ class AdminBot():
         @self.bot.event
         async def on_message(message):
             if not message.guild:
-                try:
-                    if message.author.id in private_config.supreme_beings:
-                        await message.reply(private_config.on_message_supreme_being)
-                except:
-                    pass
+                if helpers.is_supreme_being(message.author):
+                    await message.reply(private_config.on_message_supreme_being)
                 return
 
             await self.check_message_content(message)
@@ -346,10 +343,7 @@ class AdminBot():
             if await self.check_dm(inter):
                 return
 
-            try:
-                if inter.author.id not in private_config.supreme_beings:
-                    return await inter.send("Unauthorized access, you are not the Supreme Being!")
-            except:
+            if not helpers.is_supreme_being(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.response.defer()
@@ -495,11 +489,7 @@ class AdminBot():
 
     async def check_dm(self, inter):
         if not inter.guild:
-            try:
-                if inter.author.id in private_config.supreme_beings:
-                    await inter.send(f"{private_config.dm_error_supreme_being}")
-            except:
-                await inter.send(f"{public_config.dm_error}")
+            await inter.send((private_config.dm_error, private_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
             return True
         return False
 

@@ -115,11 +115,8 @@ class MusicBotInstance:
         @self.bot.event
         async def on_message(message):
             if not message.guild:
-                try:
-                    if message.author.id in private_config.supreme_beings:
-                        await message.reply(private_config.on_message_supreme_being)
-                except:
-                    pass
+                if helpers.is_supreme_being(message.author):
+                    await message.reply(private_config.on_message_supreme_being)
                 return
             await self.check_mentions(message)
 
