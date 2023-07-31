@@ -521,7 +521,7 @@ class Embed:
 
     def entry_message_delete(self, entry):
         embed = disnake.Embed(
-            description=f"**{entry.target.mention}'s messages have been deleted by moderator {entry.user.mention}**",
+            description=f"**{(f'<@{entry.target.id}>',entry.target.mention)[hasattr(entry.target, 'mention')]}'s messages have been deleted by moderator {entry.user.mention}**",
             color=disnake.Colour.from_rgb(
                 *public_config.embed_colors["member_action"]),
             timestamp=datetime.datetime.now())

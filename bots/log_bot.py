@@ -217,9 +217,11 @@ class AutoLog():
 
         @self.bot.slash_command(description="Creates a welcome banner for a new member (manually)")
         async def welcome(inter, member: disnake.Member):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
-            await inter.response.defer()
+
             user = self.bot.get_user(member.id)
             embed = self.embedder.welcome_message(member, user)
             await inter.delete_original_response()
@@ -229,9 +231,11 @@ class AutoLog():
 
         @ self.bot.slash_command(description="Check current status of user")
         async def status(inter: disnake.AppCmdInter, member: disnake.User):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
-            await inter.send(embed=self.embedder.get_status(member))
+            await inter.edit_original_response(embed=self.embedder.get_status(member))
 
         @ self.bot.slash_command()
         async def set(inter):
@@ -243,37 +247,39 @@ class AutoLog():
 
         @ logs.sub_command(description="Allows admin to set channel for common logs")
         async def common(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             await helpers.set_guild_option(inter.guild.id, GuildOption.LOG_CHANNEL, channel.id)
             await inter.edit_original_response(f'New log channel is {channel.mention}')
 
         @ logs.sub_command(description="Allows admin to set channel for status logs")
         async def status(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
-
-            await inter.send("Processing...")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
             await helpers.set_guild_option(inter.guild.id, GuildOption.STATUS_LOG_CHANNEL, channel.id)
             await inter.edit_original_response(f'New status log channel is {channel.mention}')
 
         @ logs.sub_command(description="Allows admin to set channel for welcome logs")
         async def welcome(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes logs')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, channel.id)
             await inter.edit_original_response(f'New welcome channel is {channel.mention}')
 
@@ -284,7 +290,7 @@ class AutoLog():
 
     async def check_dm(self, inter):
         if not inter.guild:
-            await inter.send((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
+            await inter.edit_original_response((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
             return True
         return False
 

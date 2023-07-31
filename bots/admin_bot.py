@@ -78,25 +78,27 @@ class AdminBot():
 
         @private.sub_command(description="Allows admin to set category for created private channels")
         async def category(inter, category: disnake.CategoryChannel = commands.Param(default=None, description='Select category in which private channels will be created')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CATEGORY, (category.id, None)[category == None])
             await inter.edit_original_response(f'New private channels will be created in {(category.name, None)[category == None]}')
 
         @private.sub_command(description="Allows admin to set voice channel for creating private channels")
         async def channel(inter, vc: disnake.VoiceChannel = commands.Param(default=None, description='Select voice channel for private channels creation')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, (vc.id, None)[vc == None])
             await inter.edit_original_response(f'Private channels will be created upon joining {(vc.mention, None)[vc == None]}')
 
@@ -106,13 +108,13 @@ class AdminBot():
 
         @admin.sub_command(description="Adds admin")
         async def add(inter, user: disnake.User = commands.Param(description='Select user to be added to admin list')):
+            await inter.response.defer()
             if await self.check_dm(inter):
                 return
 
             if inter.author.id != inter.guild.owner_id and not helpers.is_supreme_being(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             if await self.add_admin(inter.guild.id, user.id):
                 await inter.edit_original_response(f'{user.mention} is now admin')
             else:
@@ -120,13 +122,14 @@ class AdminBot():
 
         @admin.sub_command(description="Removes admin")
         async def remove(inter, user: disnake.User = commands.Param(description='Select user to be removed from admin list')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if inter.author.id != inter.guild.owner_id and not helpers.is_supreme_being(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             if user.id == inter.guild.owner.id:
                 await inter.edit_original_response(f'Guild owner {user.mention} cannot be deleted from admin list')
                 return
@@ -137,10 +140,12 @@ class AdminBot():
 
         @admin.sub_command(description="Shows admin list")
         async def list(inter):
+
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
-            await inter.send("Processing...")
             admin_list = await helpers.get_guild_option(inter.guild.id, GuildOption.ADMIN_LIST)
 
             embed = disnake.Embed(
@@ -168,12 +173,13 @@ class AdminBot():
         async def add(inter, role: disnake.Role = commands.Param(description='Specify the role that will be received upon acquiring a rank'),
                       voice_xp: int = commands.Param(0, gt=0, description='Specify voice xp required for rank'),
                       remove_on_promotion: bool = commands.Param(True, description='Specify whether the given role should be removed when the rank is increased. True by default')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             if role.managed:
                 await inter.edit_original_response(f"Role {role.mention} cannot be used as a rank as it is managed by some kind of integration")
                 return
@@ -189,12 +195,13 @@ class AdminBot():
 
         @rank.sub_command(description="Allows admin to remove ranks from leveling system")
         async def remove(inter, role: disnake.Role = commands.Param(description='Specify the rank to be removed')):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             if await helpers.remove_guild_option(inter.guild.id, GuildOption.RANK, role.id):
                 await inter.edit_original_response(f"Removed rank: {role.mention}")
             else:
@@ -202,9 +209,10 @@ class AdminBot():
 
         @rank.sub_command(description="Shows list of ranks")
         async def list(inter):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
-            await inter.send("Processing...")
 
             ranks = await helpers.get_guild_option(inter.guild.id, GuildOption.RANK_LIST)
             if len(ranks) == 0:
@@ -240,12 +248,14 @@ class AdminBot():
 
         @rank.sub_command(description="Resets all ranks")
         async def reset(inter):
+
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             await helpers.reset_ranks(inter.guild.id)
             await inter.edit_original_response(f'All ranks have been reset')
 
@@ -255,20 +265,25 @@ class AdminBot():
 
         @xp.sub_command(description="Resets all user xp")
         async def reset(inter):
+
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await inter.send("Processing...")
             await helpers.reset_xp(inter.guild.id)
             await inter.edit_original_response(f'All user xp have been reset')
 
         @xp.sub_command(description="Shows user's xp")
         async def show(inter, member: disnake.Member = commands.Param(None, description="Select user to show his xp")):
+
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
-            await inter.send("Processing...")
+
             if not member:
                 member = inter.author
             v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, member.id)
@@ -279,9 +294,12 @@ class AdminBot():
                       member: disnake.Member = commands.Param(None, description="Select user to set his xp"),
                       voice_xp: int = commands.Param(None, ge=0, description="Specify users new voice xp"),
                       text_xp: int = commands.Param(None, ge=0, description="Specify users new text xp"),):
+
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
-            await inter.send("Processing...")
+
             if not member:
                 member = inter.author
             if text_xp is not None:
@@ -294,13 +312,14 @@ class AdminBot():
 
         @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
         async def bitrate(inter):
+
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
-
-            await inter.send("Processing...")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
             await helpers.set_bitrate(inter.guild)
 
@@ -312,17 +331,19 @@ class AdminBot():
 
         @ self.bot.slash_command(description="Clears voice channel (authorized use only)")
         async def purge(inter):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
             tasks = []
             for member in inter.author.voice.channel.members:
                 if member != inter.author and member.id not in private_config.bot_ids.values():
                     tasks.append(member.move_to(None))
             await asyncio.gather(*tasks)
 
-            await inter.send("Done!")
+            await inter.edit_original_response("Done!")
             await asyncio.sleep(5)
             await inter.delete_original_response()
 
@@ -333,20 +354,21 @@ class AdminBot():
             if not await helpers.is_admin(inter.author):
                 return await inter.send(f"Unathorized attempt to clear messages!")
 
-            await inter.channel.purge(limit=amount)
+            await inter.response.defer()
+            await inter.channel.purge(limit=amount + 1)
             await inter.send(f"Cleared {amount} messages")
             await asyncio.sleep(5)
             return await inter.delete_original_response()
 
         @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to", guild_ids=[569924343010689025, 778558780111060992])
         async def guilds_list(inter: disnake.AppCmdInter):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
 
             if not helpers.is_supreme_being(inter.author):
-                return await inter.send("Unauthorized access, you are not the Supreme Being!")
-
-            await inter.response.defer()
+                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
             msg = f'```{self.name}:\n'
             for guild in sorted(self.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
@@ -489,7 +511,7 @@ class AdminBot():
 
     async def check_dm(self, inter):
         if not inter.guild:
-            await inter.send((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
+            await inter.edit_original_response((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
             return True
         return False
 
