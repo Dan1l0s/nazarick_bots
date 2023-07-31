@@ -77,7 +77,7 @@ class AdminBot():
             pass
 
         @private.sub_command(description="Allows admin to set category for created private channels")
-        async def category(inter, category: disnake.CategoryChannel = commands.Param(None, description='Select category in which private channels will be created')):
+        async def category(inter, category: disnake.CategoryChannel = commands.Param(default=None, description='Select category in which private channels will be created')):
             if await self.check_dm(inter):
                 return
 
@@ -86,10 +86,10 @@ class AdminBot():
 
             await inter.send("Processing...")
             await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CATEGORY, (category.id, None)[category == None])
-            await inter.edit_original_response(f'New private channels will be created in {category.name}')
+            await inter.edit_original_response(f'New private channels will be created in {(category.name, None)[category == None]}')
 
         @private.sub_command(description="Allows admin to set voice channel for creating private channels")
-        async def channel(inter, vc: disnake.VoiceChannel = commands.Param(None, description='Select voice channel for private channels creation')):
+        async def channel(inter, vc: disnake.VoiceChannel = commands.Param(default=None, description='Select voice channel for private channels creation')):
             if await self.check_dm(inter):
                 return
 
@@ -98,7 +98,7 @@ class AdminBot():
 
             await inter.send("Processing...")
             await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, (vc.id, None)[vc == None])
-            await inter.edit_original_response(f'Private channels will be created upon joining {vc.mention}')
+            await inter.edit_original_response(f'Private channels will be created upon joining {(vc.mention, None)[vc == None]}')
 
         @self.bot.slash_command()
         async def admin(inter):
@@ -338,8 +338,8 @@ class AdminBot():
             await asyncio.sleep(5)
             return await inter.delete_original_response()
 
-        @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to")
-        async def guilds_list(inter: disnake.AppCmdInter, guild_ids=[569924343010689025]):
+        @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to", guild_ids=[569924343010689025, 778558780111060992])
+        async def guilds_list(inter: disnake.AppCmdInter):
             if await self.check_dm(inter):
                 return
 
@@ -350,22 +350,22 @@ class AdminBot():
 
             msg = f'```{self.name}:\n'
             for guild in sorted(self.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
-                msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} member(s))').ljust(45)} : {guild.id}\n"
+                msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} members)').ljust(45)} : {guild.id}\n"
             msg += '```'
             await inter.edit_original_response(msg)
 
             msg = f"```{self.log_bot.name}:\n"
             for guild in sorted(self.log_bot.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
-                msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} member(s))').ljust(45)} : {guild.id}\n"
+                msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} members)').ljust(45)} : {guild.id}\n"
             msg += '```'
             await inter.channel.send(msg)
-            msg = '```'
+
             for instance in self.music_instances:
-                msg += f"\n{instance.name}:\n"
+                msg = f'```{instance.name}:\n'
                 for guild in sorted(instance.bot.guilds, key=lambda guild: len(guild.members), reverse=True):
-                    msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} member(s))').ljust(45)} : {guild.id}\n"
-            msg += '```'
-            await inter.channel.send(msg)
+                    msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} members)').ljust(45)} : {guild.id}\n"
+                msg += '```'
+                await inter.channel.send(msg)
 
     def add_music_instance(self, bot):
         self.music_instances.append(bot)
@@ -489,7 +489,7 @@ class AdminBot():
 
     async def check_dm(self, inter):
         if not inter.guild:
-            await inter.send((private_config.dm_error, private_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
+            await inter.send((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
             return True
         return False
 

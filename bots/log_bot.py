@@ -284,7 +284,7 @@ class AutoLog():
 
     async def check_dm(self, inter):
         if not inter.guild:
-            await inter.send((private_config.dm_error, private_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
+            await inter.send((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
             return True
         return False
 

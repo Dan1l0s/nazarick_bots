@@ -39,6 +39,10 @@ def is_supreme_being(member):
         return False
 
 
+async def is_untouchable(member):
+    return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.UNTOUCHABLES_LIST)
+
+
 def get_duration(info):
     if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
         ans = "Live"
@@ -93,7 +97,7 @@ async def unmute_bots(member):
 
 async def unmute_admin(member):
     ff = False
-    if await is_admin(member):
+    if await is_admin(member) or await is_untouchable(member):
         if member.voice.mute:
             await member.edit(mute=False)
             ff = True
@@ -241,6 +245,7 @@ class GuildOption(Enum):
     ADMIN_LIST = 6,
     RANK_LIST = 7,
     RANK = 8,
+    UNTOUCHABLES_LIST = 9,
 
     def to_str(self):
         match self:
@@ -258,12 +263,14 @@ class GuildOption(Enum):
                 return "admin_list"
             case GuildOption.RANK_LIST | GuildOption.RANK:
                 return "voice_xp, rank_id, remove_flag"
+            case GuildOption.UNTOUCHABLES_LIST:
+                return "untouchables_list"
             case _:
                 return None
 
     def get_table(self):
         match self:
-            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST:
+            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST:
                 return "server_options"
             case GuildOption.RANK_LIST | GuildOption.RANK:
                 return "ranks_data"
@@ -273,7 +280,7 @@ class GuildOption(Enum):
 
 def convert_to_python(option: GuildOption, value):
     to_int = [GuildOption.LOG_CHANNEL, GuildOption.WELCOME_CHANNEL, GuildOption.STATUS_LOG_CHANNEL, GuildOption.PRIVATE_CATEGORY, GuildOption.PRIVATE_CHANNEL]
-    to_int_list = [GuildOption.ADMIN_LIST]
+    to_int_list = [GuildOption.ADMIN_LIST, GuildOption.UNTOUCHABLES_LIST]
     match option:
         case option if option in to_int:
             if not value or not value[0]:
@@ -308,7 +315,8 @@ async def ensure_tables():
                         welcome_channel TEXT,
                         private_category TEXT,
                         private_channel TEXT,
-                        admin_list TEXT
+                        admin_list TEXT,
+                        untouchables_list TEXT
                      )''')
     await db.commit()
     await db.close()
@@ -327,7 +335,7 @@ async def request_guild_option(guild_id, option: GuildOption):
     cursor = await db.cursor()
 
     match option:
-        case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST:
+        case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST:
             await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (str(guild_id),))
             res = await cursor.fetchone()
         case GuildOption.RANK_LIST:
