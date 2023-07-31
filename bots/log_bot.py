@@ -289,28 +289,26 @@ class AutoLog():
         return False
 
     async def status_check(self):
-        guild_list = self.bot.guilds
         global gl_flag
         gl_flag = True
         print("STARTED STATUS TRACKING")
         while not self.bot.is_closed():
+            guild_list = self.bot.guilds
             old_list = {}
 
             for guild in guild_list:
                 status_log_channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
                 if status_log_channel_id:
-                    old_list[guild.id] = self.gen_status_and_activity_list(
-                        guild.members)
+                    old_list[guild.id] = self.gen_status_and_activity_list(guild.members)
             await asyncio.sleep(0.1)
             for guild in guild_list:
-                if not guild.id in old_list:
+                if not guild.id in old_list.keys():
                     continue
                 guild_id = guild.id
                 status_log_channel_id = await helpers.get_guild_option(guild_id, GuildOption.STATUS_LOG_CHANNEL)
 
                 if status_log_channel_id:
-                    new_list = self.gen_status_and_activity_list(
-                        guild.members)
+                    new_list = self.gen_status_and_activity_list(guild.members)
                     if len(new_list) == len(old_list[guild_id]):
                         for member_num in range(len(new_list)):
 
@@ -336,8 +334,7 @@ class AutoLog():
             new_user = UserStatus(str(elem.status))
             for acts in elem.activities:
                 if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
-                    new_act = Activity(
-                        type(acts), f'{acts.artists[0]} - "{acts.title}"')
+                    new_act = Activity(type(acts), f'{acts.artists[0]} - "{acts.title}"')
                 elif f"{type(acts)}" != "<class 'NoneType'>":
                     new_act = Activity(type(acts), f'{acts.name}')
                 new_user.activities.append(new_act)

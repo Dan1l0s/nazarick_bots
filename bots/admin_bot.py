@@ -77,7 +77,7 @@ class AdminBot():
             pass
 
         @private.sub_command(description="Allows admin to set category for created private channels")
-        async def category(inter, category: disnake.CategoryChannel = commands.Param(description='Select category in which private channels will be created')):
+        async def category(inter, category: disnake.CategoryChannel = commands.Param(None, description='Select category in which private channels will be created')):
             if await self.check_dm(inter):
                 return
 
@@ -85,11 +85,11 @@ class AdminBot():
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
-            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CATEGORY, category.id)
+            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CATEGORY, (category.id, None)[category == None])
             await inter.edit_original_response(f'New private channels will be created in {category.name}')
 
         @private.sub_command(description="Allows admin to set voice channel for creating private channels")
-        async def channel(inter, vc: disnake.VoiceChannel = commands.Param(description='Select voice channel for private channels creation')):
+        async def channel(inter, vc: disnake.VoiceChannel = commands.Param(None, description='Select voice channel for private channels creation')):
             if await self.check_dm(inter):
                 return
 
@@ -97,7 +97,7 @@ class AdminBot():
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
-            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, vc.id)
+            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, (vc.id, None)[vc == None])
             await inter.edit_original_response(f'Private channels will be created upon joining {vc.mention}')
 
         @self.bot.slash_command()
@@ -109,7 +109,7 @@ class AdminBot():
             if await self.check_dm(inter):
                 return
 
-            if not await helpers.is_admin(inter.author):
+            if inter.author.id != inter.guild.owner_id and not helpers.is_supreme_being(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
@@ -123,7 +123,7 @@ class AdminBot():
             if await self.check_dm(inter):
                 return
 
-            if not await helpers.is_admin(inter.author):
+            if inter.author.id != inter.guild.owner_id and not helpers.is_supreme_being(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
             await inter.send("Processing...")
@@ -314,8 +314,8 @@ class AdminBot():
         async def purge(inter):
             if await self.check_dm(inter):
                 return
-            if inter.author.id != inter.guild.owner_id:
-                return await inter.send("Unauthorized access, you are not the Greatest Supreme Being!")
+            if not await helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
             tasks = []
             for member in inter.author.voice.channel.members:
                 if member != inter.author and member.id not in private_config.bot_ids.values():
@@ -339,7 +339,7 @@ class AdminBot():
             return await inter.delete_original_response()
 
         @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to")
-        async def guilds_list(inter: disnake.AppCmdInter):
+        async def guilds_list(inter: disnake.AppCmdInter, guild_ids=[569924343010689025]):
             if await self.check_dm(inter):
                 return
 
