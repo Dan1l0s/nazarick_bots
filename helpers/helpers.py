@@ -168,7 +168,15 @@ def get_welcome_time(date):
     return f"{amount} minutes ago"
 
 
-def get_members_count(members):
+def get_members_leveling_system(members):
+    cnt = len(members)
+    for member in members:
+        if member.bot or member.voice.self_deaf or member.voice.self_mute or member.voice.deaf or member.voice.mute:
+            cnt -= 1
+    return cnt
+
+
+def get_true_members_count(members):
     cnt = len(members)
     for member in members:
         if member.bot:

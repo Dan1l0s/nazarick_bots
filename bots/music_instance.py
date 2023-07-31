@@ -194,7 +194,7 @@ class MusicBotInstance:
             return
         if member.id == self.bot.application_id and not after.channel:
             return await self.abort_play(guild_id)
-        if helpers.get_members_count(state.voice.channel.members) < 1:
+        if helpers.get_true_members_count(state.voice.channel.members) < 1:
             if state.cancel_timeout == None:
                 await self.timeout(guild_id)
         else:

@@ -410,9 +410,9 @@ class AdminBot():
             ranks = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)
             ranks = helpers.sort_ranks(ranks)
             for channel in guild.voice_channels:
-                if helpers.get_members_count(channel.members) > 1 and channel != guild.afk_channel:
+                if helpers.get_members_leveling_system(channel.members) > 1 and channel != guild.afk_channel:
                     for member in channel.members:
-                        if member.bot:
+                        if member.bot or member.voice.self_deaf or member.voice.self_mute or member.voice.deaf or member.voice.mute:
                             continue
                         v_xp, _ = await helpers.get_user_xp(guild.id, member.id)
                         v_xp += 1

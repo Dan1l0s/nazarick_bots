@@ -204,6 +204,7 @@ class Host:
         self.errors = None
         self.state = BotState.STOPPED
         self.process = None
+        os.system("pkill -f ../main.py")
         return ans
 
     async def status(self):
@@ -229,6 +230,7 @@ class Host:
         ans = ""
         if self.state == BotState.RUNNING:
             ans += await self.stop()
+        os.system("pkill -f ../main.py")
         ans += '\n' + await self.run()
         return ans
 
@@ -237,7 +239,7 @@ class Host:
         if self.state == BotState.RUNNING:
             await self.stop()
             was_running = True
-
+        os.system("pkill -f ../main.py")
         os.system("git -C .. stash")
         if os.system(f"git -C .. fetch --depth=1") != 0:
             os.system("git -C .. stash pop")
