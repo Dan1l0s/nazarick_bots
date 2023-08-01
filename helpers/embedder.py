@@ -894,7 +894,7 @@ class Embed:
                          icon_url=message.author.display_avatar.url)
         embed.set_footer(text=f'{message.channel.guild.name}')
         embed.add_field(name="** Message Content: **",
-                        value=f'```{message.content}```\n', inline=False)
+                        value=f'```{(f"{message.content[:1000]}...",message.content)[len(message.content) < 1000]}```\n', inline=False)
         return embed
 
 # --------------------- VOICE STATES --------------------------------

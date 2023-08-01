@@ -75,12 +75,15 @@ async def create_private(member):
 
     await member.move_to(tmp_channel)
 
-    perms = tmp_channel.overwrites_for(member)
-    perms.view_channel = True
-    perms.manage_permissions = True
-    perms.manage_channels = True
-    await tmp_channel.set_permissions(member, overwrite=perms)
-    await tmp_channel.edit(bitrate=public_config.bitrate_values[member.guild.premium_tier])
+    try:
+        perms = tmp_channel.overwrites_for(member)
+        perms.view_channel = True
+        perms.manage_permissions = True
+        perms.manage_channels = True
+        await tmp_channel.set_permissions(member, overwrite=perms)
+        await tmp_channel.edit(bitrate=public_config.bitrate_values[member.guild.premium_tier])
+    except:
+        pass
 
 
 async def unmute_bots(member):
