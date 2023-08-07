@@ -57,6 +57,7 @@ radio_widget = "http://anison.fm/status.php?widget=true"
 # string values for direct messages errors
 dm_error = "You are not allowed to DM me, trash. The only reason I serve you is the order of the Supreme Beings.\nProceed to your guild, where I MUST follow your commands."
 dm_error_supreme_being = "I am sorry, my master, but I can't follow your order. Please, proceed to any of your guilds, where I can serve you."
+on_message_supreme_being = "Your attention is an honor for me, my master."
 
 # ----------------LOG BOT & EMBEDDER DICTS
 

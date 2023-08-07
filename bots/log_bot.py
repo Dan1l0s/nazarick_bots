@@ -64,7 +64,7 @@ class AutoLog():
         async def on_message(message):
             if not message.guild:
                 if helpers.is_supreme_being(message.author):
-                    await message.reply(private_config.on_message_supreme_being)
+                    await message.reply(public_config.on_message_supreme_being)
                 return
             await self.check_mentions(message)
 

@@ -59,7 +59,7 @@ class AdminBot():
         async def on_message(message):
             if not message.guild:
                 if helpers.is_supreme_being(message.author):
-                    await message.reply(private_config.on_message_supreme_being)
+                    await message.reply(public_config.on_message_supreme_being)
                 return
 
             await self.check_message_content(message)
@@ -552,12 +552,12 @@ class AdminBot():
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message):
-        if "discord.gg" in message.content.lower():
+        if "discord.gg" in message.content.lower() and not helpers.is_admin(message.author):
             try:
                 await message.delete()
                 await message.author.send(
                     f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
-            except BaseException:
+            except:
                 pass
             return True
         return False
@@ -574,7 +574,7 @@ class AdminBot():
                 else:
                     try:
                         await message.author.timeout(duration=10, reason="Ping by lower life form")
-                    except BaseException:
+                    except:
                         pass
                     return await message.reply(f"How dare you tag me? Know your place, trash")
 

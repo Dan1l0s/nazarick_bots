@@ -36,7 +36,7 @@ class MusicBotLeader(MusicBotInstance):
                 return
             if not message.guild:
                 if helpers.is_supreme_being(message.author):
-                    await message.reply(private_config.on_message_supreme_being)
+                    await message.reply(public_config.on_message_supreme_being)
                 return
 
             if self.bot.get_user(private_config.bot_ids["moderate"]) == None:
@@ -218,7 +218,7 @@ class MusicBotLeader(MusicBotInstance):
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message):
-        if "discord.gg" in message.content.lower():
+        if "discord.gg" in message.content.lower() and not helpers.is_admin(message.author):
             try:
                 await message.delete()
                 await message.author.send(
