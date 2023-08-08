@@ -49,7 +49,8 @@ def main():
     stop - stop the bot if its running
     reboot - restart the bot
     backup - create a manual backup
-    update {branch} - checkout to selected branch, master by default\n""")
+    update {branch} - checkout to selected branch, master by default
+    clear - clears current list of errors\n""")
             continue
 
         print("Connecting...")

@@ -91,6 +91,23 @@ class Host:
         self.port = port
         print("Host started")
 
+    async def pull_errors(self):
+        while self.process:
+            await asyncio.sleep(0.1)
+            while True:
+                data = self.process.stderr.read(1024)
+                if not data:
+                    break
+                try:
+                    lines = data.decode('utf-8').split('\n')
+                    for line in lines:
+                        if "Error in the pull function" in line or "Will reconnect at" in line:
+                            continue
+                        self.errors += "\n"
+                        self.errors += lines
+                except:
+                    self.errors += "\nNON UTF-8 ERROR\n"
+
     async def process_command(self, command):
         args = command.split()
         print(f"Processing command {args}")
@@ -113,6 +130,8 @@ class Host:
                 if len(args) > 1:
                     branch = args[1]
                 return await self.update(branch)
+            case "clear":
+                return await self.clear_errors()
             case _:
                 return None
 
@@ -177,14 +196,6 @@ class Host:
         if self.state == BotState.RUNNING:
             return "Bot is already running"
 
-        try:
-            url = backup_url
-            login = backup_login
-            password = backup_password
-            asyncio.create_task(self.backup_create())
-        except:
-            pass
-
         self.errors = ""
         self.process = subprocess.Popen(
             ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -193,6 +204,8 @@ class Host:
             return "Failed to create bot process"
 
         self.state = BotState.RUNNING
+        asyncio.create_task(self.backup_create())
+        asyncio.create_task(self.pull_errors())
         return f"Started bot process with PID: {self.process.pid}"
 
     async def stop(self):
@@ -207,19 +220,15 @@ class Host:
         os.system("pkill -f ../main.py")
         return ans
 
+    async def clear_errors(self):
+        self.errors = ""
+        return "Errors cleared"
+
     async def status(self):
         active_branch = self.get_current_branch()
         current_commit = self.get_current_commit()
         ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}"
         if self.state == BotState.RUNNING:
-            while True:
-                data = self.process.stderr.read(1024)
-                if not data:
-                    break
-                elif "Error in the pull function" in data.decode('utf-8') or "Will reconnect at" in data.decode('utf-8'):
-                    continue
-                else:
-                    self.errors += data.decode("utf-8")
             if len(self.errors) == 0:
                 ans += "\nError status: No errors"
             else:
