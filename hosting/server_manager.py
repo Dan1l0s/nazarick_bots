@@ -99,14 +99,15 @@ class Host:
                 if not data:
                     break
                 try:
-                    lines = data.decode('utf-8').split('\n')
+                    lines = data.decode('utf-8', errors='replace').split('\n')
                     for line in lines:
                         if "Error in the pull function" in line or "Will reconnect at" in line:
                             continue
                         self.errors += "\n"
-                        self.errors += lines
-                except:
-                    self.errors += "\nNON UTF-8 ERROR\n"
+                        self.errors += line
+                        print(f"ERROR IN BOT: {line}")
+                except Exception as e:
+                    self.errors += f"\nNON UTF-8 ERROR: {e}\n"
 
     async def process_command(self, command):
         args = command.split()
@@ -173,7 +174,6 @@ class Host:
         ans = ""
         for file in bot_backup_files:
             cmd = f'curl -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
-            print(f'cmd = {cmd}')
             if os.system(cmd) != 0:
                 ans += f"\nFailed to commit {file}"
         if ans == "":

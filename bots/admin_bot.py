@@ -552,7 +552,7 @@ class AdminBot():
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message):
-        if "discord.gg" in message.content.lower() and not helpers.is_admin(message.author):
+        if "discord.gg" in message.content.lower() and not await helpers.is_admin(message.author):
             try:
                 await message.delete()
                 await message.author.send(
@@ -573,7 +573,7 @@ class AdminBot():
                         return await message.reply("At your service, my master.")
                 else:
                     try:
-                        await message.author.timeout(duration=10, reason="Ping by lower life form")
+                        await message.author.timeout(duration=10, reason="Ping by inferior life form")
                     except:
                         pass
                     return await message.reply(f"How dare you tag me? Know your place, trash")

@@ -218,7 +218,7 @@ class MusicBotLeader(MusicBotInstance):
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message):
-        if "discord.gg" in message.content.lower() and not helpers.is_admin(message.author):
+        if "discord.gg" in message.content.lower() and not await helpers.is_admin(message.author):
             try:
                 await message.delete()
                 await message.author.send(
