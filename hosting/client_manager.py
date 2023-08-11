@@ -31,8 +31,20 @@ def main():
             print(f"Failed to connect to {host}:{port}\n")
             continue
         print(f"Connected to {host}:{port}\n")
+
+        sock.sendall("status".encode("utf8"))
+        response = ""
+        while True:
+            data = sock.recv(1024)
+            if data:
+                data = data.decode('utf8')
+                response += data
+            else:
+                break
         sock.close()
+        print(f'{response}\n')
         break
+
     while True:
         cmd = input('Input your command (type "help" to get commands list) or type "exit" to exit the program\n')
 
