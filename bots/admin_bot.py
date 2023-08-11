@@ -1,7 +1,8 @@
 import disnake
 from disnake.ext import commands
 import asyncio
-from enum import Enum
+import sys
+import os
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -42,6 +43,8 @@ class AdminBot():
             self.file_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
             self.bot.loop.create_task(self.scan_timer())
+            asyncio.create_task(self.monitor_errors())
+
             for guild in self.bot.guilds:
                 await self.add_admin(guild.id, guild.owner_id)
 
@@ -86,7 +89,7 @@ class AdminBot():
             if not await helpers.is_admin(inter.author):
                 return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CATEGORY, (category.id, None)[category == None])
+            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CATEGORY, (category.id, None)[category is None])
             await inter.edit_original_response(f'New private channels will be created in {(category.name, None)[category == None]}')
 
         @private.sub_command(description="Allows admin to set voice channel for creating private channels")
@@ -99,7 +102,7 @@ class AdminBot():
             if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
-            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, (vc.id, None)[vc == None])
+            await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, (vc.id, None)[vc is None])
             await inter.edit_original_response(f'Private channels will be created upon joining {(vc.mention, None)[vc == None]}')
 
         @self.bot.slash_command()
@@ -525,6 +528,7 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -606,3 +610,35 @@ class AdminBot():
             await helpers.set_guild_option(guild_id, GuildOption.ADMIN_LIST, admin_list)
             return True
         return False
+
+
+# *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
+
+
+    async def monitor_errors(self):
+        os.set_blocking(sys.stdin.fileno(), False)
+        while True:
+            await asyncio.sleep(0.1)
+            errors = ""
+            while True:
+                data = sys.stdin.read(1024)
+                if not data:
+                    break
+                errors += data
+            if len(errors) != 0:
+                await self.error_notification(errors)
+
+    async def error_notification(self, error: str):
+        try:
+            for admin_id in private_config.supreme_beings:
+                admin = self.bot.get_user(admin_id)
+                if not admin:
+                    print(f"Couldn't get admin user {admin_id}")
+                    continue
+                message = f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n```{error}```\nPlease take actions, and I apologize for the inconvenience.'
+                try:
+                    await admin.send(message)
+                except:
+                    print(f"Couldn't send dm to {admin_id}")
+        except:
+            pass

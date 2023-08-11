@@ -77,6 +77,7 @@ def force_exit():
 class Host:
     state = BotState.STOPPED
     errors = None
+    errors_cnt = 0
     process = None
     listener_socket = None
     port = None
@@ -99,6 +100,8 @@ class Host:
                 if not data:
                     break
                 try:
+                    self.process.stdin.write(data)
+                    self.process.stdin.flush()
                     lines = data.decode('utf-8', errors='replace').split('\n')
                     for line in lines:
                         if "Error in the pull function" in line or "Will reconnect at" in line:
@@ -106,6 +109,7 @@ class Host:
                         self.errors += "\n"
                         self.errors += line
                         print(f"ERROR IN BOT: {line}")
+                    self.errors_cnt += 1
                 except Exception as e:
                     self.errors += f"\nNON UTF-8 ERROR: {e}\n"
 
@@ -197,8 +201,9 @@ class Host:
             return "Bot is already running"
 
         self.errors = ""
+        self.errors_cnt = 0
         self.process = subprocess.Popen(
-            ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
         if not self.process:
             return "Failed to create bot process"
@@ -215,6 +220,7 @@ class Host:
         ans = f"Stopped bot process with PID: {self.process.pid}"
         self.process.terminate()
         self.errors = None
+        self.errors_cnt = None
         self.state = BotState.STOPPED
         self.process = None
         os.system("pkill -f ../main.py")
@@ -222,6 +228,7 @@ class Host:
 
     async def clear_errors(self):
         self.errors = ""
+        self.errors_cnt = 0
         return "Errors cleared"
 
     async def status(self):
@@ -229,10 +236,10 @@ class Host:
         current_commit = self.get_current_commit()
         ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}"
         if self.state == BotState.RUNNING:
-            if len(self.errors) == 0:
+            if self.errors_cnt == 0:
                 ans += "\nError status: No errors"
             else:
-                ans += f"\nError status: Several erros occured\n{self.errors}"
+                ans += f"\nError status: {('There was 1 error', f'There were {self.errors_cnt} errors')[self.errors_cnt > 1]}:\n{self.errors}"
         return ans
 
     async def reboot(self):

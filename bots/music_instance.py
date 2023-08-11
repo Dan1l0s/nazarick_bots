@@ -235,9 +235,8 @@ class MusicBotInstance:
             return
         else:
             if not song.radio_mode:
-                try:
-                    track_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
-                except:
+                track_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+                if track_info is None:
                     if respond:
                         await inter.orig_inter.delete_original_response()
                     await inter.text_channel.send(
@@ -270,9 +269,8 @@ class MusicBotInstance:
     async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
         msg = await inter.text_channel.send("Processing playlist...")
-        try:
-            playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
-        except:
+        playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+        if playlist_info is None:
             await msg.delete()
             await inter.text_channel.send(
                 "Error processing playlist, there are unavailable videos!")

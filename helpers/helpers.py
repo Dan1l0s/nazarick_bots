@@ -231,8 +231,11 @@ def parse_key(key):
 
 
 def ytdl_extract_info(url, download=True):
-    with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
-        return ytdl.extract_info(url, download=download)
+    try:
+        with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
+            return ytdl.extract_info(url, download=download)
+    except:
+        return None
 
 
 def yt_search(query, max_results=5):
