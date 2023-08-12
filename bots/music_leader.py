@@ -44,7 +44,7 @@ class MusicBotLeader(MusicBotInstance):
             await self.check_mentions(message)
 
         @ self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
-        async def play(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
+        async def play(inter: disnake.AppCmdInter, query: str = commands.Param(description='Type a query or paste youtube URL')):
 
             await inter.response.defer()
 
@@ -62,8 +62,7 @@ class MusicBotLeader(MusicBotInstance):
             await assigned_instance.play(new_inter, query)
 
         @ self.bot.slash_command(description="Plays anime radio or custom online radio")
-        async def radio(inter, url=public_config.radio_url):
-
+        async def radio(inter: disnake.AppCmdInter, url=public_config.radio_url):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -79,7 +78,7 @@ class MusicBotLeader(MusicBotInstance):
             await assigned_instance.play(new_inter, url, radio=True)
 
         @ self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query) at position #1 in the queue", aliases="p")
-        async def playnow(inter, query: str = commands.Param(description='Type a query or paste youtube URL')):
+        async def playnow(inter: disnake.AppCmdInter, query: str = commands.Param(description='Type a query or paste youtube URL')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -142,7 +141,7 @@ class MusicBotLeader(MusicBotInstance):
             await assigned_instance.skip(new_inter)
 
         @ self.bot.slash_command(description="Shows current queue")
-        async def queue(inter):
+        async def queue(inter: disnake.AppCmdInter):
             if await self.check_dm(inter):
                 return
             await inter.response.defer()
@@ -217,32 +216,25 @@ class MusicBotLeader(MusicBotInstance):
 
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
-    async def check_message_content(self, message):
+    async def check_message_content(self, message) -> bool:
         if "discord.gg" in message.content.lower() and not await helpers.is_admin(message.author):
-            try:
-                await message.delete()
-                await message.author.send(
-                    f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
-            except:
-                pass
+            await helpers.try_function(message.delete, True)
+            await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
             return True
         return False
 
-    async def check_gpt_interaction(self, message):
+    async def check_gpt_interaction(self, message) -> bool:
         if message.author.bot:
             return False
         if not message.guild:
             inter = Interaction(self.bot, message)
             inter.orig_inter = None
             inter.message = message
-            asyncio.create_task(
-                self.gpt_helper(inter, message.content))
+            asyncio.create_task(self.gpt_helper(inter, message.content))
             return True
         if message.reference:
-            try:
-                replied_message = await message.channel.fetch_message(message.reference.message_id)
-            except Exception as e:
-                print(e)
+            ff, replied_message = await helpers.try_function(message.channel.fetch_message, True, message.reference.message_id)
+            if not ff:
                 return False
             if message.author.id not in self.chatgpt_messages or replied_message.author.id != self.bot.user.id:
                 return False
@@ -251,8 +243,7 @@ class MusicBotLeader(MusicBotInstance):
                     inter = Interaction(self.bot, message)
                     inter.orig_inter = None
                     inter.message = message
-                    asyncio.create_task(
-                        self.gpt_helper(inter, message.content))
+                    asyncio.create_task(self.gpt_helper(inter, message.content))
                     return True
             except Exception as err:
                 print(err)
@@ -271,9 +262,6 @@ class MusicBotLeader(MusicBotInstance):
             if instance.contains_in_guild(guild_id) and instance.check_timeout(guild_id):
                 # print("Returned fair instance from timeout")
                 return instance
-        if await helpers.is_admin(inter.author):
-            # print("Returned admin instance")
-            return self
         return None
 
     async def find_instance(self, inter):

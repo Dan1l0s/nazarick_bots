@@ -25,11 +25,11 @@ class Rank:
         self.remove_on_promotion = remove_on_promotion
 
 
-async def is_admin(member):
+async def is_admin(member) -> bool:
     return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST) or is_supreme_being(member)
 
 
-def is_supreme_being(member):
+def is_supreme_being(member) -> bool:
     try:
         if member.id in private_config.supreme_beings:
             return True
@@ -39,11 +39,11 @@ def is_supreme_being(member):
         return False
 
 
-async def is_untouchable(member):
+async def is_untouchable(member) -> bool:
     return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.UNTOUCHABLES_LIST)
 
 
-def get_duration(info):
+def get_duration(info) -> str:
     if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
         ans = "Live"
     else:
@@ -51,7 +51,7 @@ def get_duration(info):
     return ans
 
 
-def is_mentioned(member, message):
+def is_mentioned(member, message) -> bool:
     for role in message.role_mentions:
         if role in member.roles:
             return True
@@ -60,7 +60,7 @@ def is_mentioned(member, message):
     return False
 
 
-async def create_private(member):
+async def create_private(member) -> None:
     category_id = await get_guild_option(member.guild.id, GuildOption.PRIVATE_CATEGORY)
     if not category_id:
         return
@@ -69,66 +69,69 @@ async def create_private(member):
     guild = member.guild
     category = guild.get_channel(int(category_id))
 
-    tmp_channel = await category.create_voice_channel(name=possible_channel_name)
+    ff, tmp_channel = await try_function(category.create_voice_channel, True, name=possible_channel_name)
+    if not ff:
+        return
 
-    await tmp_channel.set_permissions(guild.default_role, view_channel=False)
+    ff, _ = await try_function(tmp_channel.set_permissions, True, guild.default_role, view_channel=False)
+    if not ff:
+        await try_function(tmp_channel.delete, True)
+        return
 
-    await member.move_to(tmp_channel)
+    await try_function(member.move_to, True, tmp_channel)
 
-    try:
-        perms = tmp_channel.overwrites_for(member)
-        perms.view_channel = True
-        perms.manage_permissions = True
-        perms.manage_channels = True
-        await tmp_channel.set_permissions(member, overwrite=perms)
-        await tmp_channel.edit(bitrate=public_config.bitrate_values[member.guild.premium_tier])
-    except:
-        pass
+    perms = tmp_channel.overwrites_for(member)
+    perms.view_channel = True
+    perms.manage_permissions = True
+    perms.manage_channels = True
+    await try_function(tmp_channel.set_permissions, True, member, overwrite=perms)
+    await try_function(tmp_channel.edit, True, bitrate=public_config.bitrate_values[member.guild.premium_tier])
 
 
-async def unmute_bots(member):
+async def unmute_bots(member) -> bool:
     ff = False
     if member.id in private_config.bot_ids.values():
         if member.voice.mute:
-            await member.edit(mute=False)
+            await try_function(member.edit, True, mute=False)
             ff = True
         if member.voice.deaf:
-            await member.edit(deafen=False)
+            await try_function(member.edit, True, deafen=False)
             ff = True
     return ff
 
 
-async def unmute_admin(member):
+async def unmute_admin(member) -> bool:
     ff = False
     if await is_admin(member) or await is_untouchable(member):
         if member.voice.mute:
-            await member.edit(mute=False)
+            await try_function(member.edit, True, mute=False)
             ff = True
         if member.voice.deaf:
-            await member.edit(deafen=False)
+            await try_function(member.edit, True, deafen=False)
             ff = True
 
-        entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
+        try:
+            entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
+        except:
+            pass
+
         if len(entry) < 2:
             return ff
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
         if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST):
-            await entry.user.move_to(None)
-            try:
-                await entry.user.timeout(duration=60, reason="Attempt attacking The Supreme Being")
-            except:
-                pass
+            await try_function(entry.user.move_to, True, None)
+            await try_function(entry.user.timeout, True, duration=60, reason="Attempt attacking the Supreme Being")
     return ff
 
 
-def get_guild_name(guild):
+def get_guild_name(guild) -> str:
     if guild.name == "Nazarick":
         return "the Great Tomb of Nazarick"
     return guild.name
 
 
-def get_welcome_time(date):
+def get_welcome_time(date) -> str:
     delta = datetime.now(timezone.utc) - date
     amount = delta.days // 365
     if amount > 0:
@@ -171,7 +174,7 @@ def get_welcome_time(date):
     return f"{amount} minutes ago"
 
 
-def get_members_leveling_system(members):
+def get_members_leveling_system(members) -> int:
     cnt = len(members)
     for member in members:
         if member.bot or member.voice.self_deaf or member.voice.self_mute or member.voice.deaf or member.voice.mute:
@@ -179,7 +182,7 @@ def get_members_leveling_system(members):
     return cnt
 
 
-def get_true_members_count(members):
+def get_true_members_count(members) -> int:
     cnt = len(members)
     for member in members:
         if member.bot:
@@ -222,7 +225,7 @@ def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
     return chunks
 
 
-def parse_key(key):
+def parse_key(key) -> str:
     s = key.split('_')
     res = ""
     for i in range(0, len(s)):
@@ -238,16 +241,19 @@ def ytdl_extract_info(url, download=True):
         return None
 
 
-def yt_search(query, max_results=5):
+def yt_search(query, max_results=5) -> (list | str):
     return YoutubeSearch(query, max_results=max_results).to_dict()
 
 
-async def set_bitrate(guild):
+async def set_bitrate(guild) -> bool:
+    ff = False
     voice_channels = guild.voice_channels
     bitrate_value = public_config.bitrate_values[guild.premium_tier]
     for channel in voice_channels:
         if channel.bitrate != bitrate_value:
-            await channel.edit(bitrate=bitrate_value)
+            ff, _ = await try_function(channel.edit, True, bitrate=bitrate_value)
+
+    return ff
 
 
 class GuildOption(Enum):
@@ -261,7 +267,7 @@ class GuildOption(Enum):
     RANK = 8,
     UNTOUCHABLES_LIST = 9,
 
-    def to_str(self):
+    def to_str(self) -> (str | None):
         match self:
             case GuildOption.LOG_CHANNEL:
                 return "log_channel"
@@ -282,7 +288,7 @@ class GuildOption(Enum):
             case _:
                 return None
 
-    def get_table(self):
+    def get_table(self) -> (str | None):
         match self:
             case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST:
                 return "server_options"
@@ -318,7 +324,7 @@ def convert_to_python(option: GuildOption, value):
             raise f"Wrong option {option}"
 
 
-async def ensure_tables():
+async def ensure_tables() -> None:
     db = await aiosqlite.connect('bot_database.db')
     await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER, UNIQUE(guild_id, user_id))''')
     await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, rank_id TEXT, voice_xp INTEGER,  remove_flag INTEGER, UNIQUE(guild_id, rank_id))''')
@@ -446,7 +452,7 @@ async def get_user_xp(guild_id: int, user_id: int):
         return 0, 0
 
 
-async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], roles_to_add: List[any] = []):
+async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], roles_to_add: List[any] = []) -> None:
     if not member:
         return
     if not member.guild.me.guild_permissions.manage_roles:
@@ -468,23 +474,20 @@ async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], 
         role = guild.get_role(int(role_id))
         if role and not role.managed and role < highest_role and role in member.roles:
             roles.append(role)
-    asyncio.create_task(member.remove_roles(*roles))
+    asyncio.create_task(try_function(member.remove_roles, True, *roles))
 
 
-async def add_roles_and_notify(member: disnake.Member, roles: List[disnake.Role]):
+async def add_roles_and_notify(member: disnake.Member, roles: List[disnake.Role]) -> None:
     if len(roles) == 0:
         return
 
     embedder = Embed()
-    await member.add_roles(*roles)
+    await try_function(member.add_roles, True, *roles)
     embed = embedder.role_notification(member.guild, roles)
-    try:
-        await member.send(embed=embed)
-    except:
-        pass
+    await try_function(member.send, True, embed=embed)
 
 
-async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None):
+async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None) -> None:
     if not guild_id or not user_id or (voice_xp is None and text_xp is None):
         return None
 
@@ -501,7 +504,7 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
     await db.close()
 
 
-async def reset_xp(guild_id: int):
+async def reset_xp(guild_id: int) -> None:
     await ensure_tables()
     db = await aiosqlite.connect('bot_database.db')
     db.row_factory = aiosqlite.Row
@@ -511,7 +514,7 @@ async def reset_xp(guild_id: int):
     await db.close()
 
 
-async def reset_ranks(guild_id: int):
+async def reset_ranks(guild_id: int) -> None:
     await ensure_tables()
     db = await aiosqlite.connect('bot_database.db')
     db.row_factory = aiosqlite.Row
@@ -521,7 +524,7 @@ async def reset_ranks(guild_id: int):
     await db.close()
 
 
-async def add_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None):
+async def add_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, text_xp: int | None = None) -> None:
     if not guild_id or not user_id or (not voice_xp and not text_xp):
         return None
 
@@ -533,8 +536,17 @@ async def add_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
     await set_user_xp(guild_id, user_id, v_xp, t_xp)
 
 
-def sort_ranks(ranks, increasing: bool = True):
-    ans = sorted(ranks, key=lambda rank: (rank.voice_xp, rank.remove_on_promotion,))
-    if not increasing:
-        ans.reverse()
-    return ans
+def sort_ranks(ranks, reverse: bool = False):
+    return sorted(ranks, key=lambda rank: (rank.voice_xp, rank.remove_on_promotion,), reverse=reverse)
+
+
+async def try_function(function, await_flag: bool, *args, **kwargs):
+    tmp = None
+    try:
+        if await_flag:
+            tmp = await function(*args, **kwargs)
+        else:
+            tmp = function(*args, **kwargs)
+        return True, tmp
+    except:
+        return False, tmp

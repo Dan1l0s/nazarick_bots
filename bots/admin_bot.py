@@ -65,22 +65,22 @@ class AdminBot():
                     await message.reply(public_config.on_message_supreme_being)
                 return
 
-            await self.check_message_content(message)
+            ff = await self.check_message_content(message)
             await self.check_mentions(message)
 
-            if not message.author.bot:
+            if not message.author.bot and not ff:
                 await helpers.add_user_xp(message.guild.id, message.author.id, text_xp=1)
 
         @self.bot.slash_command()
-        async def set(inter):
+        async def set(inter: disnake.AppCmdInter):
             pass
 
         @set.sub_command_group()
-        async def private(inter):
+        async def private(inter: disnake.AppCmdInter):
             pass
 
         @private.sub_command(description="Allows admin to set category for created private channels")
-        async def category(inter, category: disnake.CategoryChannel = commands.Param(default=None, description='Select category in which private channels will be created')):
+        async def category(inter: disnake.AppCmdInter, category: disnake.CategoryChannel = commands.Param(default=None, description='Select category in which private channels will be created')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -93,7 +93,7 @@ class AdminBot():
             await inter.edit_original_response(f'New private channels will be created in {(category.name, None)[category == None]}')
 
         @private.sub_command(description="Allows admin to set voice channel for creating private channels")
-        async def channel(inter, vc: disnake.VoiceChannel = commands.Param(default=None, description='Select voice channel for private channels creation')):
+        async def channel(inter: disnake.AppCmdInter, vc: disnake.VoiceChannel = commands.Param(default=None, description='Select voice channel for private channels creation')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -106,11 +106,11 @@ class AdminBot():
             await inter.edit_original_response(f'Private channels will be created upon joining {(vc.mention, None)[vc == None]}')
 
         @self.bot.slash_command()
-        async def admin(inter):
+        async def admin(inter: disnake.AppCmdInter):
             pass
 
         @admin.sub_command(description="Adds admin")
-        async def add(inter, user: disnake.User = commands.Param(description='Select user to be added to admin list')):
+        async def add(inter: disnake.AppCmdInter, user: disnake.User = commands.Param(description='Select user to be added to admin list')):
             await inter.response.defer()
             if await self.check_dm(inter):
                 return
@@ -124,7 +124,7 @@ class AdminBot():
                 await inter.edit_original_response(f'{user.mention} is already admin')
 
         @admin.sub_command(description="Removes admin")
-        async def remove(inter, user: disnake.User = commands.Param(description='Select user to be removed from admin list')):
+        async def remove(inter: disnake.AppCmdInter, user: disnake.User = commands.Param(description='Select user to be removed from admin list')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -142,7 +142,7 @@ class AdminBot():
                 await inter.edit_original_response(f'{user.mention} isn\'t admin')
 
         @admin.sub_command(description="Shows admin list")
-        async def list(inter):
+        async def list(inter: disnake.AppCmdInter):
 
             await inter.response.defer()
 
@@ -165,21 +165,22 @@ class AdminBot():
 
             embed.add_field(name="Admin list:", value=admin_s, inline=False)
 
-            await inter.delete_original_response()
-            await inter.channel.send(embed=embed)
+            await helpers.try_function(inter.delete_original_response, True)
+            await helpers.try_function(inter.channel.send, True, embed=embed)
 
         @self.bot.slash_command()
-        async def rank(inter):
+        async def rank(inter: disnake.AppCmdInter):
             pass
 
         @rank.sub_command(description="Allows admin to add new ranks to leveling system")
-        async def add(inter, role: disnake.Role = commands.Param(description='Specify the role that will be received upon acquiring a rank'),
+        async def add(inter: disnake.AppCmdInter, role: disnake.Role = commands.Param(description='Specify the role that will be received upon acquiring a rank'),
                       voice_xp: int = commands.Param(0, gt=0, description='Specify voice xp required for rank'),
                       remove_on_promotion: bool = commands.Param(True, description='Specify whether the given role should be removed when the rank is increased. True by default')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
                 return
+
             if not await helpers.is_admin(inter.author):
                 return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
@@ -190,6 +191,7 @@ class AdminBot():
             if role >= top_role:
                 await inter.edit_original_response(f"Role {role.mention} cannot be used as a rank as it must be lower that my highest role {top_role.mention}")
                 return
+
             rank = Rank(role.id, voice_xp, remove_on_promotion)
             if await helpers.add_guild_option(inter.guild.id, GuildOption.RANK, rank):
                 await inter.edit_original_response(f"Added new rank: {role.mention}")
@@ -197,7 +199,7 @@ class AdminBot():
                 await inter.edit_original_response(f"There is already a rank {role.mention}")
 
         @rank.sub_command(description="Allows admin to remove ranks from leveling system")
-        async def remove(inter, role: disnake.Role = commands.Param(description='Specify the rank to be removed')):
+        async def remove(inter: disnake.AppCmdInter, role: disnake.Role = commands.Param(description='Specify the rank to be removed')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -211,7 +213,7 @@ class AdminBot():
                 await inter.edit_original_response(f"There is no rank {role.mention}")
 
         @rank.sub_command(description="Shows list of ranks")
-        async def list(inter):
+        async def list(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -222,7 +224,7 @@ class AdminBot():
                 await inter.edit_original_response("There are no ranks yet")
                 return
 
-            ranks = helpers.sort_ranks(ranks, increasing=False)
+            ranks = helpers.sort_ranks(ranks, reverse=True)
 
             rank_s = ""
             role_column = "Role"
@@ -250,7 +252,7 @@ class AdminBot():
             await inter.edit_original_response(rank_s)
 
         @rank.sub_command(description="Resets all ranks")
-        async def reset(inter):
+        async def reset(inter: disnake.AppCmdInter):
 
             await inter.response.defer()
 
@@ -263,11 +265,11 @@ class AdminBot():
             await inter.edit_original_response(f'All ranks have been reset')
 
         @self.bot.slash_command()
-        async def xp(inter):
+        async def xp(inter: disnake.AppCmdInter):
             pass
 
         @xp.sub_command(description="Resets all user xp")
-        async def reset(inter):
+        async def reset(inter: disnake.AppCmdInter):
 
             await inter.response.defer()
 
@@ -280,7 +282,7 @@ class AdminBot():
             await inter.edit_original_response(f'All user xp have been reset')
 
         @xp.sub_command(description="Shows user's xp")
-        async def show(inter, member: disnake.Member = commands.Param(None, description="Select user to show his xp")):
+        async def show(inter: disnake.AppCmdInter, member: disnake.Member = commands.Param(None, description="Select user to show his xp")):
 
             await inter.response.defer()
 
@@ -293,7 +295,7 @@ class AdminBot():
             await inter.edit_original_response(f"{member.mention} has {v_xp} voice xp and {t_xp} text xp")
 
         @xp.sub_command(description="Sets user xp")
-        async def set(inter,
+        async def set(inter: disnake.AppCmdInter,
                       member: disnake.Member = commands.Param(None, description="Select user to set his xp"),
                       voice_xp: int = commands.Param(None, ge=0, description="Specify users new voice xp"),
                       text_xp: int = commands.Param(None, ge=0, description="Specify users new text xp"),):
@@ -314,7 +316,7 @@ class AdminBot():
             await inter.edit_original_response(f"{member.mention} now has {v_xp} voice xp and {t_xp} text xp")
 
         @ self.bot.slash_command(description="Allows admin to fix voice channels' bitrate")
-        async def bitrate(inter):
+        async def bitrate(inter: disnake.AppCmdInter):
 
             await inter.response.defer()
 
@@ -324,26 +326,31 @@ class AdminBot():
             if not await helpers.is_admin(inter.author):
                 return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
-            await helpers.set_bitrate(inter.guild)
+            ff = await helpers.set_bitrate(inter.guild)
 
             bitrate = public_config.bitrate_values[inter.guild.premium_tier] // 1000
 
-            await inter.edit_original_response(f'Bitrate was set to {bitrate}kbps!')
-            await asyncio.sleep(5)
+            if ff:
+                await inter.edit_original_response(f'Bitrate was set to {bitrate}kbps!')
+            else:
+                await inter.edit_original_response(f'Bitrate wasn\'t updated due to lack of permissions!')
+                await asyncio.sleep(5)
             await inter.delete_original_response()
 
         @ self.bot.slash_command(description="Clears voice channel (authorized use only)")
-        async def purge(inter):
+        async def purge(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
             if await self.check_dm(inter):
                 return
+
             if not await helpers.is_admin(inter.author):
                 return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
+
             tasks = []
             for member in inter.author.voice.channel.members:
                 if member != inter.author and member.id not in private_config.bot_ids.values():
-                    tasks.append(member.move_to(None))
+                    tasks.append(helpers.try_function(member.move_to, True, None))
             await asyncio.gather(*tasks)
 
             await inter.edit_original_response("Done!")
@@ -354,22 +361,20 @@ class AdminBot():
         async def clear(inter: disnake.AppCmdInter, amount: int):
             await inter.response.defer()
 
-            if await self.check_dm(inter):
-                return
-            if not await helpers.is_admin(inter.author):
+            ff = await self.check_dm(inter)
+
+            if not ff and not await helpers.is_admin(inter.author):
                 return await inter.send(f"Unathorized attempt to clear messages!")
 
-            try:
-                await inter.channel.purge(limit=amount + 1)
-            except:
+            ff, _ = await helpers.try_function(inter.channel.purge, True, limit=amount + 1)
+            if not ff:
                 await inter.send("There was an error clearing messages, check my permissions and try again")
 
-            try:
-                await inter.send(f"Cleared {amount} messages")
+            else:
+                await helpers.try_function(inter.send, True, f"Cleared {amount} messages")
                 await asyncio.sleep(5)
-                await inter.delete_original_response()
-            except:
-                pass
+                await helpers.try_function(inter.delete_original_response, True)\
+
 
         @ self.bot.slash_command(description="Reveals guild list where this bot currently belongs to", guild_ids=[569924343010689025, 778558780111060992])
         async def guilds_list(inter: disnake.AppCmdInter):
@@ -471,10 +476,10 @@ class AdminBot():
     def add_music_instance(self, bot):
         self.music_instances.append(bot)
 
-    def set_log_bot(self, bot):
+    def set_log_bot(self, bot) -> None:
         self.log_bot = bot
 
-    async def run(self):
+    async def run(self) -> None:
         await self.bot.start(self.token)
 
 # *_______LevelingSystem____________________________________________________________________________________________________________________________________________________________________________________________
@@ -501,12 +506,12 @@ class AdminBot():
                     add_list.append(rank.role_id)
         return remove_list, add_list
 
-    async def scan_timer(self):
+    async def scan_timer(self) -> None:
         while not self.bot.is_closed():
             asyncio.create_task(self.scan_channels())
             await asyncio.sleep(60)
 
-    async def scan_channels(self):
+    async def scan_channels(self) -> None:
         for guild in self.bot.guilds:
             ranks = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)
             ranks = helpers.sort_ranks(ranks)
@@ -528,7 +533,8 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-    async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
+
+    async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
             return
@@ -541,11 +547,11 @@ class AdminBot():
             await helpers.create_private(member)
             ff = True
         if before.channel and "'s private" in before.channel.name and len(before.channel.members) == 0:
-            await before.channel.delete()
-            ff = True
+            await helpers.try_function(before.channel.delete, True)
+
         return ff
 
-    async def unmute_clients(self, member, after: disnake.VoiceState):
+    async def unmute_clients(self, member, after: disnake.VoiceState) -> bool:
         ff = False
         if after.channel:
             ff = await helpers.unmute_bots(member)
@@ -554,18 +560,14 @@ class AdminBot():
 
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
-    async def check_message_content(self, message):
+    async def check_message_content(self, message) -> bool:
         if "discord.gg" in message.content.lower() and not await helpers.is_admin(message.author):
-            try:
-                await message.delete()
-                await message.author.send(
-                    f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
-            except:
-                pass
+            await helpers.try_function(message.delete, True)
+            await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
             return True
         return False
 
-    async def check_mentions(self, message):
+    async def check_mentions(self, message) -> bool:
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
             client = message.guild.me
             if helpers.is_mentioned(client, message):
@@ -575,10 +577,7 @@ class AdminBot():
                     else:
                         return await message.reply("At your service, my master.")
                 else:
-                    try:
-                        await message.author.timeout(duration=10, reason="Ping by inferior life form")
-                    except:
-                        pass
+                    await helpers.try_function(message.author.timeout, True, duration=10, reason="Ping by inferior life form")
                     return await message.reply(f"How dare you tag me? Know your place, trash")
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
@@ -588,13 +587,13 @@ class AdminBot():
         # ans += "Type /stop to stop playback\n"
         # return ans
 
-    async def check_dm(self, inter):
+    async def check_dm(self, inter: disnake.AppCmdInter) -> bool:
         if not inter.guild:
             await inter.edit_original_response((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
             return True
         return False
 
-    async def add_admin(self, guild_id, user_id):
+    async def add_admin(self, guild_id, user_id) -> bool:
         admin_list = await helpers.get_guild_option(guild_id, GuildOption.ADMIN_LIST)
         if not user_id in admin_list:
             admin_list.append(user_id)
@@ -602,7 +601,7 @@ class AdminBot():
             return True
         return False
 
-    async def remove_admin(self, guild_id, user_id):
+    async def remove_admin(self, guild_id, user_id) -> bool:
         admin_list = await helpers.get_guild_option(guild_id, GuildOption.ADMIN_LIST)
         if user_id in admin_list:
             admin_list.remove(user_id)
@@ -639,9 +638,6 @@ class AdminBot():
                     print(f"Couldn't get admin user {admin_id}")
                     continue
                 message = f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n```{error}```\nPlease take actions, and I apologize for the inconvenience.'
-                try:
-                    await admin.send(message)
-                except:
-                    print(f"Couldn't send dm to {admin_id}")
+                await helpers.try_function(admin.send, True, message)
         except:
             pass

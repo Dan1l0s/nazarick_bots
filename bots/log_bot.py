@@ -216,7 +216,7 @@ class AutoLog():
     # --------------------- SLASH COMMANDS --------------------------------
 
         @self.bot.slash_command(description="Creates a welcome banner for a new member (manually)")
-        async def welcome(inter, member: disnake.Member):
+        async def welcome(inter: disnake.AppCmdInter, member: disnake.Member):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -224,10 +224,10 @@ class AutoLog():
 
             user = self.bot.get_user(member.id)
             embed = self.embedder.welcome_message(member, user)
-            await inter.delete_original_response()
+            await helpers.try_function(inter.delete_original_response, True)
             await inter.channel.send(embed=embed)
             message = await inter.channel.send(f"{member.mention}")
-            await message.delete()
+            await helpers.try_function(message.delete, True)
 
         @ self.bot.slash_command(description="Check current status of user")
         async def status(inter: disnake.AppCmdInter, member: disnake.User):
@@ -238,15 +238,15 @@ class AutoLog():
             await inter.edit_original_response(embed=self.embedder.get_status(member))
 
         @ self.bot.slash_command()
-        async def set(inter):
+        async def set(inter: disnake.AppCmdInter):
             pass
 
         @ set.sub_command_group()
-        async def logs(inter):
+        async def logs(inter: disnake.AppCmdInter):
             pass
 
         @ logs.sub_command(description="Allows admin to set channel for common logs")
-        async def common(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
+        async def common(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -259,7 +259,7 @@ class AutoLog():
             await inter.edit_original_response(f'New log channel is {channel.mention}')
 
         @ logs.sub_command(description="Allows admin to set channel for status logs")
-        async def status(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
+        async def status(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -271,7 +271,7 @@ class AutoLog():
             await inter.edit_original_response(f'New status log channel is {channel.mention}')
 
         @ logs.sub_command(description="Allows admin to set channel for welcome logs")
-        async def welcome(inter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes logs')):
+        async def welcome(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes logs')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -347,7 +347,7 @@ class AutoLog():
             newlist.append(new_user)
         return newlist
 
-    async def check_mentions(self, message):
+    async def check_mentions(self, message) -> bool:
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
             client = message.guild.me
             if helpers.is_mentioned(client, message):
@@ -357,8 +357,5 @@ class AutoLog():
                     else:
                         return await message.reply("At your service, my master.")
                 else:
-                    try:
-                        await message.author.timeout(duration=10, reason="Ping by inferior life form")
-                    except:
-                        pass
+                    await helpers.try_function(message.author.timeout, True, duration=10, reason="Ping by inferior life form")
                     return await message.reply(f"How dare you tag me? Know your place, trash")

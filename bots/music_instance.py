@@ -207,7 +207,7 @@ class MusicBotInstance:
                 voice = state.voice
                 state.voice = None
                 voice.stop()
-                await voice.disconnect()
+                await helpers.try_function(voice.disconnect, True)
                 await state.last_inter.text_channel.send(message)
             except:
                 pass
@@ -239,10 +239,9 @@ class MusicBotInstance:
                 if track_info is None:
                     if respond:
                         await inter.orig_inter.delete_original_response()
-                    await inter.text_channel.send(
-                        "Error processing video, try another one!")
+                    await inter.text_channel.send("Error processing video, try another one!")
                     if not state.current_song:
-                        await state.voice.disconnect()
+                        await helpers.try_function(state.voice.disconnect, True)
                     return
                 song.track_info.set_result(track_info)
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
@@ -360,7 +359,7 @@ class MusicBotInstance:
         except Exception as err:
             print(f"Caught exception in play_before_interrupt: {err}")
 
-    async def check_mentions(self, message):
+    async def check_mentions(self, message) -> bool:
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
             client = message.guild.me
             if helpers.is_mentioned(client, message):
@@ -370,11 +369,9 @@ class MusicBotInstance:
                     else:
                         return await message.reply("At your service, my master.")
                 else:
-                    try:
-                        await message.author.timeout(duration=10, reason="Ping by inferior life form")
-                    except:
-                        pass
+                    await helpers.try_function(message.author.timeout, True, duration=10, reason="Ping by inferior life form")
                     return await message.reply(f"How dare you tag me? Know your place, trash")
+
 # *_______PlayerFuncs________________________________________________________________________________________________________________________________________
 
     # *Requires author of inter to be in voice channel
@@ -383,7 +380,7 @@ class MusicBotInstance:
         state.last_inter = inter
 
         if not state.voice:
-            state.voice = await inter.voice_channel.connect()
+            ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True)
             await self.process_song_query(inter, query, playnow=playnow, radio=radio)
             return asyncio.create_task(self.play_loop(inter.guild.id))
 
@@ -403,7 +400,7 @@ class MusicBotInstance:
             else:
                 state.song_queue.append(song)
 
-            await state.voice.move_to(inter.voice_channel)
+            ff, _ = await helpers.try_function(state.voice.move_to, True, inter.voice_channel)
             await state.connected_to(inter.voice_channel)
 
             await self.process_song_query(inter, query, song=song, playnow=playnow, radio=radio)
