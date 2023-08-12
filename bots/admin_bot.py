@@ -528,7 +528,6 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState):
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -614,7 +613,6 @@ class AdminBot():
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def monitor_errors(self):
         os.set_blocking(sys.stdin.fileno(), False)
         while True:
@@ -624,9 +622,14 @@ class AdminBot():
                 data = sys.stdin.read(1024)
                 if not data:
                     break
+                lines = data.split("\n")
+                for line in lines:
+                    if "Error in the pull function" in line or "Will reconnect at" in line:
+                        continue
+                    errors += line + "\n"
                 errors += data
             if len(errors) != 0:
-                await self.error_notification(errors)
+                await self.error_notification(errors[:-1])
 
     async def error_notification(self, error: str):
         try:

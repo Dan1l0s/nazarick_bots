@@ -100,6 +100,7 @@ class Host:
                 if not data:
                     break
                 try:
+                    old_len = len(self.errors)
                     self.process.stdin.write(data)
                     self.process.stdin.flush()
                     lines = data.decode('utf-8', errors='replace').split('\n')
@@ -109,7 +110,8 @@ class Host:
                         self.errors += "\n"
                         self.errors += line
                         print(f"ERROR IN BOT: {line}")
-                    self.errors_cnt += 1
+                    if len(self.errors) != old_len:
+                        self.errors_cnt += 1
                 except Exception as e:
                     self.errors += f"\nNON UTF-8 ERROR: {e}\n"
 
