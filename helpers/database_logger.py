@@ -209,7 +209,7 @@ async def gpt(member, messages, guild_id="gpt"):
 async def commit_to_database(table_name: str, guild_id: str = None, tag: str = None, comment: str = None, query: str = None, response: str = None, user_id: str = None):
     await helpers.ensure_tables_logger()
 
-    db = await aiosqlite.connect('logs.db')
+    db = await aiosqlite.connect('logs.db', timeout=1000)
     cursor = await db.cursor()
 
     date = datetime.datetime.now().strftime('%Y-%m-%d')

@@ -100,7 +100,6 @@ class Host:
                 if not data:
                     break
                 try:
-                    old_len = len(self.errors)
                     self.process.stdin.write(data)
                     self.process.stdin.flush()
                     lines = data.decode('utf-8', errors='replace').split('\n')
@@ -110,8 +109,6 @@ class Host:
                         if len(line) > 0:
                             self.errors += "\n" + line
                         print(f"ERROR IN BOT: {line}")
-                    if len(self.errors) != old_len:
-                        self.errors_cnt += 1
                 except Exception as e:
                     self.errors += f"\nNON UTF-8 ERROR: {e}\n"
 
@@ -203,7 +200,6 @@ class Host:
             return "Bot is already running"
 
         self.errors = ""
-        self.errors_cnt = 0
         self.process = subprocess.Popen(
             ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
@@ -222,7 +218,6 @@ class Host:
         ans = f"Stopped bot process with PID: {self.process.pid}"
         self.process.terminate()
         self.errors = None
-        self.errors_cnt = None
         self.state = BotState.STOPPED
         self.process = None
         os.system("pkill -f ../main.py")
@@ -230,7 +225,6 @@ class Host:
 
     async def clear_errors(self):
         self.errors = ""
-        self.errors_cnt = 0
         return "Errors cleared"
 
     async def status(self):
@@ -238,10 +232,11 @@ class Host:
         current_commit = self.get_current_commit()
         ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}"
         if self.state == BotState.RUNNING:
-            if self.errors_cnt == 0:
+            if len(self.errors) == 0:
                 ans += "\nError status: No errors"
             else:
-                ans += f"\nError status: {('There was 1 error', f'There were {self.errors_cnt} errors')[self.errors_cnt > 1]}:\n{self.errors}"
+                errors_cnt = self.errors.count("Traceback") + self.errors.count("Runtime")
+                ans += f"\nError status: {('There was 1 error', f'There were {errors_cnt} errors')[errors_cnt > 1]}:\n{self.errors}"
         return ans
 
     async def reboot(self):

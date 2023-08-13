@@ -200,8 +200,6 @@ class LogBot():
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
             # await database_logger.lost_connection(self.bot)
-            # global gl_flag
-            # gl_flag = False
 
         @self.bot.event
         async def on_connect():
@@ -290,42 +288,40 @@ class LogBot():
         return False
 
     async def status_check(self):
-        global gl_flag
-        gl_flag = True
         print("STARTED STATUS TRACKING")
         while not self.bot.is_closed():
-            guild_list = self.bot.guilds
-            old_list = {}
+            try:
+                guild_list = self.bot.guilds
+                old_list = {}
 
-            for guild in guild_list:
-                status_log_channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
-                if status_log_channel_id:
-                    old_list[guild.id] = self.gen_status_and_activity_list(guild.members)
-            await asyncio.sleep(0.1)
-            for guild in guild_list:
-                if not guild.id in old_list.keys():
-                    continue
-                guild_id = guild.id
-                status_log_channel_id = await helpers.get_guild_option(guild_id, GuildOption.STATUS_LOG_CHANNEL)
+                for guild in guild_list:
+                    status_log_channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
+                    if status_log_channel_id:
+                        old_list[guild.id] = self.gen_status_and_activity_list(guild.members)
+                await asyncio.sleep(0.1)
+                for guild in guild_list:
+                    if not guild.id in old_list.keys():
+                        continue
+                    guild_id = guild.id
+                    status_log_channel_id = await helpers.get_guild_option(guild_id, GuildOption.STATUS_LOG_CHANNEL)
 
-                if status_log_channel_id:
-                    new_list = self.gen_status_and_activity_list(guild.members)
-                    if len(new_list) == len(old_list[guild_id]):
-                        for member_num in range(len(new_list)):
+                    if status_log_channel_id:
+                        new_list = self.gen_status_and_activity_list(guild.members)
+                        if len(new_list) == len(old_list[guild_id]):
+                            for member_num in range(len(new_list)):
 
-                            old_member = old_list[guild_id][member_num]
-                            new_member = guild.members[member_num]
+                                old_member = old_list[guild_id][member_num]
+                                new_member = guild.members[member_num]
 
-                            if old_member != new_list[member_num] and not (new_member.bot and new_member.id not in private_config.bot_ids.values()):
-                                if old_member.status != new_list[member_num].status:
-                                    await database_logger.status_upd(new_member)
-                                if old_member.activities != new_list[member_num].activities:
-                                    await database_logger.activity_upd(new_member, old_member, new_list[member_num])
-                                channel = self.bot.get_channel(int(status_log_channel_id))
-                                asyncio.create_task(channel.send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num])))
-            if not gl_flag:
-                print("STOPPED STATUS TRACKING")
-                break
+                                if old_member != new_list[member_num] and not (new_member.bot and new_member.id not in private_config.bot_ids.values()):
+                                    if old_member.status != new_list[member_num].status:
+                                        await database_logger.status_upd(new_member)
+                                    if old_member.activities != new_list[member_num].activities:
+                                        await database_logger.activity_upd(new_member, old_member, new_list[member_num])
+                                    channel = self.bot.get_channel(int(status_log_channel_id))
+                                    asyncio.create_task(channel.send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num])))
+            except:
+                pass
 
     def gen_status_and_activity_list(self, list):
         newlist = []

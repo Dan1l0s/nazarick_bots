@@ -119,7 +119,7 @@ async def unmute_admin(member) -> bool:
             return ff
         entry = entry[1]
         delta = datetime.now(timezone.utc) - entry.created_at
-        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and entry.user.id not in await get_guild_option(member.guild.id, GuildOption.ADMIN_LIST):
+        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and (not await is_admin(entry.user) and not await is_untouchable(entry.user)):
             await try_function(entry.user.move_to, True, None)
             await try_function(entry.user.timeout, True, duration=60, reason="Attempt attacking the Supreme Being")
     return ff
@@ -325,7 +325,7 @@ def convert_to_python(option: GuildOption, value):
 
 
 async def ensure_tables() -> None:
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER, UNIQUE(guild_id, user_id))''')
     await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, rank_id TEXT, voice_xp INTEGER,  remove_flag INTEGER, UNIQUE(guild_id, rank_id))''')
     await db.execute('''CREATE TABLE IF NOT EXISTS server_options (
@@ -343,7 +343,7 @@ async def ensure_tables() -> None:
 
 
 async def ensure_tables_logger() -> None:
-    db = await aiosqlite.connect('logs.db')
+    db = await aiosqlite.connect('logs.db', timeout=1000)
     await db.execute('''CREATE TABLE IF NOT EXISTS status (guild_id TEXT, date TEXT, time TEXT, user_id TEXT, comment TEXT)''')
     await db.execute('''CREATE TABLE IF NOT EXISTS gpt (date TEXT, time TEXT, user_id TEXT, query TEXT, response TEXT)''')
     await db.execute('''CREATE TABLE IF NOT EXISTS bots (date TEXT, time TEXT, tag TEXT, comment TEXT)''')
@@ -360,7 +360,7 @@ async def request_guild_option(guild_id, option: GuildOption):
     if not opt_str or not opt_table:
         raise f"Wrong option {option}"
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
 
@@ -388,7 +388,7 @@ async def add_guild_option(guild_id, option: GuildOption, value):
         return
 
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     match option:
@@ -410,7 +410,7 @@ async def remove_guild_option(guild_id, option: GuildOption, value):
     if not guild_id:
         return
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     match option:
@@ -436,7 +436,7 @@ async def set_guild_option(guild_id, option: GuildOption, value):
     if not opt_str or not opt_table:
         raise f"Wrong option {option}"
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     await cursor.execute(f"INSERT OR IGNORE INTO {opt_table} (guild_id) VALUES(?)", (str(guild_id),))
@@ -450,7 +450,7 @@ async def get_user_xp(guild_id: int, user_id: int):
         return None
 
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     await cursor.execute(f"SELECT voice_xp, text_xp FROM users_xp_data WHERE guild_id = ? AND user_id = ?", (str(guild_id), str(user_id),))
@@ -502,7 +502,7 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
         return None
 
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     await cursor.execute(f"INSERT OR IGNORE INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) VALUES(?,?,?,?)", (str(guild_id), str(user_id), 0, 0))
@@ -516,7 +516,7 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
 
 async def reset_xp(guild_id: int) -> None:
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     await cursor.execute(f"DELETE FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
@@ -526,7 +526,7 @@ async def reset_xp(guild_id: int) -> None:
 
 async def reset_ranks(guild_id: int) -> None:
     await ensure_tables()
-    db = await aiosqlite.connect('bot_database.db')
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     await cursor.execute(f"DELETE FROM ranks_data WHERE guild_id = ?", (str(guild_id),))

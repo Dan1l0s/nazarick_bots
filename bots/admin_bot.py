@@ -421,9 +421,9 @@ class AdminBot():
             if not guild:
                 return await inter.send("Incorrect guild, try again")
             try:
-                if guild_id in private_config.test_guilds():
-                    await inter.send("How dare you try to betray Nazarick? Ainz-sama was notified about your actions, trash. Beware.")
-                    await self.bot.get_user(private_config.supreme_beings[0]).send(f"My apologies, Ainz-sama. User {self.bot.get_user(inter.author.id).mention} tried to eliminate Nazarick discord server. Please, take measures.")
+                if guild.id in private_config.test_guilds:
+                    await helpers.try_function(inter.send, True, "How dare you try to betray Nazarick? Ainz-sama was notified about your actions, trash. Beware.")
+                    await helpers.try_function(self.bot.get_user(private_config.supreme_beings[0]).send, True, f"My apologies, Ainz-sama. User {self.bot.get_user(inter.author.id).mention} tried to eliminate Nazarick discord server. Please, take measures.")
                     return
             except:
                 pass
@@ -535,6 +535,7 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -612,7 +613,6 @@ class AdminBot():
 
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def monitor_errors(self):
         os.set_blocking(sys.stdin.fileno(), False)

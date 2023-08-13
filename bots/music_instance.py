@@ -353,7 +353,7 @@ class MusicBotInstance:
         except Exception as err:
             print(f"Exception in play_loop: {err}")
             await database_logger.error(err, state.guild)
-            await self.abort_play(guild_id)
+            await self.abort_play(guild_id, "There was an error playing the song, try again :c")
 
     async def play_before_interrupt(self, guild_id):
         state = self.states[guild_id]
@@ -388,7 +388,8 @@ class MusicBotInstance:
         if not state.voice:
             ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True)
             if not ff:
-                helpers.try_function(inter.text_channel.send, True, "Couldn't connect to your voice channel, check my permissions and try again")
+                await self.abort_play(inter.guild.id, "Couldn't connect to your voice channel, check my permissions and try again")
+                return
             await self.process_song_query(inter, query, playnow=playnow, radio=radio)
             return asyncio.create_task(self.play_loop(inter.guild.id))
 
