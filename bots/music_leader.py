@@ -186,7 +186,6 @@ class MusicBotLeader(MusicBotInstance):
 
             self.chatgpt_messages[inter.author.id] = []
             await inter.send("Done!")
-            self.file_logger.gpt_clear(inter.author)
             await asyncio.sleep(5)
             try:
                 await inter.delete_original_response()
@@ -312,7 +311,6 @@ class MusicBotLeader(MusicBotInstance):
                 print(e)
                 if len(messages_list) > 1:
                     messages_list = messages_list[2:]
-                self.file_logger.gpt_clear(inter.author)
 
         chunks = helpers.split_into_chunks(response)
 
@@ -323,7 +321,7 @@ class MusicBotLeader(MusicBotInstance):
         for i in range(1, len(chunks)):
             await inter.text_channel.send(chunks[i])
         messages_list.append({"role": "assistant", "content": response})
-        self.file_logger.gpt(inter.author, [message, response])
+        await self.database_logger.gpt(inter.author, [message, response])
 
     def help(self):
         ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"

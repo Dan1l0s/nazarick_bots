@@ -3,3 +3,4 @@ private_config.py
 logs/
 __pycache__/
 bot_database.db
+logs.db

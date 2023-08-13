@@ -6,9 +6,9 @@ This project is a group of discord-bots written in python, made in the setting o
 
 ### List of bots currently developed:
 
--   Related music bots which support youtube playback and online radio
--   Bot for logging into the channel
--   Admin bot with temporary channels and level system (in development)
+- Related music bots which support youtube playback and online radio
+- Bot for logging into the channel
+- Admin bot with temporary channels and leveling system
 
 ## Functionality
 
@@ -24,16 +24,16 @@ Music bots also accept user requests, both as links and text queries. If a text 
 
 Music bots currently support the following commands:
 
--   **/play** - allows you to order songs that the bot will play in the voice channel, youtube playlists are also supported
--   **/playnow** - adds song to the first position in queue
--   **/skip** - skips current song
--   **/stop** - stops playback and clears queue
--   **/wrong** - removes the last added song from the queue
--   **/repeat** - switches the repeat mode, which repeats 1 song
--   **/radio** - allows you to order online radio, without the link playing anime radio, information about the current songs on which is displayed in the text channel
--   **/queue** - displays current queue
--   **/shuffle** - shuffles current queue
--   **/help** - displays list of commands
+- **/play** - allows you to order songs that the bot will play in the voice channel, youtube playlists are also supported
+- **/playnow** - adds song to the first position in queue
+- **/skip** - skips current song
+- **/stop** - stops playback and clears queue
+- **/wrong** - removes the last added song from the queue
+- **/repeat** - switches the repeat mode, which repeats 1 song
+- **/radio** - allows you to order online radio, without the link playing anime radio, information about the current songs on which is displayed in the text channel
+- **/queue** - displays current queue
+- **/shuffle** - shuffles current queue
+- **/help** - displays list of commands
 
 ### Logger bot
 
@@ -61,6 +61,12 @@ In addition, admin bot has access to OpenAI API which allows users to interact C
 
 <p align="center">
   <img src="https://i.imgur.com/uWCU08k.png" alt="ChatGPT code decoration and interaction example"/>
+</p>
+
+Also, admin bot has leveling system which allows users to create their own ranks (roles) for each discord server and get voice and text xp during chatting, each rank requires an exact number of experience, the ranks are assigned automatically when user has enough experience:
+
+<p align="center">
+  <img src="https://i.imgur.com/Dxeq8IU.png" alt="Leveling system ranks list example"/>
 </p>
 
 ## How to install and launch
@@ -92,6 +98,7 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 
 1. Rename `private_config_example.py` to `private_config.py`
 2. In `private_config.py` you have to edit all required variables (bots' info, openai api key and bot ids):
+
 ```python
 # bots' specifications, value type: [[string, string, string], [string, string, string], ...]
 # bot_type can be one of a folowing values: MusicLeader, MusicInstance, Admin, Logger
@@ -110,5 +117,6 @@ bot_ids = {
     "bot_name1": bot_id1, "bot_name2": bot_id2,
 }
 ```
+
 4. To launch code just execute `main.py` file
 5. (Optional) Edit whatever you like in `public_config.py`, also you can add different ids to `private_config.py`, there are prompts to help you get started

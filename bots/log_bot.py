@@ -8,12 +8,9 @@ import configs.public_config as public_config
 import helpers.helpers as helpers
 
 from helpers.selection import SelectionPanel
-from helpers.file_logger import FileLogger
+from helpers.database_logger import DatabaseLogger
 from helpers.embedder import Embed
 from helpers.helpers import GuildOption
-
-
-gl_flag = True
 
 
 class Activity():
@@ -43,19 +40,19 @@ class UserStatus():
         return self.status == other.status and a == b
 
 
-class AutoLog():
+class LogBot():
     token = None
     name = None
     bot = None
     embedder = None
-    file_logger = None
+    database_logger = None
 
-    def __init__(self, name, token, file_logger):
+    def __init__(self, name: str, token: str, database_logger: DatabaseLogger):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="everyone o_o", type=disnake.ActivityType.watching))
         self.name = name
         self.embedder = Embed()
-        self.file_logger = file_logger
+        self.database_logger = database_logger
         self.token = token
 
     # --------------------- MESSAGES --------------------------------
@@ -106,9 +103,9 @@ class AutoLog():
                 return
             channel = self.bot.get_channel(int(channel_id))
             s = f"entry_{str(entry.action)[15:]}"
-            if hasattr(self.file_logger, s):
-                log = getattr(self.file_logger, s)
-                log(entry)
+            if hasattr(self.database_logger, s):
+                log = getattr(self.database_logger, s)
+                await log(entry)
             if hasattr(self.embedder, s):
                 s = getattr(self.embedder, s)
                 await channel.send(embed=s(entry))
@@ -119,7 +116,7 @@ class AutoLog():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            # self.file_logger.member_update(after)
+            # await self.database_logger.member_update(after)
             await channel.send(embed=self.embedder.profile_upd(before, after))
 
         @self.bot.event
@@ -128,7 +125,7 @@ class AutoLog():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            self.file_logger.member_remove(payload)
+            await self.database_logger.member_remove(payload)
             await channel.send(embed=self.embedder.member_remove(payload))
 
         @self.bot.event
@@ -145,7 +142,7 @@ class AutoLog():
 
             if log_channel_id:
                 log_channel = self.bot.get_channel(int(log_channel_id))
-                self.file_logger.member_join(member)
+                await self.database_logger.member_join(member)
                 await log_channel.send(embed=self.embedder.member_join(member))
 
         @ self.bot.event
@@ -174,7 +171,7 @@ class AutoLog():
 
             if before.channel and after.channel:
                 if before.channel.id != after.channel.id:
-                    self.file_logger.switched(member, before, after)
+                    await self.database_logger.switched(member, before, after)
                     if not after.afk:  # REGULAR SWITCH
                         await channel.send(embed=self.embedder.switched(member, before, after))
                     else:  # AFK
@@ -183,28 +180,28 @@ class AutoLog():
                     for attr in dir(after):
                         if attr in public_config.on_v_s_update:
                             if getattr(after, attr) != getattr(before, attr) and hasattr(self.embedder, attr):
-                                log = getattr(self.file_logger, attr)
-                                log(member, after)
+                                log = getattr(self.database_logger, attr)
+                                await log(member, after)
                                 s = getattr(self.embedder, attr)
                                 await channel.send(embed=s(member, after))
             elif before.channel:
-                self.file_logger.disconnected(member, before)
+                await self.database_logger.disconnected(member, before)
                 await channel.send(embed=self.embedder.disconnected(member, before))
             else:
-                self.file_logger.connected(member, after)
+                await self.database_logger.connected(member, after)
                 await channel.send(embed=self.embedder.connected(member, after))
 
     # --------------------- RANDOM --------------------------------
         @ self.bot.event
         async def on_ready():
-            self.file_logger.enabled(self.bot)
+            await self.database_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
             await self.status_check()
 
         @ self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            # self.file_logger.lost_connection(self.bot)
+            # await self.database_logger.lost_connection(self.bot)
             # global gl_flag
             # gl_flag = False
 
@@ -323,11 +320,9 @@ class AutoLog():
 
                             if old_member != new_list[member_num] and not (new_member.bot and new_member.id not in private_config.bot_ids.values()):
                                 if old_member.status != new_list[member_num].status:
-                                    self.file_logger.status_upd(
-                                        new_member)
+                                    await self.database_logger.status_upd(new_member)
                                 if old_member.activities != new_list[member_num].activities:
-                                    self.file_logger.activity_upd(
-                                        new_member, old_member, new_list[member_num])
+                                    await self.database_logger.activity_upd(new_member, old_member, new_list[member_num])
                                 channel = self.bot.get_channel(int(status_log_channel_id))
                                 asyncio.create_task(channel.send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num])))
             if not gl_flag:

@@ -1,16 +1,17 @@
 import asyncio
-import configs.private_config
-import concurrent.futures as process_pool
 import os
 import signal
 import functools
+from concurrent.futures import ProcessPoolExecutor
+
+import configs.private_config as private_config
 
 from bots.music_leader import MusicBotLeader
 from bots.music_instance import MusicBotInstance
-from bots.log_bot import AutoLog
+from bots.log_bot import LogBot
 from bots.admin_bot import AdminBot
 
-from helpers.file_logger import FileLogger
+from helpers.database_logger import DatabaseLogger
 
 
 async def validate_bots(leaders, instances, admins, loggers):
@@ -39,8 +40,8 @@ def on_sigterm(loop, pool):
 
 async def main():
     os.chdir(os.path.dirname(__file__))
-    pool = process_pool.ProcessPoolExecutor()
-    file_logger = FileLogger(True)
+    pool = ProcessPoolExecutor()
+    database_logger = DatabaseLogger()
 
     try:
         loop = asyncio.get_running_loop()
@@ -56,22 +57,22 @@ async def main():
     loggers = []
     tasks = []
 
-    for specification in configs.private_config.bots:
+    for specification in private_config.bots:
         bot = None
         if specification[1] == "MusicLeader":
             bot = MusicBotLeader(
-                specification[0], specification[2], file_logger, pool)
+                specification[0], specification[2], database_logger, pool)
             leaders.append(bot)
             instances.append(bot)
         elif specification[1] == "MusicInstance":
             bot = MusicBotInstance(
-                specification[0], specification[2], file_logger, pool)
+                specification[0], specification[2], database_logger, pool)
             instances.append(bot)
         elif specification[1] == "Logger":
-            bot = AutoLog(specification[0], specification[2], file_logger)
+            bot = LogBot(specification[0], specification[2], database_logger)
             loggers.append(bot)
         elif specification[1] == "Admin":
-            bot = AdminBot(specification[0], specification[2], file_logger)
+            bot = AdminBot(specification[0], specification[2], database_logger)
             admins.append(bot)
         else:
             print(f"""WARNING: There is no bot type {specification[1]},

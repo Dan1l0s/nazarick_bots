@@ -1,14 +1,14 @@
 import disnake
-from typing import List
-from datetime import datetime, timezone
 import time
 import re
 import aiosqlite
+import asyncio
+from typing import List
+from datetime import datetime, timezone
 from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
 from enum import Enum
 
-import asyncio
 import configs.private_config as private_config
 import configs.public_config as public_config
 from helpers.embedder import Embed
@@ -338,6 +338,16 @@ async def ensure_tables() -> None:
                         admin_list TEXT,
                         untouchables_list TEXT
                      )''')
+    await db.commit()
+    await db.close()
+
+
+async def ensure_tables_logger() -> None:
+    db = await aiosqlite.connect('logs.db')
+    await db.execute('''CREATE TABLE IF NOT EXISTS status (guild_id TEXT, date TEXT, time TEXT, user_id TEXT, comment TEXT)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS gpt (date TEXT, time TEXT, user_id TEXT, query TEXT, response TEXT)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS bots (date TEXT, time TEXT, tag TEXT, comment TEXT)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS common (guild_id TEXT, date TEXT, time TEXT, tag TEXT, comment TEXT)''')
     await db.commit()
     await db.close()
 

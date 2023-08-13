@@ -1,11 +1,11 @@
 import asyncio
 import socket
-from enum import Enum
 import subprocess
-from datetime import datetime
 import sys
 import os
 
+from enum import Enum
+from datetime import datetime
 
 try:
     os.chdir(os.path.dirname(__file__))
@@ -107,8 +107,8 @@ class Host:
                     for line in lines:
                         if "Error in the pull function" in line or "Will reconnect at" in line:
                             continue
-                        self.errors += "\n"
-                        self.errors += line
+                        if len(line) > 0:
+                            self.errors += "\n" + line
                         print(f"ERROR IN BOT: {line}")
                     if len(self.errors) != old_len:
                         self.errors_cnt += 1

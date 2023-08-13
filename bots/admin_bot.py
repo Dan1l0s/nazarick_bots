@@ -3,25 +3,28 @@ from disnake.ext import commands
 import asyncio
 import sys
 import os
+import datetime
 
 import configs.private_config as private_config
 import configs.public_config as public_config
+
 import helpers.helpers as helpers
+
 from helpers.embedder import Embed
 from helpers.helpers import GuildOption, Rank
-import datetime
+from helpers.database_logger import DatabaseLogger
 
 
 class AdminBot():
     music_instances = None
     log_bot = None
 
-    def __init__(self, name, token, logger):
+    def __init__(self, name: str, token: str, logger: DatabaseLogger):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="with the subordinates", type=disnake.ActivityType.playing))
         self.name = name
         self.token = token
-        self.file_logger = logger
+        self.database_logger = logger
         self.embedder = Embed()
         self.music_instances = []
 
@@ -40,7 +43,7 @@ class AdminBot():
 
         @self.bot.event
         async def on_ready():
-            self.file_logger.enabled(self.bot)
+            await self.database_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
             self.bot.loop.create_task(self.scan_timer())
             asyncio.create_task(self.monitor_errors())
@@ -51,12 +54,12 @@ class AdminBot():
         @self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            self.file_logger.lost_connection(self.bot)
+            # await self.database_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_connect():
             print(f"{self.name} has connected to Discord")
-            # self.file_logger.lost_connection(self.bot)
+            # await self.database_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_message(message):
@@ -533,7 +536,6 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -612,6 +614,7 @@ class AdminBot():
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def monitor_errors(self):
         os.set_blocking(sys.stdin.fileno(), False)
         while True:
@@ -625,10 +628,10 @@ class AdminBot():
                 for line in lines:
                     if "Error in the pull function" in line or "Will reconnect at" in line:
                         continue
-                    errors += line + "\n"
-                errors += data
+                    if len(line) > 0:
+                        errors += line + "\n"
             if len(errors) != 0:
-                await self.error_notification(errors[:-1])
+                await self.error_notification(errors)
 
     async def error_notification(self, error: str):
         try:
@@ -637,7 +640,7 @@ class AdminBot():
                 if not admin:
                     print(f"Couldn't get admin user {admin_id}")
                     continue
-                message = f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n```{error}```\nPlease take actions, and I apologize for the inconvenience.'
+                message = f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n\n```{error}```\nPlease take actions, and I apologize for the inconvenience.'
                 await helpers.try_function(admin.send, True, message)
         except:
             pass
