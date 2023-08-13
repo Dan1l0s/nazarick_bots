@@ -13,10 +13,10 @@ import configs.private_config as private_config
 import configs.public_config as public_config
 
 import helpers.helpers as helpers
+import helpers.database_logger as database_logger
 
 from helpers.embedder import Embed
 from helpers.selection import SelectionPanel
-from helpers.database_logger import DatabaseLogger
 
 
 class Interaction():
@@ -90,7 +90,6 @@ class GuildState():
 class MusicBotInstance:
     bot = None
     name = None
-    database_logger = None
     embedder = None
     states = None
     process_pool = None
@@ -98,19 +97,18 @@ class MusicBotInstance:
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
-    def __init__(self, name: str, token: str, database_logger: DatabaseLogger, process_pool: ProcessPoolExecutor):
+    def __init__(self, name: str, token: str, process_pool: ProcessPoolExecutor):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
         self.name = name
         self.token = token
-        self.database_logger = database_logger
         self.embedder = Embed()
         self.states = {}
         self.process_pool = process_pool
 
         @self.bot.event
         async def on_ready():
-            await self.database_logger.enabled(self.bot)
+            await database_logger.enabled(self.bot)
             for guild in self.bot.guilds:
                 self.states[guild.id] = GuildState(guild)
             print(f"{self.name} is logged as {self.bot.user}")
@@ -134,12 +132,12 @@ class MusicBotInstance:
         @self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            # await self.database_logger.lost_connection(self.bot)
+            # await database_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_connect():
             print(f"{self.name} has connected to Discord")
-            # await self.database_logger.lost_connection(self.bot)
+            # await database_logger.lost_connection(self.bot)
 
     async def run(self):
         await self.bot.start(self.token)
@@ -180,7 +178,7 @@ class MusicBotInstance:
             if resume and not state.paused:
                 state.voice.resume()
         except:
-            await self.database_logger.finished(guild_id)
+            await database_logger.finished(self.states[guild_id].guild)
             await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
         state.cancel_timeout = None
 
@@ -197,7 +195,7 @@ class MusicBotInstance:
         if before.channel != state.voice.channel and after.channel != state.voice.channel:
             return
         if member.id == self.bot.application_id and not after.channel:
-            await self.database_logger.finished(guild_id)
+            await database_logger.finished(member.guild)
             return await self.abort_play(guild_id)
         if helpers.get_true_members_count(state.voice.channel.members) < 1:
             if state.cancel_timeout == None:
@@ -255,7 +253,7 @@ class MusicBotInstance:
                     song.original_message = await inter.text_channel.send("", embed=embed)
                 if respond:
                     await inter.orig_inter.delete_original_response()
-                await self.database_logger.added(state.guild, track_info)
+                await database_logger.added(state.guild, track_info)
             else:
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                     song.original_message = await inter.text_channel.send("Radio was added to queue!")
@@ -325,7 +323,7 @@ class MusicBotInstance:
                     embed = self.embedder.songs(
                         state.current_song.author, current_track, "Playing this song!")
                     await state.last_inter.text_channel.send("", embed=embed)
-                    await self.database_logger.playing(state.guild, current_track)
+                    await database_logger.playing(state.guild, current_track)
                 else:
                     if len(state.song_queue) > 0 and not state.song_queue[0].radio_mode:
                         state.song_queue.append(state.current_song)
@@ -350,12 +348,12 @@ class MusicBotInstance:
                 elif state.repeat_flag:
                     state.song_queue.insert(
                         0, state.current_song)
-            await self.database_logger.finished(guild_id)
+            await database_logger.finished(self.states[guild_id].guild)
             await self.abort_play(guild_id)
         except Exception as err:
             print(f"Exception in play_loop: {err}")
-            await self.database_logger.error(err, state.guild)
-            pass
+            await database_logger.error(err, state.guild)
+            await self.abort_play(guild_id)
 
     async def play_before_interrupt(self, guild_id):
         state = self.states[guild_id]
@@ -363,6 +361,8 @@ class MusicBotInstance:
             while (state.voice and (state.voice.is_playing() or state.voice.is_paused()) and not state.skip_flag):
                 await asyncio.sleep(1)
         except Exception as err:
+            await self.abort_play(guild_id)
+            await database_logger.error(err, state.guild)
             print(f"Caught exception in play_before_interrupt: {err}")
 
     async def check_mentions(self, message) -> bool:
@@ -387,6 +387,8 @@ class MusicBotInstance:
 
         if not state.voice:
             ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True)
+            if not ff:
+                helpers.try_function(inter.text_channel.send, True, "Couldn't connect to your voice channel, check my permissions and try again")
             await self.process_song_query(inter, query, playnow=playnow, radio=radio)
             return asyncio.create_task(self.play_loop(inter.guild.id))
 
@@ -416,7 +418,7 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         if not state.voice:
             return
-        await self.database_logger.finished(inter.guild)
+        await database_logger.finished(inter.guild)
         await self.abort_play(inter.guild.id, message=f"DJ {inter.author.display_name} decided to stop!")
 
     async def pause(self, inter):
@@ -464,7 +466,7 @@ class MusicBotInstance:
         if not state.voice:
             return
         state.skip_flag = True
-        await self.database_logger.skip(inter)
+        await database_logger.skip(inter)
         await inter.orig_inter.send("Skipped current track!")
 
     async def queue(self, inter):
@@ -551,7 +553,7 @@ class MusicBotInstance:
                     return
                 state.last_radio_message = data
                 await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
-                await self.database_logger.radio(state.last_inter.guild, data)
+                await database_logger.radio(state.last_inter.guild, data)
                 await asyncio.sleep(1)
             except:
                 await asyncio.sleep(1)

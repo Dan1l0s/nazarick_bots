@@ -9,22 +9,21 @@ import configs.private_config as private_config
 import configs.public_config as public_config
 
 import helpers.helpers as helpers
+import helpers.database_logger as database_logger
 
 from helpers.embedder import Embed
 from helpers.helpers import GuildOption, Rank
-from helpers.database_logger import DatabaseLogger
 
 
 class AdminBot():
     music_instances = None
     log_bot = None
 
-    def __init__(self, name: str, token: str, logger: DatabaseLogger):
+    def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="with the subordinates", type=disnake.ActivityType.playing))
         self.name = name
         self.token = token
-        self.database_logger = logger
         self.embedder = Embed()
         self.music_instances = []
 
@@ -43,7 +42,7 @@ class AdminBot():
 
         @self.bot.event
         async def on_ready():
-            await self.database_logger.enabled(self.bot)
+            await database_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
             self.bot.loop.create_task(self.scan_timer())
             asyncio.create_task(self.monitor_errors())
@@ -54,12 +53,12 @@ class AdminBot():
         @self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            # await self.database_logger.lost_connection(self.bot)
+            # await database_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_connect():
             print(f"{self.name} has connected to Discord")
-            # await self.database_logger.lost_connection(self.bot)
+            # await database_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_message(message):

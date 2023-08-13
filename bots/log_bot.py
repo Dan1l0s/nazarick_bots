@@ -6,9 +6,9 @@ import configs.private_config as private_config
 import configs.public_config as public_config
 
 import helpers.helpers as helpers
+import helpers.database_logger as database_logger
 
 from helpers.selection import SelectionPanel
-from helpers.database_logger import DatabaseLogger
 from helpers.embedder import Embed
 from helpers.helpers import GuildOption
 
@@ -45,14 +45,12 @@ class LogBot():
     name = None
     bot = None
     embedder = None
-    database_logger = None
 
-    def __init__(self, name: str, token: str, database_logger: DatabaseLogger):
+    def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="everyone o_o", type=disnake.ActivityType.watching))
         self.name = name
         self.embedder = Embed()
-        self.database_logger = database_logger
         self.token = token
 
     # --------------------- MESSAGES --------------------------------
@@ -103,8 +101,8 @@ class LogBot():
                 return
             channel = self.bot.get_channel(int(channel_id))
             s = f"entry_{str(entry.action)[15:]}"
-            if hasattr(self.database_logger, s):
-                log = getattr(self.database_logger, s)
+            if hasattr(database_logger, s):
+                log = getattr(database_logger, s)
                 await log(entry)
             if hasattr(self.embedder, s):
                 s = getattr(self.embedder, s)
@@ -116,7 +114,7 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            # await self.database_logger.member_update(after)
+            # await database_logger.member_update(after)
             await channel.send(embed=self.embedder.profile_upd(before, after))
 
         @self.bot.event
@@ -125,7 +123,7 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            await self.database_logger.member_remove(payload)
+            await database_logger.member_remove(payload)
             await channel.send(embed=self.embedder.member_remove(payload))
 
         @self.bot.event
@@ -142,7 +140,7 @@ class LogBot():
 
             if log_channel_id:
                 log_channel = self.bot.get_channel(int(log_channel_id))
-                await self.database_logger.member_join(member)
+                await database_logger.member_join(member)
                 await log_channel.send(embed=self.embedder.member_join(member))
 
         @ self.bot.event
@@ -171,7 +169,7 @@ class LogBot():
 
             if before.channel and after.channel:
                 if before.channel.id != after.channel.id:
-                    await self.database_logger.switched(member, before, after)
+                    await database_logger.switched(member, before, after)
                     if not after.afk:  # REGULAR SWITCH
                         await channel.send(embed=self.embedder.switched(member, before, after))
                     else:  # AFK
@@ -180,28 +178,28 @@ class LogBot():
                     for attr in dir(after):
                         if attr in public_config.on_v_s_update:
                             if getattr(after, attr) != getattr(before, attr) and hasattr(self.embedder, attr):
-                                log = getattr(self.database_logger, attr)
+                                log = getattr(database_logger, attr)
                                 await log(member, after)
                                 s = getattr(self.embedder, attr)
                                 await channel.send(embed=s(member, after))
             elif before.channel:
-                await self.database_logger.disconnected(member, before)
+                await database_logger.disconnected(member, before)
                 await channel.send(embed=self.embedder.disconnected(member, before))
             else:
-                await self.database_logger.connected(member, after)
+                await database_logger.connected(member, after)
                 await channel.send(embed=self.embedder.connected(member, after))
 
     # --------------------- RANDOM --------------------------------
         @ self.bot.event
         async def on_ready():
-            await self.database_logger.enabled(self.bot)
+            await database_logger.enabled(self.bot)
             print(f"{self.name} is logged as {self.bot.user}")
             await self.status_check()
 
         @ self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            # await self.database_logger.lost_connection(self.bot)
+            # await database_logger.lost_connection(self.bot)
             # global gl_flag
             # gl_flag = False
 
@@ -320,9 +318,9 @@ class LogBot():
 
                             if old_member != new_list[member_num] and not (new_member.bot and new_member.id not in private_config.bot_ids.values()):
                                 if old_member.status != new_list[member_num].status:
-                                    await self.database_logger.status_upd(new_member)
+                                    await database_logger.status_upd(new_member)
                                 if old_member.activities != new_list[member_num].activities:
-                                    await self.database_logger.activity_upd(new_member, old_member, new_list[member_num])
+                                    await database_logger.activity_upd(new_member, old_member, new_list[member_num])
                                 channel = self.bot.get_channel(int(status_log_channel_id))
                                 asyncio.create_task(channel.send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num])))
             if not gl_flag:

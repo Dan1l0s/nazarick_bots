@@ -7,6 +7,7 @@ import configs.private_config as private_config
 import configs.public_config as public_config
 
 import helpers.helpers as helpers
+import helpers.database_logger as database_logger
 
 from bots.music_instance import MusicBotInstance, Interaction
 
@@ -15,8 +16,8 @@ class MusicBotLeader(MusicBotInstance):
     instances = None
     chatgpt_messages = None
 
-    def __init__(self, name, token, logger, process_pool):
-        super().__init__(name, token, logger, process_pool)
+    def __init__(self, name, token, process_pool):
+        super().__init__(name, token, process_pool)
         self.instances = []
         self.instances.append(self)
         self.instance_count = 0
@@ -321,7 +322,7 @@ class MusicBotLeader(MusicBotInstance):
         for i in range(1, len(chunks)):
             await inter.text_channel.send(chunks[i])
         messages_list.append({"role": "assistant", "content": response})
-        await self.database_logger.gpt(inter.author, [message, response])
+        await database_logger.gpt(inter.author, [message, response])
 
     def help(self):
         ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"

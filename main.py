@@ -11,8 +11,6 @@ from bots.music_instance import MusicBotInstance
 from bots.log_bot import LogBot
 from bots.admin_bot import AdminBot
 
-from helpers.database_logger import DatabaseLogger
-
 
 async def validate_bots(leaders, instances, admins, loggers):
     if len(leaders) + len(instances) + len(admins) + len(loggers) == 0:
@@ -41,7 +39,6 @@ def on_sigterm(loop, pool):
 async def main():
     os.chdir(os.path.dirname(__file__))
     pool = ProcessPoolExecutor()
-    database_logger = DatabaseLogger()
 
     try:
         loop = asyncio.get_running_loop()
@@ -61,18 +58,18 @@ async def main():
         bot = None
         if specification[1] == "MusicLeader":
             bot = MusicBotLeader(
-                specification[0], specification[2], database_logger, pool)
+                specification[0], specification[2], pool)
             leaders.append(bot)
             instances.append(bot)
         elif specification[1] == "MusicInstance":
             bot = MusicBotInstance(
-                specification[0], specification[2], database_logger, pool)
+                specification[0], specification[2], pool)
             instances.append(bot)
         elif specification[1] == "Logger":
-            bot = LogBot(specification[0], specification[2], database_logger)
+            bot = LogBot(specification[0], specification[2])
             loggers.append(bot)
         elif specification[1] == "Admin":
-            bot = AdminBot(specification[0], specification[2], database_logger)
+            bot = AdminBot(specification[0], specification[2])
             admins.append(bot)
         else:
             print(f"""WARNING: There is no bot type {specification[1]},
