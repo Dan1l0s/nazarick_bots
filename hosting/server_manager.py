@@ -104,7 +104,7 @@ class Host:
                     self.process.stdin.flush()
                     lines = data.decode('utf-8', errors='replace').split('\n')
                     for line in lines:
-                        if "Error in the pull function" in line or "Will reconnect at" in line:
+                        if "[tls @" in line or "[https @" in line or "[hls @" in line:
                             continue
                         if len(line) > 0:
                             self.errors += "\n" + line

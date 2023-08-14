@@ -475,7 +475,23 @@ class AdminBot():
                 msg += f"**Emojis:** {emojis_cnt}/{total_emojis} = {round(emojis_cnt * 100 / total_emojis, 3)}%\n"
             await inter.send(msg)
 
-    def add_music_instance(self, bot):
+        @ self.bot.slash_command(description="Sends message to other Supreme Beings")
+        async def message(inter: disnake.AppCmdInter, message: str = commands.Param(description="Message to send to other Supreme Beings")):
+            await inter.response.defer()
+
+            if not helpers.is_supreme_being(inter.author):
+                return await inter.send("Unauthorized access, you are not the Supreme Being!")
+
+            await self.supreme_dm(message, inter.author.id)
+            await inter.send("Your message was sent to other Supreme Beings, my master.")
+
+        @ self.bot.slash_command(description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])
+        async def music_usage_info(inter: disnake.AppCmdInter):
+            await inter.response.defer()
+            message = await self.check_music_bots()
+            return await inter.send(message)
+
+    def add_music_instance(self, bot) -> None:
         self.music_instances.append(bot)
 
     def set_log_bot(self, bot) -> None:
@@ -614,7 +630,7 @@ class AdminBot():
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
 
-    async def monitor_errors(self):
+    async def monitor_errors(self) -> None:
         os.set_blocking(sys.stdin.fileno(), False)
         while True:
             await asyncio.sleep(0.1)
@@ -625,21 +641,43 @@ class AdminBot():
                     break
                 lines = data.split("\n")
                 for line in lines:
-                    if "Error in the pull function" in line or "Will reconnect at" in line:
+                    if "[tls @" in line or "[https @" in line or "[hls @" in line:
                         continue
                     if len(line) > 0:
                         errors += line + "\n"
             if len(errors) != 0:
-                await self.error_notification(errors)
+                await self.supreme_dm(f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n\n```{errors}```\nPlease take actions, and I apologize for the inconvenience.')
 
-    async def error_notification(self, error: str):
+    async def supreme_dm(self, msg: str, author_id: int = None) -> None:
         try:
             for admin_id in private_config.supreme_beings:
+                if admin_id == author_id:
+                    continue
                 admin = self.bot.get_user(admin_id)
                 if not admin:
                     print(f"Couldn't get admin user {admin_id}")
                     continue
-                message = f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n\n```{error}```\nPlease take actions, and I apologize for the inconvenience.'
-                await helpers.try_function(admin.send, True, message)
+                await helpers.try_function(admin.send, True, msg)
         except:
             pass
+
+    async def check_music_bots(self):
+        message = "```"
+        for bot in self.music_instances:
+            message += f"\n\n{bot.name}:"
+            ff = True
+            for guild_id, state in bot.states.items():
+                if state.current_song:
+                    ff = False
+                    ans = ""
+                    message += f"\n{guild_id} : NO : "
+                    if state.current_song.track_info.done():
+                        info = await state.current_song.track_info
+                        ans = helpers.get_duration(info)
+                    else:
+                        ans = "Processing track"
+                    message += ans
+            if ff:
+                message += f" YES"
+
+        return message + "```"
