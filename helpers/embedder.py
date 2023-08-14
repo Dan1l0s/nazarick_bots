@@ -647,6 +647,7 @@ class Embed:
 
 # --------------------- CHANNEL SWITCHING --------------------------------
 
+
     def switched(self, member, before, after):
         embed = disnake.Embed(
             description=f'**{member.mention} switched from {before.channel.mention} to {after.channel.mention}**',
@@ -816,8 +817,9 @@ class Embed:
                 if acts not in new_user_status.activities:
                     fin += [f'{acts.actname}']
             fin = '\n'.join(fin)
-            embed.add_field(name="**Finished Activities :**",
-                            value=f"```{fin}```", inline=False)
+            if len(fin) > 0:
+                embed.add_field(name="**Finished Activities :**",
+                                value=f"```{fin}```", inline=False)
         if member.activity is not None:
             embed.add_field(name="**Current Activities : **",
                             value="", inline=False)

@@ -344,7 +344,7 @@ async def ensure_tables() -> None:
 
 async def ensure_tables_logger() -> None:
     db = await aiosqlite.connect('logs.db', timeout=1000)
-    await db.execute('''CREATE TABLE IF NOT EXISTS status (guild_id TEXT, date TEXT, time TEXT, user_id TEXT, comment TEXT)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS status (date TEXT, time TEXT, user_id TEXT, comment TEXT)''')
     await db.execute('''CREATE TABLE IF NOT EXISTS gpt (date TEXT, time TEXT, user_id TEXT, query TEXT, response TEXT)''')
     await db.execute('''CREATE TABLE IF NOT EXISTS bots (date TEXT, time TEXT, tag TEXT, comment TEXT)''')
     await db.execute('''CREATE TABLE IF NOT EXISTS common (guild_id TEXT, date TEXT, time TEXT, tag TEXT, comment TEXT)''')
@@ -560,3 +560,5 @@ async def try_function(function, await_flag: bool, *args, **kwargs):
         return True, tmp
     except:
         return False, tmp
+async def run_delayed_tasks(tasks):
+    await asyncio.gather(*tasks)

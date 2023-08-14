@@ -95,7 +95,7 @@ async def member_update(after):
 
 
 async def status_upd(member):
-    await commit_to_database("status", guild_id=str(member.guild.id), user_id=str(member.id), comment=f"User {member.name} has gone {member.status}")
+    await commit_to_database("status", user_id=str(member.id), comment=f"User {member.name} has gone {member.status}")
 
 
 async def activity_upd(member, old_user_status, new_user_status):
@@ -109,7 +109,7 @@ async def activity_upd(member, old_user_status, new_user_status):
             comment.append(f' + {acts.actname}')
     comment = '\n'.join(comment)
 
-    await commit_to_database("status", guild_id=str(member.guild.id), user_id=str(member.id), comment=comment)
+    await commit_to_database("status", user_id=str(member.id), comment=comment)
 
 # ---------------- ENTRY_ACTION ----------------------------------------------------------------
 
@@ -223,7 +223,7 @@ async def commit_to_database(table_name: str, guild_id: str = None, tag: str = N
         case "gpt":
             await cursor.execute(f"INSERT INTO gpt VALUES(?, ?, ?, ?, ?)", (date, time, user_id, query, response))
         case "status":
-            await cursor.execute(f"INSERT INTO status VALUES(?, ?, ?, ?, ?)", (guild_id, date, time, user_id, comment))
+            await cursor.execute(f"INSERT INTO status VALUES(?, ?, ?, ?)", (date, time, user_id, comment))
         case _:
             await db.close()
             raise (f"Incorrect table name '{table_name}' in commit_to_database!")

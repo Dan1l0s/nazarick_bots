@@ -1,6 +1,8 @@
 import disnake
 from disnake.ext import commands
 import asyncio
+import sys
+from typing import Dict
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -26,13 +28,14 @@ class Activity():
 
 
 class UserStatus():
-
     status = None
-    activities = []
+    activities = None
+    updated = None
 
     def __init__(self, status):
         self.status = status
         self.activities = []
+        self.updated = False
 
     def __eq__(self, other):
         a = set((x.acttype, x.actname) for x in self.activities)
@@ -288,53 +291,53 @@ class LogBot():
         return False
 
     async def status_check(self):
-        print("STARTED STATUS TRACKING")
+        prev_status = {}
         while not self.bot.is_closed():
             try:
+                delayed_tasks = []
+                new_status = {}
+                status_channels = {}
                 guild_list = self.bot.guilds
-                old_list = {}
-
                 for guild in guild_list:
                     status_log_channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
                     if status_log_channel_id:
-                        old_list[guild.id] = self.gen_status_and_activity_list(guild.members)
-                await asyncio.sleep(0.1)
-                for guild in guild_list:
-                    if not guild.id in old_list.keys():
+                        status_channels[guild.id] = status_log_channel_id
+                        for member in guild.members:
+                            if member.bot:
+                                continue
+                            new_status[member] = UserStatus(None)
+                self.gen_status_and_activity(new_status)
+
+                for member, status in new_status.items():
+                    if not member in prev_status or status == prev_status[member]:
                         continue
-                    guild_id = guild.id
-                    status_log_channel_id = await helpers.get_guild_option(guild_id, GuildOption.STATUS_LOG_CHANNEL)
-
-                    if status_log_channel_id:
-                        new_list = self.gen_status_and_activity_list(guild.members)
-                        if len(new_list) == len(old_list[guild_id]):
-                            for member_num in range(len(new_list)):
-
-                                old_member = old_list[guild_id][member_num]
-                                new_member = guild.members[member_num]
-
-                                if old_member != new_list[member_num] and not (new_member.bot and new_member.id not in private_config.bot_ids.values()):
-                                    if old_member.status != new_list[member_num].status:
-                                        await database_logger.status_upd(new_member)
-                                    if old_member.activities != new_list[member_num].activities:
-                                        await database_logger.activity_upd(new_member, old_member, new_list[member_num])
-                                    channel = self.bot.get_channel(int(status_log_channel_id))
-                                    asyncio.create_task(channel.send(embed=self.embedder.activity_update(new_member, old_member, new_list[member_num])))
-            except:
+                    status.updated = True
+                    if status.status != prev_status[member].status:
+                        delayed_tasks.append(database_logger.status_upd(member))
+                    if status.activities != prev_status[member].activities:
+                        delayed_tasks.append(database_logger.activity_upd(member, prev_status[member], status))
+                for guild in guild_list:
+                    if not guild.id in status_channels.keys():
+                        continue
+                    for member in guild.members:
+                        if not member.bot and new_status[member].updated:
+                            channel = self.bot.get_channel(status_channels[guild.id])
+                            delayed_tasks.append(channel.send(embed=self.embedder.activity_update(member, prev_status[member], new_status[member])))
+                asyncio.create_task(helpers.run_delayed_tasks(delayed_tasks))
+                prev_status = new_status
+                await asyncio.sleep(0.5)
+            except Exception as ex:
+                print(f"Exception in status log: {ex}", file=sys.stderr)
                 pass
 
-    def gen_status_and_activity_list(self, list):
-        newlist = []
-        for elem in list:
-            new_user = UserStatus(str(elem.status))
-            for acts in elem.activities:
-                if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
-                    new_act = Activity(type(acts), f'{acts.artists[0]} - "{acts.title}"')
-                elif f"{type(acts)}" != "<class 'NoneType'>":
-                    new_act = Activity(type(acts), f'{acts.name}')
-                new_user.activities.append(new_act)
-            newlist.append(new_user)
-        return newlist
+    def gen_status_and_activity(self, status_dict: Dict[disnake.Member, UserStatus]):
+        for member, status in status_dict.items():
+            status.status = str(member.status)
+            for activity in member.activities:
+                if isinstance(activity, type(disnake.activity.Spotify)):
+                    status.activities.append(Activity(type(activity), f'{activity.artists[0]} - "{activity.title}"'))
+                elif activity is not None:
+                    status.activities.append(Activity(type(activity), f'{activity.name}'))
 
     async def check_mentions(self, message) -> bool:
         if len(message.role_mentions) > 0 or len(message.mentions) > 0:
