@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import signal
 import functools
 from concurrent.futures import ProcessPoolExecutor
@@ -35,10 +36,14 @@ def on_sigterm(loop, pool):
     loop.stop()
     pass
 
+def worker_init():
+    f = open(os.devnull, 'w')
+    sys.stdout = f
+    sys.stderr = f
 
 async def main():
     os.chdir(os.path.dirname(__file__))
-    pool = ProcessPoolExecutor()
+    pool = ProcessPoolExecutor(initializer=worker_init)
 
     try:
         loop = asyncio.get_running_loop()

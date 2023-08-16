@@ -482,7 +482,8 @@ class AdminBot():
             if not helpers.is_supreme_being(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
-            await self.supreme_dm(message, inter.author.id)
+            msg = f"Greetings, Supreme Being.\nYou have a new message from {inter.author}:\n" + message
+            await self.supreme_dm(msg, inter.author.id)
             await inter.send("Your message was sent to other Supreme Beings, my master.")
 
         @ self.bot.slash_command(description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])

@@ -40,8 +40,8 @@ async def radio(guild, data):
     await commit_to_database("common", guild_id=str(guild.id), tag="RADIO", comment=f"Playing {data['name']} in VC: {guild.voice_client.channel}")
 
 
-async def finished(guild):
-    await commit_to_database("common", guild_id=str(guild.id), tag="STOP", comment=f"Finished playing in VC: {guild.voice_client.channel}")
+async def finished(channel: disnake.VoiceChannel):
+    await commit_to_database("common", guild_id=str(channel.guild.id), tag="STOP", comment=f"Finished playing in VC: {channel}")
 
 # ---------------- ACTIONS ----------------------------------------------------------------
 

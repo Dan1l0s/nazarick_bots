@@ -240,11 +240,12 @@ def ytdl_extract_info(url, download=True):
     except:
         return None
 
-
 def yt_search(query, max_results=5) -> (list | str):
-    return YoutubeSearch(query, max_results=max_results).to_dict()
-
-
+    try:
+        return YoutubeSearch(query, max_results=max_results).to_dict()
+    except:
+        return None
+    
 async def set_bitrate(guild) -> bool:
     ff = False
     voice_channels = guild.voice_channels

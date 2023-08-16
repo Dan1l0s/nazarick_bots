@@ -76,7 +76,9 @@ class GuildState():
         self.skip_flag = False
         self.repeat_flag = False
         self.paused = False
-        self.curr_track = None
+        self.current_song = None
+        self.last_inter = None
+        self.cancel_timeout = None
         self.song_queue.clear()
         self.last_radio_message.clear()
 
@@ -178,7 +180,7 @@ class MusicBotInstance:
             if resume and not state.paused:
                 state.voice.resume()
         except:
-            await database_logger.finished(self.states[guild_id].guild)
+            await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
             await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
         state.cancel_timeout = None
 
@@ -195,7 +197,7 @@ class MusicBotInstance:
         if before.channel != state.voice.channel and after.channel != state.voice.channel:
             return
         if member.id == self.bot.application_id and not after.channel:
-            await database_logger.finished(member.guild)
+            await database_logger.finished(before.channel)
             return await self.abort_play(guild_id)
         if helpers.get_true_members_count(state.voice.channel.members) < 1:
             if state.cancel_timeout == None:
@@ -348,7 +350,7 @@ class MusicBotInstance:
                 elif state.repeat_flag:
                     state.song_queue.insert(
                         0, state.current_song)
-            await database_logger.finished(self.states[guild_id].guild)
+            await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
             await self.abort_play(guild_id)
         except Exception as err:
             print(f"Exception in play_loop: {err}")
@@ -419,7 +421,7 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         if not state.voice:
             return
-        await database_logger.finished(inter.guild)
+        await database_logger.finished(inter.guild.voice_client.channel)
         await self.abort_play(inter.guild.id, message=f"DJ {inter.author.display_name} decided to stop!")
 
     async def pause(self, inter):
