@@ -132,6 +132,8 @@ def get_guild_name(guild) -> str:
 
 
 def get_welcome_time(date) -> str:
+    if not date:
+        return None
     delta = datetime.now(timezone.utc) - date
     amount = delta.days // 365
     if amount > 0:
@@ -240,12 +242,14 @@ def ytdl_extract_info(url, download=True):
     except:
         return None
 
+
 def yt_search(query, max_results=5) -> (list | str):
     try:
         return YoutubeSearch(query, max_results=max_results).to_dict()
     except:
         return None
-    
+
+
 async def set_bitrate(guild) -> bool:
     ff = False
     voice_channels = guild.voice_channels
@@ -561,5 +565,7 @@ async def try_function(function, await_flag: bool, *args, **kwargs):
         return True, tmp
     except:
         return False, tmp
+
+
 async def run_delayed_tasks(tasks):
     await asyncio.gather(*tasks)

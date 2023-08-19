@@ -5,13 +5,15 @@ import sys
 import os
 
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
+
 
 try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
     from configs.private_config import hosting_port, backup_login, backup_password, backup_url
     from configs.public_config import bot_backup_files
+    import helpers.helpers as helpers
 except:
     pass
 
@@ -78,6 +80,7 @@ class Host:
     state = BotState.STOPPED
     errors = None
     errors_cnt = 0
+    last_start = None
     process = None
     listener_socket = None
     port = None
@@ -198,7 +201,7 @@ class Host:
     async def run(self):
         if self.state == BotState.RUNNING:
             return "Bot is already running"
-
+        self.last_start = datetime.now(timezone.utc)
         self.errors = ""
         self.process = subprocess.Popen(
             ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
@@ -230,7 +233,16 @@ class Host:
     async def status(self):
         active_branch = self.get_current_branch()
         current_commit = self.get_current_commit()
-        ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}"
+        try:
+            time_passed = helpers.get_welcome_time(self.last_start)
+        except:
+            time_passed = None
+
+        if not time_passed:
+            time_passed = ""
+        else:
+            time_passed = "\nLast launch: " + time_passed
+        ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}{time_passed}"
         if self.state == BotState.RUNNING:
             if len(self.errors) == 0:
                 ans += "\nError status: No errors"
