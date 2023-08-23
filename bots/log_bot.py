@@ -10,7 +10,6 @@ import configs.public_config as public_config
 import helpers.helpers as helpers
 import helpers.database_logger as database_logger
 
-from helpers.selection import SelectionPanel
 from helpers.embedder import Embed
 from helpers.helpers import GuildOption
 

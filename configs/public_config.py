@@ -11,6 +11,7 @@ emojis = {
     "true": ":white_check_mark:",
     "false": ":no_entry:",
     "yay": "<a:RimuruYay:774377506659893268>",
+    "blue_diamond": ":small_blue_diamond:",
 }
 
 # colors used in embeds

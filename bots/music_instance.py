@@ -207,7 +207,7 @@ class MusicBotInstance:
 
     async def abort_play(self, guild_id, message="Finished playing music!"):
         state = self.states[guild_id]
-        if state.voice:
+        if state.voice and message:
             try:
                 voice = state.voice
                 state.voice = None
@@ -267,8 +267,9 @@ class MusicBotInstance:
         songs = await self.run_in_process(helpers.yt_search, query)
         select = SelectionPanel(
             songs, self.add_from_url_to_queue, inter, song, self)
+        embed = self.embedder.song_selections(inter.author, songs)
         await inter.orig_inter.delete_original_response()
-        await select.send()
+        await select.send(embed=embed)
 
     async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
@@ -350,7 +351,10 @@ class MusicBotInstance:
                 elif state.repeat_flag:
                     state.song_queue.insert(
                         0, state.current_song)
-            await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
+            try:
+                await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
+            except:
+                pass
             await self.abort_play(guild_id)
         except Exception as err:
             print(f"Exception in play_loop: {err}")
@@ -390,7 +394,7 @@ class MusicBotInstance:
         if not state.voice:
             ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True)
             if not ff:
-                await self.abort_play(inter.guild.id, "Couldn't connect to your voice channel, check my permissions and try again")
+                await self.abort_play(inter.guild.id, message="Couldn't connect to your voice channel, check my permissions and try again")
                 return
             await self.process_song_query(inter, query, playnow=playnow, radio=radio)
             return asyncio.create_task(self.play_loop(inter.guild.id))

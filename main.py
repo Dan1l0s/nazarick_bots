@@ -36,10 +36,12 @@ def on_sigterm(loop, pool):
     loop.stop()
     pass
 
+
 def worker_init():
     f = open(os.devnull, 'w')
     sys.stdout = f
     sys.stderr = f
+
 
 async def main():
     os.chdir(os.path.dirname(__file__))

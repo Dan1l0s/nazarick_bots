@@ -1004,3 +1004,24 @@ class Embed:
         roles = '\n* '.join(roles)
         embed.add_field(name="", value=f"* {roles}", inline=False)
         return embed
+
+    def song_selections(self, author, songs):
+        embed = disnake.Embed(
+            color=disnake.Colour.from_rgb(
+                *public_config.embed_colors["songs"]),
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_author(name="Song selection. Select the song number to continue.", icon_url=author.avatar.url)
+        selection_field = []
+        cnt = 0
+        for song in songs:
+            cnt += 1
+            title = song['title']
+            suffix = song['url_suffix'][:song['url_suffix'].find("&")]
+            if song['duration'] == 0:
+                song['duration'] = "Live"
+            selection_field.append(f'**{cnt}.** {public_config.emojis["blue_diamond"]} **[{title}](https://www.youtube.com/{suffix})** ({song["duration"]})')
+        selection_field = '\n'.join(selection_field)
+        embed.add_field(name="", value=selection_field, inline=False)
+        embed.set_footer(text=f"This timeouts in {public_config.music_settings['SelectionPanelTimeout']} seconds", icon_url=author.avatar.url)
+        return embed
