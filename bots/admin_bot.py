@@ -10,8 +10,8 @@ import configs.public_config as public_config
 
 import helpers.helpers as helpers
 import helpers.database_logger as database_logger
+import helpers.embedder as embedder
 
-from helpers.embedder import Embed
 from helpers.helpers import GuildOption, Rank
 
 
@@ -24,7 +24,6 @@ class AdminBot():
         ), activity=disnake.Activity(name="with the subordinates", type=disnake.ActivityType.playing))
         self.name = name
         self.token = token
-        self.embedder = Embed()
         self.music_instances = []
 
         @self.bot.event
@@ -145,27 +144,12 @@ class AdminBot():
 
         @admin.sub_command(description="Shows admin list")
         async def list(inter: disnake.AppCmdInter):
-
             await inter.response.defer()
-
             if await self.check_dm(inter):
                 return
 
             admin_list = await helpers.get_guild_option(inter.guild.id, GuildOption.ADMIN_LIST)
-
-            embed = disnake.Embed(
-                color=disnake.Colour.from_rgb(
-                    *public_config.embed_colors["voice_update"]),
-                timestamp=datetime.datetime.now())
-            admin_s = ""
-            num = 1
-            for admin in admin_list:
-                user = self.bot.get_user(admin)
-                if user:
-                    admin_s += f"{num}: {user.mention}\n"
-                    num += 1
-
-            embed.add_field(name="Admin list:", value=admin_s, inline=False)
+            embed = embedder.admin_list(admin_list, self.bot.get_user)
 
             await helpers.try_function(inter.delete_original_response, True)
             await helpers.try_function(inter.channel.send, True, embed=embed)
@@ -552,7 +536,6 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -630,6 +613,7 @@ class AdminBot():
 
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def monitor_errors(self) -> None:
         os.set_blocking(sys.stdin.fileno(), False)

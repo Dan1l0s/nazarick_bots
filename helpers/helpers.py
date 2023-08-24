@@ -11,7 +11,7 @@ from enum import Enum
 
 import configs.private_config as private_config
 import configs.public_config as public_config
-from helpers.embedder import Embed
+import helpers.embedder as embedder
 
 
 class Rank:
@@ -496,7 +496,6 @@ async def add_roles_and_notify(member: disnake.Member, roles: List[disnake.Role]
     if len(roles) == 0:
         return
 
-    embedder = Embed()
     await try_function(member.add_roles, True, *roles)
     embed = embedder.role_notification(member.guild, roles)
     await try_function(member.send, True, embed=embed)

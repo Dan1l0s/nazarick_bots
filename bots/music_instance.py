@@ -14,10 +14,10 @@ import configs.public_config as public_config
 
 import helpers.helpers as helpers
 import helpers.database_logger as database_logger
+import helpers.embedder as embedder
 
-from helpers.embedder import Embed
-from helpers.selection import SelectionPanel
-from helpers.queue import ViewQueue
+from helpers.view_panels import SongSelection, QueueList
+
 
 class Interaction():
     orig_inter = None
@@ -92,7 +92,6 @@ class GuildState():
 class MusicBotInstance:
     bot = None
     name = None
-    embedder = None
     states = None
     process_pool = None
     token = None
@@ -104,7 +103,6 @@ class MusicBotInstance:
         ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
         self.name = name
         self.token = token
-        self.embedder = Embed()
         self.states = {}
         self.process_pool = process_pool
 
@@ -180,7 +178,10 @@ class MusicBotInstance:
             if resume and not state.paused:
                 state.voice.resume()
         except:
-            await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
+            try:
+                await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
+            except:
+                pass
             await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
         state.cancel_timeout = None
 
@@ -245,13 +246,13 @@ class MusicBotInstance:
                     if respond:
                         await inter.orig_inter.delete_original_response()
                     await inter.text_channel.send("Error processing video, try another one!")
-                    await helpers.try_function(state.song_queue.remove, False, song)                    
+                    await helpers.try_function(state.song_queue.remove, False, song)
                     if not state.current_song:
                         await helpers.try_function(state.voice.disconnect, True)
                     return
                 song.track_info.set_result(track_info)
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
-                    embed = self.embedder.songs(
+                    embed = embedder.songs(
                         song.author, track_info, "Song was added to queue!")
                     song.original_message = await inter.text_channel.send("", embed=embed)
                 if respond:
@@ -266,11 +267,9 @@ class MusicBotInstance:
 
     async def select_song(self, inter, song, query):
         songs = await self.run_in_process(helpers.yt_search, query)
-        select = SelectionPanel(
-            songs, self.add_from_url_to_queue, inter, song, self)
-        embed = self.embedder.song_selections(inter.author, songs)
+        select = SongSelection(songs, self.add_from_url_to_queue, inter, song, self)
         await inter.orig_inter.delete_original_response()
-        await select.send(embed=embed)    
+        await select.send()
 
     async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
@@ -278,8 +277,7 @@ class MusicBotInstance:
         playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
         if playlist_info is None:
             await msg.delete()
-            await inter.text_channel.send(
-                "Error processing playlist, there are unavailable videos!")
+            await inter.text_channel.send("Error processing playlist, there are unavailable videos!")
             return
 
         await msg.edit("Playlist has been processed!")
@@ -320,12 +318,9 @@ class MusicBotInstance:
                     state.voice.play(disnake.FFmpegPCMAudio(
                         source=link, **public_config.FFMPEG_OPTIONS))
                     if state.current_song.original_message:
-                        try:
-                            await state.current_song.original_message.delete()
-                        except:
-                            pass
-                    embed = self.embedder.songs(
-                        state.current_song.author, current_track, "Playing this song!")
+                        await helpers.try_function(state.current_song.original_message.delete, True)
+
+                    embed = embedder.songs(state.current_song.author, current_track, "Playing this song!")
                     await state.last_inter.text_channel.send("", embed=embed)
                     await database_logger.playing(state.guild, current_track)
                 else:
@@ -482,12 +477,11 @@ class MusicBotInstance:
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
             return
-        viewqueue = ViewQueue(
-            state.song_queue, inter, state.current_song.track_info.result(), self)
+        viewqueue = QueueList(state.song_queue, inter, state.current_song.track_info.result(), self)
         await inter.orig_inter.delete_original_response()
         curr_song = await state.current_song.track_info
-        embed = self.embedder.queue(inter.guild, state.song_queue, 0, curr_song)
-        await viewqueue.send(embed = embed)
+        embed = embedder.queue(inter.guild, state.song_queue, 0, curr_song)
+        await viewqueue.send(embed=embed)
 
     async def wrong(self, inter):
         state = self.states[inter.guild.id]
@@ -543,7 +537,7 @@ class MusicBotInstance:
                 if (state.last_radio_message == data):
                     return
                 state.last_radio_message = data
-                await state.last_inter.text_channel.send("", embed=self.embedder.radio(data))
+                await state.last_inter.text_channel.send("", embed=embedder.radio(data))
                 await database_logger.radio(state.last_inter.guild, data)
                 await asyncio.sleep(1)
             except:

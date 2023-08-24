@@ -9,8 +9,8 @@ import configs.public_config as public_config
 
 import helpers.helpers as helpers
 import helpers.database_logger as database_logger
+import helpers.embedder as embedder
 
-from helpers.embedder import Embed
 from helpers.helpers import GuildOption
 
 
@@ -46,13 +46,11 @@ class LogBot():
     token = None
     name = None
     bot = None
-    embedder = None
 
     def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="everyone o_o", type=disnake.ActivityType.watching))
         self.name = name
-        self.embedder = Embed()
         self.token = token
 
     # --------------------- MESSAGES --------------------------------
@@ -77,12 +75,12 @@ class LogBot():
                 return
             channel = self.bot.get_channel(int(channel_id))
             if before.content != after.content:
-                await channel.send(embed=self.embedder.message_edit(before, after))
+                await channel.send(embed=embedder.message_edit(before, after))
             if before.pinned != after.pinned:
                 if before.pinned:
-                    await channel.send(embed=self.embedder.message_unpin(before, after))
+                    await channel.send(embed=embedder.message_unpin(before, after))
                 else:
-                    await channel.send(embed=self.embedder.message_pin(before, after))
+                    await channel.send(embed=embedder.message_pin(before, after))
 
         @self.bot.event
         async def on_message_delete(message):
@@ -93,7 +91,7 @@ class LogBot():
                 return
             channel = self.bot.get_channel(int(channel_id))
             if message.author.id not in private_config.bot_ids.values():
-                await channel.send(embed=self.embedder.message_delete(message))
+                await channel.send(embed=embedder.message_delete(message))
 
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
@@ -106,8 +104,8 @@ class LogBot():
             if hasattr(database_logger, s):
                 log = getattr(database_logger, s)
                 await log(entry)
-            if hasattr(self.embedder, s):
-                s = getattr(self.embedder, s)
+            if hasattr(embedder, s):
+                s = getattr(embedder, s)
                 await channel.send(embed=s(entry))
 
         @self.bot.event
@@ -117,7 +115,7 @@ class LogBot():
                 return
             channel = self.bot.get_channel(int(channel_id))
             # await database_logger.member_update(after)
-            await channel.send(embed=self.embedder.profile_upd(before, after))
+            await channel.send(embed=embedder.profile_upd(before, after))
 
         @self.bot.event
         async def on_raw_member_remove(payload):
@@ -126,7 +124,7 @@ class LogBot():
                 return
             channel = self.bot.get_channel(int(channel_id))
             await database_logger.member_remove(payload)
-            await channel.send(embed=self.embedder.member_remove(payload))
+            await channel.send(embed=embedder.member_remove(payload))
 
         @self.bot.event
         async def on_member_join(member):
@@ -136,14 +134,14 @@ class LogBot():
             if welcome_channel_id:
                 welcome_channel = self.bot.get_channel(int(welcome_channel_id))
                 user = self.bot.get_user(member.id)
-                await welcome_channel.send(embed=self.embedder.welcome_message(member, user))
+                await welcome_channel.send(embed=embedder.welcome_message(member, user))
                 message = await welcome_channel.send(f"{member.mention}")
                 await message.delete()
 
             if log_channel_id:
                 log_channel = self.bot.get_channel(int(log_channel_id))
                 await database_logger.member_join(member)
-                await log_channel.send(embed=self.embedder.member_join(member))
+                await log_channel.send(embed=embedder.member_join(member))
 
         @ self.bot.event
         async def on_member_ban(guild, user):
@@ -151,7 +149,7 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            await channel.send(embed=self.embedder.ban(guild, user))
+            await channel.send(embed=embedder.ban(guild, user))
 
         @ self.bot.event
         async def on_member_unban(guild, user):
@@ -159,7 +157,7 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            await channel.send(embed=self.embedder.unban(guild, user))
+            await channel.send(embed=embedder.unban(guild, user))
 
     # --------------------- VOICE STATES --------------------------------
         @ self.bot.event
@@ -173,23 +171,23 @@ class LogBot():
                 if before.channel.id != after.channel.id:
                     await database_logger.switched(member, before, after)
                     if not after.afk:  # REGULAR SWITCH
-                        await channel.send(embed=self.embedder.switched(member, before, after))
+                        await channel.send(embed=embedder.switched(member, before, after))
                     else:  # AFK
-                        await channel.send(embed=self.embedder.afk(member, after))
+                        await channel.send(embed=embedder.afk(member, after))
                 else:
                     for attr in dir(after):
                         if attr in public_config.on_v_s_update:
-                            if getattr(after, attr) != getattr(before, attr) and hasattr(self.embedder, attr):
+                            if getattr(after, attr) != getattr(before, attr) and hasattr(embedder, attr):
                                 log = getattr(database_logger, attr)
                                 await log(member, after)
-                                s = getattr(self.embedder, attr)
+                                s = getattr(embedder, attr)
                                 await channel.send(embed=s(member, after))
             elif before.channel:
                 await database_logger.disconnected(member, before)
-                await channel.send(embed=self.embedder.disconnected(member, before))
+                await channel.send(embed=embedder.disconnected(member, before))
             else:
                 await database_logger.connected(member, after)
-                await channel.send(embed=self.embedder.connected(member, after))
+                await channel.send(embed=embedder.connected(member, after))
 
     # --------------------- RANDOM --------------------------------
         @ self.bot.event
@@ -218,7 +216,7 @@ class LogBot():
                 return
 
             user = self.bot.get_user(member.id)
-            embed = self.embedder.welcome_message(member, user)
+            embed = embedder.welcome_message(member, user)
             await helpers.try_function(inter.delete_original_response, True)
             await inter.channel.send(embed=embed)
             message = await inter.channel.send(f"{member.mention}")
@@ -230,7 +228,7 @@ class LogBot():
 
             if await self.check_dm(inter):
                 return
-            await inter.edit_original_response(embed=self.embedder.get_status(member))
+            await inter.edit_original_response(embed=embedder.get_status(member))
 
         @ self.bot.slash_command()
         async def set(inter: disnake.AppCmdInter):
@@ -243,10 +241,8 @@ class LogBot():
         @ logs.sub_command(description="Allows admin to set channel for common logs")
         async def common(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
             await inter.response.defer()
-
             if await self.check_dm(inter):
                 return
-
             if not await helpers.is_admin(inter.author):
                 return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
 
@@ -321,7 +317,7 @@ class LogBot():
                     for member in guild.members:
                         if not member.bot and new_status[member].updated:
                             channel = self.bot.get_channel(status_channels[guild.id])
-                            delayed_tasks.append(channel.send(embed=self.embedder.activity_update(member, prev_status[member], new_status[member])))
+                            delayed_tasks.append(channel.send(embed=embedder.activity_update(member, prev_status[member], new_status[member])))
                 asyncio.create_task(helpers.run_delayed_tasks(delayed_tasks))
                 prev_status = new_status
                 await asyncio.sleep(0.5)
