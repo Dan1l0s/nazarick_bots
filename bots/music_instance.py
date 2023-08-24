@@ -17,7 +17,7 @@ import helpers.database_logger as database_logger
 
 from helpers.embedder import Embed
 from helpers.selection import SelectionPanel
-
+from helpers.queue import ViewQueue
 
 class Interaction():
     orig_inter = None
@@ -245,6 +245,7 @@ class MusicBotInstance:
                     if respond:
                         await inter.orig_inter.delete_original_response()
                     await inter.text_channel.send("Error processing video, try another one!")
+                    await helpers.try_function(state.song_queue.remove, False, song)                    
                     if not state.current_song:
                         await helpers.try_function(state.voice.disconnect, True)
                     return
@@ -269,7 +270,7 @@ class MusicBotInstance:
             songs, self.add_from_url_to_queue, inter, song, self)
         embed = self.embedder.song_selections(inter.author, songs)
         await inter.orig_inter.delete_original_response()
-        await select.send(embed=embed)
+        await select.send(embed=embed)    
 
     async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
@@ -481,29 +482,12 @@ class MusicBotInstance:
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
             return
-
-        if len(state.song_queue) > 0:
-            cnt = 1
-            ans = "```Queue:"
-            for song in state.song_queue[:15]:
-                # TODO: Maybe show that song being loaded
-                if not song.track_info.done():
-                    continue
-                track = song.track_info.result()
-                if "live_status" in track and track['live_status'] == "is_live" or song.radio_mode:
-                    duration = "Live"
-                else:
-                    duration = helpers.get_duration(track)
-                if song.radio_mode:
-                    title = "Radio: " + track
-                else:
-                    title = track['title']
-                ans += f"\n{cnt}) {title}, duration: {duration}"
-                cnt += 1
-            ans += "```"
-            await inter.orig_inter.send(ans)
-        else:
-            await inter.orig_inter.send("There are no songs in the queue!")
+        viewqueue = ViewQueue(
+            state.song_queue, inter, state.current_song.track_info.result(), self)
+        await inter.orig_inter.delete_original_response()
+        curr_song = await state.current_song.track_info
+        embed = self.embedder.queue(inter.guild, state.song_queue, 0, curr_song)
+        await viewqueue.send(embed = embed)
 
     async def wrong(self, inter):
         state = self.states[inter.guild.id]

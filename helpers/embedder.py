@@ -1025,3 +1025,37 @@ class Embed:
         embed.add_field(name="", value=selection_field, inline=False)
         embed.set_footer(text=f"This timeouts in {public_config.music_settings['SelectionPanelTimeout']} seconds", icon_url=author.avatar.url)
         return embed
+
+    def queue(self, guild, queue, range_start, current_track):
+        curr_song = current_track
+        if "entries" in curr_song:
+            curr_song = curr_song["entries"][0]
+        embed = disnake.Embed(
+            description = f"**Currently playing : [{curr_song['title']}]({curr_song['webpage_url']})** {helpers.get_duration(curr_song)}",
+            color=disnake.Colour.from_rgb(
+                *public_config.embed_colors["songs"]),
+            timestamp=datetime.datetime.now()
+        )
+        queue_list = []
+        if len(queue) > 0 and range_start + 10 <= len(queue):
+            for num in range(10):
+                curr_song = queue[num + range_start].track_info.result()
+                title = curr_song['title']
+                url = curr_song['webpage_url']
+                queue_list.append(f'**{num + range_start + 1}.** **[{title}]({url})** {helpers.get_duration(curr_song)}') 
+            queue_list = '\n'.join(queue_list) 
+            embed.add_field(name="", value=queue_list, inline=False)    
+        elif len(queue) > 0 and range_start + 10 > len(queue):
+            for num in range(len(queue) - range_start):
+                curr_song = queue[num + range_start].track_info.result()
+                title = curr_song['title']
+                url = curr_song['webpage_url']
+                queue_list.append(f'**{num + range_start + 1}.** **[{title}]({url})** {helpers.get_duration(curr_song)}')
+            queue_list = '\n'.join(queue_list)        
+            embed.add_field(name="", value=queue_list, inline=False)    
+        else:
+            embed.add_field(name = "", value = "Queue is currently empty!", inline=False)
+        embed.set_author(name=guild.name,
+                         icon_url=guild.icon.url)
+        embed.set_footer(text=f'{guild.name}')
+        return embed
