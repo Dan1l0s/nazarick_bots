@@ -65,7 +65,6 @@ def main():
     clear - clears current list of errors\n""")
             continue
 
-        print("Connecting...")
         try:
             sock = socket.socket(socket.AF_INET)
             sock.connect((socket.gethostbyname(host), int(port)))
@@ -73,9 +72,8 @@ def main():
             print(f"Failed to connect to {host}:{port}\n")
             continue
 
-        print("Sending...")
         sock.sendall(cmd.encode('utf8'))
-        print("Receiving...")
+
         response = ""
         while True:
             data = sock.recv(1024)

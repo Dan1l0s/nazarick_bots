@@ -445,7 +445,10 @@ async def set_guild_option(guild_id, option: GuildOption, value):
     db.row_factory = aiosqlite.Row
     cursor = await db.cursor()
     await cursor.execute(f"INSERT OR IGNORE INTO {opt_table} (guild_id) VALUES(?)", (str(guild_id),))
-    await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (str(value), str(guild_id),))
+    if value:
+        await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (str(value), str(guild_id),))
+    else:
+        await cursor.execute(f"UPDATE server_options SET {opt_str} = NULL WHERE guild_id = ?", (str(guild_id),))
     await db.commit()
     await db.close()
 

@@ -74,13 +74,17 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await helpers.set_guild_option(before.author.guild.id, GuildOption.LOG_CHANNEL, None)
+                return
+
             if before.content != after.content:
-                await channel.send(embed=embedder.message_edit(before, after))
+                await helpers.try_function(channel.send, True, embed=embedder.message_edit(before, after))
             if before.pinned != after.pinned:
                 if before.pinned:
-                    await channel.send(embed=embedder.message_unpin(before, after))
+                    await helpers.try_function(channel.send, True, embed=embedder.message_unpin(before, after))
                 else:
-                    await channel.send(embed=embedder.message_pin(before, after))
+                    await helpers.try_function(channel.send, True, embed=embedder.message_pin(before, after))
 
         @self.bot.event
         async def on_message_delete(message):
@@ -89,9 +93,13 @@ class LogBot():
             channel_id = await helpers.get_guild_option(message.author.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
                 return
+
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await helpers.set_guild_option(message.author.guild.id, GuildOption.LOG_CHANNEL, None)
+                return
             if message.author.id not in private_config.bot_ids.values():
-                await channel.send(embed=embedder.message_delete(message))
+                await helpers.try_function(channel.send, True, embed=embedder.message_delete(message))
 
     # --------------------- ACTIONS --------------------------------
         @self.bot.event
@@ -100,13 +108,17 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await helpers.set_guild_option(entry.user.guild.id, GuildOption.LOG_CHANNEL, None)
+                return
+
             s = f"entry_{str(entry.action)[15:]}"
             if hasattr(database_logger, s):
                 log = getattr(database_logger, s)
                 await log(entry)
             if hasattr(embedder, s):
                 s = getattr(embedder, s)
-                await channel.send(embed=s(entry))
+                await helpers.try_function(channel.send, True, embed=s(entry))
 
         @self.bot.event
         async def on_member_update(before, after):
@@ -114,8 +126,11 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await helpers.set_guild_option(before.guild.id, GuildOption.LOG_CHANNEL, None)
+                return
             # await database_logger.member_update(after)
-            await channel.send(embed=embedder.profile_upd(before, after))
+            await helpers.try_function(channel.send, True, embed=embedder.profile_upd(before, after))
 
         @self.bot.event
         async def on_raw_member_remove(payload):
@@ -123,8 +138,11 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await helpers.set_guild_option(payload.guild_id, GuildOption.LOG_CHANNEL, None)
+                return
             await database_logger.member_remove(payload)
-            await channel.send(embed=embedder.member_remove(payload))
+            await helpers.try_function(channel.send, True, embed=embedder.member_remove(payload))
 
         @self.bot.event
         async def on_member_join(member):
@@ -133,15 +151,21 @@ class LogBot():
 
             if welcome_channel_id:
                 welcome_channel = self.bot.get_channel(int(welcome_channel_id))
-                user = self.bot.get_user(member.id)
-                await welcome_channel.send(embed=embedder.welcome_message(member, user))
-                message = await welcome_channel.send(f"{member.mention}")
-                await message.delete()
+                if not welcome_channel:
+                    await helpers.set_guild_option(member.guild.id, GuildOption.WELCOME_CHANNEL, None)
+                else:
+                    user = self.bot.get_user(member.id)
+                    await helpers.try_function(welcome_channel.send, True, embed=embedder.welcome_message(member, user))
+                    message = await welcome_channel.send(f"{member.mention}")
+                    await message.delete()
 
             if log_channel_id:
                 log_channel = self.bot.get_channel(int(log_channel_id))
-                await database_logger.member_join(member)
-                await log_channel.send(embed=embedder.member_join(member))
+                if not log_channel:
+                    await helpers.set_guild_option(member.guild.id, GuildOption.LOG_CHANNEL, None)
+                else:
+                    await database_logger.member_join(member)
+                    await helpers.try_function(log_channel.send, True, embed=embedder.member_join(member))
 
         @ self.bot.event
         async def on_member_ban(guild, user):
@@ -149,7 +173,10 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            await channel.send(embed=embedder.ban(guild, user))
+            if not channel:
+                await helpers.set_guild_option(guild.id, GuildOption.LOG_CHANNEL, None)
+                return
+            await helpers.try_function(channel.send, True, embed=embedder.ban(guild, user))
 
         @ self.bot.event
         async def on_member_unban(guild, user):
@@ -157,7 +184,10 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
-            await channel.send(embed=embedder.unban(guild, user))
+            if not channel:
+                await helpers.set_guild_option(guild.id, GuildOption.LOG_CHANNEL, None)
+                return
+            await helpers.try_function(channel.send, True, embed=embedder.unban(guild, user))
 
     # --------------------- VOICE STATES --------------------------------
         @ self.bot.event
@@ -166,14 +196,17 @@ class LogBot():
             if not channel_id:
                 return
             channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                await helpers.set_guild_option(member.guild.id, GuildOption.LOG_CHANNEL, None)
+                return
 
             if before.channel and after.channel:
                 if before.channel.id != after.channel.id:
                     await database_logger.switched(member, before, after)
-                    if not after.afk:  # REGULAR SWITCH
-                        await channel.send(embed=embedder.switched(member, before, after))
-                    else:  # AFK
-                        await channel.send(embed=embedder.afk(member, after))
+                    if not after.afk:
+                        await helpers.try_function(channel.send, True, embed=embedder.switched(member, before, after))
+                    else:
+                        await helpers.try_function(channel.send, True, embed=embedder.afk(member, after))
                 else:
                     for attr in dir(after):
                         if attr in public_config.on_v_s_update:
@@ -181,13 +214,13 @@ class LogBot():
                                 log = getattr(database_logger, attr)
                                 await log(member, after)
                                 s = getattr(embedder, attr)
-                                await channel.send(embed=s(member, after))
+                                await helpers.try_function(channel.send, True, embed=s(member, after))
             elif before.channel:
                 await database_logger.disconnected(member, before)
-                await channel.send(embed=embedder.disconnected(member, before))
+                await helpers.try_function(channel.send, True, embed=embedder.disconnected(member, before))
             else:
                 await database_logger.connected(member, after)
-                await channel.send(embed=embedder.connected(member, after))
+                await helpers.try_function(channel.send, True, embed=embedder.connected(member, after))
 
     # --------------------- RANDOM --------------------------------
         @ self.bot.event
@@ -199,12 +232,10 @@ class LogBot():
         @ self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
-            # await database_logger.lost_connection(self.bot)
 
         @self.bot.event
         async def on_connect():
             print(f"{self.name} has connected to Discord")
-            # await self.status_check()
 
     # --------------------- SLASH COMMANDS --------------------------------
 
@@ -219,10 +250,9 @@ class LogBot():
             embed = embedder.welcome_message(member, user)
             await helpers.try_function(inter.delete_original_response, True)
             await inter.channel.send(embed=embed)
-            message = await inter.channel.send(f"{member.mention}")
-            await helpers.try_function(message.delete, True)
+            await inter.channel.send(f"{member.mention}", delete_after=0.001)
 
-        @ self.bot.slash_command(description="Check current status of user")
+        @ self.bot.slash_command(description="Check current status of a user")
         async def status(inter: disnake.AppCmdInter, member: disnake.User):
             await inter.response.defer()
 
@@ -238,41 +268,54 @@ class LogBot():
         async def logs(inter: disnake.AppCmdInter):
             pass
 
-        @ logs.sub_command(description="Allows admin to set channel for common logs")
-        async def common(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for common logs')):
+        @ logs.sub_command(description="Allows admins to set a channel for common logs")
+        async def common(inter: disnake.AppCmdInter, channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for common logs')):
             await inter.response.defer()
             if await self.check_dm(inter):
                 return
             if not await helpers.is_admin(inter.author):
-                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
+                return await inter.send("Unauthorized access, you are not an admin!")
 
-            await helpers.set_guild_option(inter.guild.id, GuildOption.LOG_CHANNEL, channel.id)
-            await inter.edit_original_response(f'New log channel is {channel.mention}')
+            if channel:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.LOG_CHANNEL, channel.id)
+                await inter.edit_original_response(f'New log channel is {channel.mention}')
+            else:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.LOG_CHANNEL, None)
+                await inter.edit_original_response('Common logs are disabled.')
 
-        @ logs.sub_command(description="Allows admin to set channel for status logs")
-        async def status(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for status logs')):
-            await inter.response.defer()
-
-            if await self.check_dm(inter):
-                return
-
-            if not await helpers.is_admin(inter.author):
-                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
-            await helpers.set_guild_option(inter.guild.id, GuildOption.STATUS_LOG_CHANNEL, channel.id)
-            await inter.edit_original_response(f'New status log channel is {channel.mention}')
-
-        @ logs.sub_command(description="Allows admin to set channel for welcome logs")
-        async def welcome(inter: disnake.AppCmdInter, channel: disnake.TextChannel = commands.Param(description='Select text channel for welcomes logs')):
+        @ logs.sub_command(description="Allows admins to set a channel for status logs")
+        async def status(inter: disnake.AppCmdInter, channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for status logs')):
             await inter.response.defer()
 
             if await self.check_dm(inter):
                 return
 
             if not await helpers.is_admin(inter.author):
-                return await inter.edit_original_response("Unauthorized access, you are not the Supreme Being!")
+                return await inter.send("Unauthorized access, you are not an admin!")
 
-            await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, channel.id)
-            await inter.edit_original_response(f'New welcome channel is {channel.mention}')
+            if channel:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.STATUS_LOG_CHANNEL, channel.id)
+                await inter.edit_original_response(f'New status log channel is {channel.mention}')
+            else:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.STATUS_LOG_CHANNEL, None)
+                await inter.edit_original_response('Status logs are disabled.')
+
+        @ logs.sub_command(description="Allows admins to set a channel for welcome logs")
+        async def welcome(inter: disnake.AppCmdInter, channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for welcome logs')):
+            await inter.response.defer()
+
+            if await self.check_dm(inter):
+                return
+
+            if not await helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not an admin!")
+
+            if channel:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, channel.id)
+                await inter.edit_original_response(f'New welcome channel is {channel.mention}')
+            else:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, None)
+                await inter.edit_original_response('Welcome logs are disabled.')
 
     # --------------------- METHODS --------------------------------
 
@@ -317,7 +360,10 @@ class LogBot():
                     for member in guild.members:
                         if not member.bot and new_status[member].updated:
                             channel = self.bot.get_channel(status_channels[guild.id])
-                            delayed_tasks.append(channel.send(embed=embedder.activity_update(member, prev_status[member], new_status[member])))
+                            if not channel:
+                                await helpers.set_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL, None)
+                                continue
+                            delayed_tasks.append(helpers.try_function(channel.send, True, embed=embedder.activity_update(member, prev_status[member], new_status[member])))
                 asyncio.create_task(helpers.run_delayed_tasks(delayed_tasks))
                 prev_status = new_status
                 await asyncio.sleep(0.5)

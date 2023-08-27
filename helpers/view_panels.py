@@ -68,11 +68,9 @@ class SongSelection(disnake.ui.View):
             voice = self.bot.states[self.inter.guild.id].voice
             self.value = True
             self.song.track_info.set_result(None)
-            _, self.message = await helpers.try_function(self.inter.text_channel.send, True, f"{self.inter.author.mention} You're out of time! Next time think faster!")
+            _, self.message = await helpers.try_function(self.inter.text_channel.send, True, f"{self.inter.author.mention} You're out of time! Next time think faster!", delete_after=5)
             if not (voice.is_playing() or voice.is_paused()):
                 await self.bot.abort_play(self.inter.guild.id, message=None)
-            await asyncio.sleep(5)
-            await helpers.try_function(self.message.delete, True)
         except Exception as err:
             print(f"Caught exception in select: {err}")
             pass
@@ -103,7 +101,6 @@ class QueueList(disnake.ui.View):
 
                 embed = embedder.queue(self.inter.guild, self.queue, self.start_index, self.song)
                 await helpers.try_function(self.message.edit, True, view=self, embed=embed)
-
         else:
             await helpers.try_function(inter.author.send, True, f"Don't you even try to use someone's selection panel once again. {public_config.emojis['dead']}")
 

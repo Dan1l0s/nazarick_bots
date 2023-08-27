@@ -186,12 +186,7 @@ class MusicBotLeader(MusicBotInstance):
             await inter.response.defer()
 
             self.chatgpt_messages[inter.author.id] = []
-            await inter.send("Done!")
-            await asyncio.sleep(5)
-            try:
-                await inter.delete_original_response()
-            except:
-                pass
+            await inter.send("Done!", delete_after=5)
 
         @ self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):

@@ -86,7 +86,7 @@ class GuildState():
         while True:
             if self.voice.is_connected() and self.voice.channel == vc:
                 break
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(0.1)
 
 
 class MusicBotInstance:
@@ -280,7 +280,7 @@ class MusicBotInstance:
             await inter.text_channel.send("Error processing playlist, there are unavailable videos!")
             return
 
-        await msg.edit("Playlist has been processed!")
+        await msg.edit("Playlist has been processed!", delete_after=5)
 
         if not state.voice:
             return
@@ -294,7 +294,6 @@ class MusicBotInstance:
                 song = Song(author=inter.author)
                 song.track_info.set_result(entry)
                 state.song_queue.append(song)
-        await msg.delete()
 
     async def play_loop(self, guild_id):
         state = self.states[guild_id]
@@ -539,6 +538,7 @@ class MusicBotInstance:
                 state.last_radio_message = data
                 await state.last_inter.text_channel.send("", embed=embedder.radio(data))
                 await database_logger.radio(state.last_inter.guild, data)
-                await asyncio.sleep(1)
             except:
+                pass
+            finally:
                 await asyncio.sleep(1)
