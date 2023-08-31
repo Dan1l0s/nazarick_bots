@@ -172,9 +172,9 @@ class Host:
             hours = datetime.now().hour
             minutes = datetime.now().minute
             if (hours == 12 or hours == 0) and minutes == 0:
-                await self.commit_backup()
+                asyncio.create_task(self.commit_backup())
                 await asyncio.sleep(42900)
-            await asyncio.sleep(55)
+            await asyncio.sleep(50)
 
     async def commit_backup(self, manual=False):
         ans = ""

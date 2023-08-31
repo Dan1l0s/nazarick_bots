@@ -4,3 +4,4 @@ logs/
 __pycache__/
 bot_database.db
 logs.db
+bots/notification_bot.py

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from yt_dlp import YoutubeDL
 from youtube_search import YoutubeSearch
 from enum import Enum
+from typing import Any
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -303,7 +304,7 @@ class GuildOption(Enum):
                 return None
 
 
-def convert_to_python(option: GuildOption, value):
+def convert_to_python(option: GuildOption, value) -> Any:
     to_int = [GuildOption.LOG_CHANNEL, GuildOption.WELCOME_CHANNEL, GuildOption.STATUS_LOG_CHANNEL, GuildOption.PRIVATE_CATEGORY, GuildOption.PRIVATE_CHANNEL]
     to_int_list = [GuildOption.ADMIN_LIST, GuildOption.UNTOUCHABLES_LIST]
     match option:
@@ -331,8 +332,22 @@ def convert_to_python(option: GuildOption, value):
 
 async def ensure_tables() -> None:
     db = await aiosqlite.connect('bot_database.db', timeout=1000)
-    await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (guild_id TEXT, user_id TEXT, voice_xp INTEGER, text_xp INTEGER, UNIQUE(guild_id, user_id))''')
-    await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (guild_id TEXT, rank_id TEXT, voice_xp INTEGER,  remove_flag INTEGER, UNIQUE(guild_id, rank_id))''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (
+                        guild_id TEXT,
+                        user_id TEXT,
+                        voice_xp INTEGER,
+                        text_xp INTEGER,
+                        UNIQUE(guild_id, user_id)
+                     )''')
+
+    await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (
+                        guild_id TEXT,
+                        rank_id TEXT,
+                        voice_xp INTEGER,
+                        remove_flag INTEGER,
+                        UNIQUE(guild_id, rank_id)
+                     )''')
+
     await db.execute('''CREATE TABLE IF NOT EXISTS server_options (
                         guild_id TEXT PRIMARY KEY,
                         log_channel TEXT,
@@ -343,16 +358,43 @@ async def ensure_tables() -> None:
                         admin_list TEXT,
                         untouchables_list TEXT
                      )''')
+
     await db.commit()
     await db.close()
 
 
 async def ensure_tables_logger() -> None:
     db = await aiosqlite.connect('logs.db', timeout=1000)
-    await db.execute('''CREATE TABLE IF NOT EXISTS status (date TEXT, time TEXT, user_id TEXT, comment TEXT)''')
-    await db.execute('''CREATE TABLE IF NOT EXISTS gpt (date TEXT, time TEXT, user_id TEXT, query TEXT, response TEXT)''')
-    await db.execute('''CREATE TABLE IF NOT EXISTS bots (date TEXT, time TEXT, tag TEXT, comment TEXT)''')
-    await db.execute('''CREATE TABLE IF NOT EXISTS common (guild_id TEXT, date TEXT, time TEXT, tag TEXT, comment TEXT)''')
+    await db.execute('''CREATE TABLE IF NOT EXISTS status (
+                        date TEXT,
+                        time TEXT,
+                        user_id TEXT,
+                        comment TEXT
+                     )''')
+
+    await db.execute('''CREATE TABLE IF NOT EXISTS gpt (
+                        date TEXT,
+                        time TEXT,
+                        user_id TEXT,
+                        query TEXT,
+                        response TEXT
+                     )''')
+
+    await db.execute('''CREATE TABLE IF NOT EXISTS bots (
+                        date TEXT,
+                        time TEXT,
+                        tag TEXT,
+                        comment TEXT
+                     )''')
+
+    await db.execute('''CREATE TABLE IF NOT EXISTS common (
+                        guild_id TEXT,
+                        date TEXT,
+                        time TEXT,
+                        tag TEXT,
+                        comment TEXT
+                     )''')
+
     await db.commit()
     await db.close()
 
