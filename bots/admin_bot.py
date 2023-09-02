@@ -39,6 +39,10 @@ class AdminBot():
             if await self.unmute_clients(member, after):
                 return
 
+            if not after.channel:
+                if await helpers.check_admin_kick(member):
+                    return
+
         @self.bot.event
         async def on_ready():
             await database_logger.enabled(self.bot)
@@ -569,9 +573,13 @@ class AdminBot():
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message) -> bool:
-        if "discord.gg" in message.content.lower() and not await helpers.is_admin(message.author):
-            await helpers.try_function(message.delete, True)
-            await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
+        if "discord.gg" in message.content.lower():
+            if hasattr(message.author, "guild"):
+                if not await helpers.is_admin(message.author):
+                    await helpers.try_function(message.delete, True)
+                    await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
+            else:
+                await helpers.try_function(message.delete, True)
             return True
         return False
 

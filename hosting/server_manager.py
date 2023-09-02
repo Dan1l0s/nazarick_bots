@@ -12,7 +12,7 @@ try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
     from configs.private_config import hosting_port, backup_login, backup_password, backup_url
-    from configs.public_config import bot_backup_files
+    from configs.public_config import auto_backup_files, manual_backup_files
     import helpers.helpers as helpers
 except:
     pass
@@ -178,7 +178,7 @@ class Host:
 
     async def commit_backup(self, manual=False):
         ans = ""
-        for file in bot_backup_files:
+        for file in (auto_backup_files, manual_backup_files)[manual]:
             cmd = f'curl -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
             if os.system(cmd) != 0:
                 ans += f"\nFailed to commit {file}"

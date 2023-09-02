@@ -31,6 +31,11 @@ class MusicBotLeader(MusicBotInstance):
             if await self.unmute_clients(member, before, after):
                 return
 
+            if member.guild.get_member(private_config.bot_ids["moderate"]) == None:
+                if not after.channel:
+                    if await helpers.check_admin_kick(member):
+                        return
+
         @self.bot.event
         async def on_message(message):
             if await self.check_gpt_interaction(message):
@@ -212,9 +217,13 @@ class MusicBotLeader(MusicBotInstance):
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message) -> bool:
-        if "discord.gg" in message.content.lower() and not await helpers.is_admin(message.author):
-            await helpers.try_function(message.delete, True)
-            await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
+        if "discord.gg" in message.content.lower():
+            if hasattr(message.author, "guild"):
+                if not await helpers.is_admin(message.author):
+                    await helpers.try_function(message.delete, True)
+                    await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
+            else:
+                await helpers.try_function(message.delete, True)
             return True
         return False
 

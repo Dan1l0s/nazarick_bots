@@ -114,7 +114,7 @@ async def unmute_admin(member) -> bool:
         try:
             entry = await member.guild.audit_logs(limit=2, action=disnake.AuditLogAction.member_update).flatten()
         except:
-            pass
+            return ff
 
         if len(entry) < 2:
             return ff
@@ -123,6 +123,22 @@ async def unmute_admin(member) -> bool:
         if entry.user != member and entry.user.id not in private_config.bot_ids.values() and (delta.total_seconds() < 2) and (not await is_admin(entry.user) and not await is_untouchable(entry.user)):
             await try_function(entry.user.move_to, True, None)
             await try_function(entry.user.timeout, True, duration=60, reason="Attempt attacking the Supreme Being")
+    return ff
+
+
+async def check_admin_kick(member) -> bool:
+    ff = False
+    if await is_admin(member) or await is_untouchable(member):
+        try:
+            entry = await member.guild.audit_logs(limit=1, action=disnake.AuditLogAction.member_disconnect).flatten()
+        except:
+            return ff
+        entry = entry[0]
+        delta = datetime.now(timezone.utc) - entry.created_at
+        if entry.user != member and entry.user.id not in private_config.bot_ids.values() and delta.total_seconds() < 2 and (not await is_admin(entry.user) and not await is_untouchable(entry.user)):
+            await try_function(entry.user.move_to, True, None)
+            await try_function(entry.user.timeout, True, duration=60, reason="Attempt attacking the Supreme Being")
+            ff = True
     return ff
 
 
