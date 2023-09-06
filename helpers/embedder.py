@@ -333,12 +333,15 @@ def entry_role_update(entry):
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
     if hasattr(entry.after, "name"):
-        embed.add_field(name="**New Role name:**", value=entry.after.name)
+        embed.add_field(name="**Old Role name:**", value=entry.before.name, inline=True)
+        embed.add_field(name="**New Role name:**", value=entry.after.name, inline=True)
+        embed.add_field(name="", value="", inline=False)
     if hasattr(entry.after, "icon"):
         embed.set_thumbnail(url=entry.after.icon.url)
     if hasattr(entry.after, "colour"):
-        embed.add_field(
-            name="**Role Color:**", value=f'Red : {entry.after.colour.r}\nGreen : {entry.after.colour.g}\nBlue : {entry.after.colour.b}')
+        embed.add_field(name="**Old Role Color:**", value=f'Red : {entry.before.colour.r}\nGreen : {entry.before.colour.g}\nBlue : {entry.before.colour.b}', inline=True)
+        embed.add_field(name="**New Role Color:**", value=f'Red : {entry.after.colour.r}\nGreen : {entry.after.colour.g}\nBlue : {entry.after.colour.b}', inline=True)
+        embed.add_field(name="", value="", inline=False)
     # PERMISSIONS
     if hasattr(entry.after, "permissions"):
         perms = []

@@ -13,6 +13,7 @@ import helpers.database_logger as database_logger
 import helpers.embedder as embedder
 
 from helpers.helpers import GuildOption, Rank
+from helpers.view_panels import MessageForm
 
 
 class AdminBot():
@@ -71,6 +72,9 @@ class AdminBot():
                 return
 
             ff = await self.check_message_content(message)
+            if ff:
+                return
+
             await self.check_mentions(message)
 
             if not message.author.bot and not ff:
@@ -356,7 +360,7 @@ class AdminBot():
             await inter.delete_original_response()
 
         @ self.bot.slash_command(description="Clears custom amount of messages")
-        async def clear(inter: disnake.AppCmdInter, amount: int):
+        async def clear(inter: disnake.AppCmdInter, amount: int = commands.Param(description="The number of messages to clear")):
             await inter.response.defer()
 
             ff = await self.check_dm(inter)
@@ -402,8 +406,7 @@ class AdminBot():
                 await helpers.try_function(inter.channel.send, True, msg)
 
         @ self.bot.slash_command(description="Desintegrates provided server. Irrevocably.", guild_ids=[778558780111060992])
-        async def black_hole(inter: disnake.AppCmdInter, guild_id):
-
+        async def black_hole(inter: disnake.AppCmdInter, guild_id: str = commands.Param(description="ID of the guild to be eliminated")):
             await inter.response.defer()
 
             if await self.check_dm(inter):
@@ -470,21 +473,46 @@ class AdminBot():
             await inter.send(msg)
 
         @ self.bot.slash_command(description="Sends message to other Supreme Beings")
-        async def message(inter: disnake.AppCmdInter, message: str = commands.Param(description="Message to send to other Supreme Beings")):
-            await inter.response.defer()
+        async def message(inter: disnake.AppCmdInter):
+            # await inter.response.defer()
 
             if not helpers.is_supreme_being(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
+            await inter.response.send_modal(MessageForm())
+            modal_inter = await self.bot.wait_for(
+                "modal_submit",
+                check=lambda i: i.author.id == inter.author.id,
+                timeout=3600)
+            message = modal_inter.data.components[0]['components'][0]['value']
             msg = f"Greetings, Supreme Being.\nYou have a new message from {inter.author}:\n" + message
             await self.supreme_dm(msg, inter.author.id)
-            await inter.send("Your message was sent to other Supreme Beings, my master.")
 
         @ self.bot.slash_command(description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])
         async def music_usage_info(inter: disnake.AppCmdInter):
             await inter.response.defer()
             message = await self.check_music_bots()
             return await inter.send(message)
+
+        @ self.bot.slash_command(description="Sends DM to provided user", guild_ids=[778558780111060992])
+        async def dm_user(inter: disnake.AppCmdInter, user_id: str = commands.Param(description="User's id")):
+            await inter.response.send_modal(MessageForm(title="Message to a user", response="Your message was sent to the provided user, my master."))
+            modal_inter = await self.bot.wait_for(
+                "modal_submit",
+                check=lambda i: i.author.id == inter.author.id, timeout=3600)
+            message = modal_inter.data.components[0]['components'][0]['value']
+            msg = f"Greetings.\nYou have a new message from Supreme Being {inter.author}:\n" + message
+            await helpers.dm_user(msg, int(user_id), self.bot)
+
+        @ self.bot.slash_command(description="Summons user to provided channel (check provided url twice)", guild_ids=[778558780111060992])
+        async def summon_user(inter: disnake.AppCmdInter, channel_link: str = commands.Param(description="Link to the target channel"), user_id: str = commands.Param(description="User's id")):
+            await inter.response.defer()
+            message = f'Greetings.\n**The Great One** would like to speak with you in {channel_link}.\nPlease, be thankful for the attention and proceed to the mentioned channel as soon as possible.'
+            ff = await helpers.dm_user(message, int(user_id), self.bot, suppress_embeds=True)
+            if ff:
+                await inter.send("The user was notified successfully, my master.")
+            else:
+                await inter.send("Couldn't send message to provided user, my master.")
 
     def add_music_instance(self, bot) -> None:
         self.music_instances.append(bot)
@@ -545,6 +573,7 @@ class AdminBot():
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
@@ -628,6 +657,7 @@ class AdminBot():
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def monitor_errors(self) -> None:
         os.set_blocking(sys.stdin.fileno(), False)
         while True:
@@ -651,11 +681,9 @@ class AdminBot():
             for admin_id in private_config.supreme_beings:
                 if admin_id == author_id:
                     continue
-                admin = self.bot.get_user(admin_id)
-                if not admin:
-                    print(f"Couldn't get admin user {admin_id}")
-                    continue
-                await helpers.try_function(admin.send, True, msg)
+                ff = await helpers.dm_user(msg, admin_id, self.bot)
+                if not ff:
+                    print(f"Couldn't send to admin with id {admin_id}")
         except:
             pass
 

@@ -149,7 +149,7 @@ class LogBot():
             welcome_channel_id = await helpers.get_guild_option(member.guild.id, GuildOption.WELCOME_CHANNEL)
             log_channel_id = await helpers.get_guild_option(member.guild.id, GuildOption.LOG_CHANNEL)
 
-            if welcome_channel_id:
+            if welcome_channel_id and not member.bot:
                 welcome_channel = self.bot.get_channel(int(welcome_channel_id))
                 if not welcome_channel:
                     await helpers.set_guild_option(member.guild.id, GuildOption.WELCOME_CHANNEL, None)

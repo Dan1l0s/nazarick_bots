@@ -1,5 +1,6 @@
 import disnake
 import asyncio
+from disnake import TextInputStyle
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -121,3 +122,22 @@ class QueueList(disnake.ui.View):
                 child.disabled = (self.start_index == 0)
             if isinstance(child, disnake.ui.Button) and child.custom_id and child.custom_id == "next":
                 child.disabled = (self.start_index + 10 > len(self.queue))
+
+
+class MessageForm(disnake.ui.Modal):
+    response = None
+
+    def __init__(self, title="Message to Supreme Beings", response="Your message was sent to other Supreme Beings, my master."):
+        components = [
+            disnake.ui.TextInput(
+                label="Message",
+                placeholder="Type your message.",
+                custom_id="msg",
+                style=TextInputStyle.paragraph,
+            ),
+        ]
+        self.response = response
+        super().__init__(title=title, components=components)
+
+    async def callback(self, inter: disnake.ModalInteraction):
+        await inter.response.send_message(self.response)

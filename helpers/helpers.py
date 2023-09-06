@@ -629,3 +629,11 @@ async def try_function(function, await_flag: bool, *args, **kwargs):
 
 async def run_delayed_tasks(tasks):
     await asyncio.gather(*tasks)
+
+
+async def dm_user(message: str, user_id: int, bot, embed=None, components=None, view=None, suppress_embeds=False) -> bool:
+    user = bot.get_user(user_id)
+    if not user:
+        return False
+    ff, _ = await try_function(user.send, True, message, embed=embed, components=components, view=view, suppress_embeds=suppress_embeds)
+    return ff
