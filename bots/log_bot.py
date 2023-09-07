@@ -214,7 +214,11 @@ class LogBot():
                                 log = getattr(database_logger, attr)
                                 await log(member, after)
                                 s = getattr(embedder, attr)
-                                await helpers.try_function(channel.send, True, embed=s(member, after))
+                                if attr == "self_mute":
+                                    embed = s(member, before, after)
+                                else:
+                                    embed = s(member, after)
+                                await helpers.try_function(channel.send, True, embed=embed)
             elif before.channel:
                 await database_logger.disconnected(member, before)
                 await helpers.try_function(channel.send, True, embed=embedder.disconnected(member, before))
