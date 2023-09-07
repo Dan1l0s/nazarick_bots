@@ -40,6 +40,7 @@ class MusicBotLeader(MusicBotInstance):
         async def on_message(message):
             if await self.check_gpt_interaction(message):
                 return
+
             if not message.guild:
                 if helpers.is_supreme_being(message.author):
                     await message.reply(public_config.on_message_supreme_being)
@@ -49,13 +50,10 @@ class MusicBotLeader(MusicBotInstance):
                 await self.check_message_content(message)
             await self.check_mentions(message)
 
-        @ self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query)", aliases="p")
-        async def play(inter: disnake.AppCmdInter, query: str = commands.Param(description='Type a query or paste youtube URL')):
-
+        @ self.bot.slash_command(dm_permission=False, description="Plays a song from youtube (paste URL or type a query)", aliases="p")
+        async def play(inter: disnake.AppCmdInter,
+                       query: str = commands.Param(description='Type a query or paste youtube URL')):
             await inter.response.defer()
-
-            if await self.check_dm(inter):
-                return
 
             if not inter.author.voice or not inter.author.voice.channel:
                 return await inter.send("You are not in voice channel")
@@ -67,12 +65,11 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, query)
 
-        @ self.bot.slash_command(description="Plays anime radio or custom online radio")
-        async def radio(inter: disnake.AppCmdInter, url=public_config.radio_url):
+        @ self.bot.slash_command(dm_permission=False, description="Plays anime radio or custom online radio")
+        async def radio(inter: disnake.AppCmdInter,
+                        url: str = commands.Param(default=public_config.radio_url, description="URL of online radio (mp3 player)")):
             await inter.response.defer()
 
-            if await self.check_dm(inter):
-                return
             if not inter.author.voice or not inter.author.voice.channel:
                 return await inter.send("You are not in voice channel")
             assigned_instance = await self.get_playing_instance(inter)
@@ -83,12 +80,11 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, url, radio=True)
 
-        @ self.bot.slash_command(description="Plays a song from youtube (paste URL or type a query) at position #1 in the queue", aliases="p")
-        async def playnow(inter: disnake.AppCmdInter, query: str = commands.Param(description='Type a query or paste youtube URL')):
+        @ self.bot.slash_command(dm_permission=False, description="Plays a song from youtube (paste URL or type a query) at position #1 in the queue", aliases="p")
+        async def playnow(inter: disnake.AppCmdInter,
+                          query: str = commands.Param(description='Type a query or paste youtube URL')):
             await inter.response.defer()
 
-            if await self.check_dm(inter):
-                return
             if not inter.author.voice or not inter.author.voice.channel:
                 return await inter.send("You are not in voice channel")
             assigned_instance = await self.get_playing_instance(inter)
@@ -99,80 +95,70 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, query, True)
 
-        @ self.bot.slash_command(description="Pauses/resumes player")
+        @ self.bot.slash_command(dm_permission=False, description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
-            if await self.check_dm(inter):
-                return
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.pause(new_inter)
 
-        @ self.bot.slash_command(description="Repeats current song")
+        @ self.bot.slash_command(dm_permission=False, description="Repeats current song")
         async def repeat(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
-            if await self.check_dm(inter):
-                return
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.repeat(new_inter)
 
-        @ self.bot.slash_command(description="Clears queue and disconnects bot")
+        @ self.bot.slash_command(dm_permission=False, description="Clears queue and disconnects bot")
         async def stop(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
-            if await self.check_dm(inter):
-                return
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.stop(new_inter)
 
-        @ self.bot.slash_command(description="Skips current song")
+        @ self.bot.slash_command(dm_permission=False, description="Skips current song")
         async def skip(inter: disnake.AppCmdInter):
-            if await self.check_dm(inter):
-                return
             await inter.response.defer()
+
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.skip(new_inter)
 
-        @ self.bot.slash_command(description="Shows current queue")
+        @ self.bot.slash_command(dm_permission=False, description="Shows current queue")
         async def queue(inter: disnake.AppCmdInter):
-            if await self.check_dm(inter):
-                return
             await inter.response.defer()
+
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.queue(new_inter)
 
-        @ self.bot.slash_command(description="Removes last added song from queue")
+        @ self.bot.slash_command(dm_permission=False, description="Removes last added song from queue")
         async def wrong(inter: disnake.AppCmdInter):
-            if await self.check_dm(inter):
-                return
             await inter.response.defer()
+
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.wrong(new_inter)
 
-        @ self.bot.slash_command(description="Shuffles current queue")
+        @ self.bot.slash_command(dm_permission=False, description="Shuffles current queue")
         async def shuffle(inter: disnake.AppCmdInter):
-            if await self.check_dm(inter):
-                return
             await inter.response.defer()
+
             assigned_instance = await self.get_playing_instance(inter)
             if not assigned_instance:
                 return await inter.send("There are no bots in your voice channel")
@@ -180,7 +166,8 @@ class MusicBotLeader(MusicBotInstance):
             await assigned_instance.shuffle(new_inter)
 
         @ self.bot.slash_command(description="Allows to use ChatGPT")
-        async def gpt(inter: disnake.AppCmdInter, message: str):
+        async def gpt(inter: disnake.AppCmdInter,
+                      message: str = commands.Param(description="Type a query to get ChatGPT's reply")):
             await inter.response.defer()
 
             new_inter = Interaction(self.bot, inter)
@@ -329,20 +316,14 @@ class MusicBotLeader(MusicBotInstance):
         await database_logger.gpt(inter.author, [message, response])
 
     def help(self):
-        ans = "Type /play to order a song (use URL from YT or just type the song's name)\n"
-        ans += "Type /stop to stop playback\n"
-        ans += "Type /skip to skip current track\n"
-        ans += "Type /queue to print current queue\n"
-        ans += "Type /shuffle to shuffle tracks in the queue\n"
-        ans += "Type /wrong to remove last added track\n"
-        ans += "Type /repeat to toogle repeat mode for current track\n"
-        ans += "Type /pause to pause/resume playback\n"
-        ans += "Type /playnow to order a song at pos #1 in the queue\n"
-        ans += "Type /radio to play online radio (by default plays ANISON.FM)"
+        ans = "Type **/play** to order a song (use URL from YT or just type the song's name)\n"
+        ans += "Type **/stop** to stop playback\n"
+        ans += "Type **/skip** to skip current track\n"
+        ans += "Type **/queue** to print current queue\n"
+        ans += "Type **/shuffle** to shuffle tracks in the queue\n"
+        ans += "Type **/wrong** to remove last added track\n"
+        ans += "Type **/repeat** to toogle repeat mode for current track\n"
+        ans += "Type **/pause** to pause/resume playback\n"
+        ans += "Type **/playnow** to order a song at pos #1 in the queue\n"
+        ans += "Type **/radio** to play online radio (by default plays ANISON.FM)"
         return ans
-
-    async def check_dm(self, inter):
-        if not inter.guild:
-            await inter.edit_original_response((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
-            return True
-        return False

@@ -46,12 +46,14 @@ class LogBot():
     token = None
     name = None
     bot = None
+    kicks_bans = None
 
     def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="everyone o_o", type=disnake.ActivityType.watching))
         self.name = name
         self.token = token
+        self.kick_bans = {}
 
     # --------------------- MESSAGES --------------------------------
 
@@ -65,7 +67,7 @@ class LogBot():
 
         @self.bot.event
         async def on_message_edit(before, after):
-            if not before.author.guild:
+            if not hasattr(before.author, "guild") or not before.author.guild:
                 return
             if before.author.id in private_config.bot_ids.values():
                 return
@@ -88,7 +90,7 @@ class LogBot():
 
         @self.bot.event
         async def on_message_delete(message):
-            if not message.author.guild:
+            if not hasattr(message.author, "guild") or not message.author.guild:
                 return
             channel_id = await helpers.get_guild_option(message.author.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
@@ -113,12 +115,23 @@ class LogBot():
                 return
 
             s = f"entry_{str(entry.action)[15:]}"
+            entry_name = s
             if hasattr(database_logger, s):
                 log = getattr(database_logger, s)
                 await log(entry)
             if hasattr(embedder, s):
                 s = getattr(embedder, s)
                 await helpers.try_function(channel.send, True, embed=s(entry))
+            try:
+                if (entry_name == "entry_kick" or entry_name == "entry_ban") and entry.user.guild.id in private_config.test_guilds:
+                    if entry.user.id not in self.kick_bans:
+                        self.kick_bans[entry.user.id] = 0
+                    self.kick_bans[entry.user.id] += 1
+                    if self.kick_bans[entry.user.id] >= public_config.kick_ban_limit:
+                        await helpers.try_function(entry.user.timeout, True, reason="Exceeded kick/ban limit", duration=1000000)
+                        await helpers.try_function(self.bot.get_user(private_config.supreme_beings[0]).send, True, f"My apologies, Ainz-sama. User {self.bot.get_user(entry.user.id).mention} has exceeded kick/ban limit. Please, take measures.")
+            except:
+                pass
 
         @self.bot.event
         async def on_member_update(before, after):
@@ -243,28 +256,17 @@ class LogBot():
 
     # --------------------- SLASH COMMANDS --------------------------------
 
-        @self.bot.slash_command(description="Creates a welcome banner for a new member (manually)")
-        async def welcome(inter: disnake.AppCmdInter, member: disnake.Member):
+        @self.bot.slash_command(dm_permission=False, description="Creates a welcome banner for a new member (manually)")
+        async def welcome(inter: disnake.AppCmdInter,
+                          member: disnake.Member = commands.Param(description="Specify the member to create banner for")):
             await inter.response.defer()
-
-            if await self.check_dm(inter):
-                return
-
             user = self.bot.get_user(member.id)
             embed = embedder.welcome_message(member, user)
             await helpers.try_function(inter.delete_original_response, True)
             await inter.channel.send(embed=embed)
             await inter.channel.send(f"{member.mention}", delete_after=0.001)
 
-        @ self.bot.slash_command(description="Check current status of a user")
-        async def status(inter: disnake.AppCmdInter, member: disnake.User):
-            await inter.response.defer()
-
-            if await self.check_dm(inter):
-                return
-            await inter.edit_original_response(embed=embedder.get_status(member))
-
-        @ self.bot.slash_command()
+        @ self.bot.slash_command(dm_permission=False)
         async def set(inter: disnake.AppCmdInter):
             pass
 
@@ -273,10 +275,10 @@ class LogBot():
             pass
 
         @ logs.sub_command(description="Allows admins to set a channel for common logs")
-        async def common(inter: disnake.AppCmdInter, channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for common logs')):
+        async def common(inter: disnake.AppCmdInter,
+                         channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for common logs')):
             await inter.response.defer()
-            if await self.check_dm(inter):
-                return
+
             if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not an admin!")
 
@@ -288,11 +290,9 @@ class LogBot():
                 await inter.edit_original_response('Common logs are disabled.')
 
         @ logs.sub_command(description="Allows admins to set a channel for status logs")
-        async def status(inter: disnake.AppCmdInter, channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for status logs')):
+        async def status(inter: disnake.AppCmdInter,
+                         channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for status logs')):
             await inter.response.defer()
-
-            if await self.check_dm(inter):
-                return
 
             if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not an admin!")
@@ -305,11 +305,9 @@ class LogBot():
                 await inter.edit_original_response('Status logs are disabled.')
 
         @ logs.sub_command(description="Allows admins to set a channel for welcome logs")
-        async def welcome(inter: disnake.AppCmdInter, channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for welcome logs')):
+        async def welcome(inter: disnake.AppCmdInter,
+                          channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for welcome logs')):
             await inter.response.defer()
-
-            if await self.check_dm(inter):
-                return
 
             if not await helpers.is_admin(inter.author):
                 return await inter.send("Unauthorized access, you are not an admin!")
@@ -321,16 +319,15 @@ class LogBot():
                 await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, None)
                 await inter.edit_original_response('Welcome logs are disabled.')
 
+        @ self.bot.slash_command(description="Reviews list of commands")
+        async def help(inter: disnake.AppCmdInter):
+            await inter.response.defer()
+            await inter.send(embed=disnake.Embed(color=0, description=self.help()))
+
     # --------------------- METHODS --------------------------------
 
     async def run(self):
         await self.bot.start(self.token)
-
-    async def check_dm(self, inter):
-        if not inter.guild:
-            await inter.edit_original_response((public_config.dm_error, public_config.dm_error_supreme_being)[helpers.is_supreme_being(inter.author)])
-            return True
-        return False
 
     async def status_check(self):
         prev_status = {}
@@ -396,3 +393,10 @@ class LogBot():
                 else:
                     await helpers.try_function(message.author.timeout, True, duration=10, reason="Ping by inferior life form")
                     return await message.reply(f"How dare you tag me? Know your place, trash")
+
+    def help(self):
+        ans = "Type **/set logs common** to set a channel for common logs\n"
+        ans += "Type **/set logs status** to set a channel for status logs\n"
+        ans += "Type **/set logs welcome** to set a channel for welcome messages\n"
+        ans += "Type **/welcome** to create a welcome banner manually\n"
+        return ans

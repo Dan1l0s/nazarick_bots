@@ -1,5 +1,5 @@
 import disnake
-import datetime
+from datetime import datetime, timezone
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -16,7 +16,7 @@ def songs(client, data, text):
         url=info['webpage_url'],
         description=text,
         color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     duration = helpers.get_duration(info)
 
     embed.set_author(name=info['uploader'])
@@ -35,7 +35,7 @@ def radio(data):
         title=data['name'],
         description="Playing from ANISON.FM",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=data['source'])
     embed.add_field(name="*Duration*",
                     value=helpers.get_duration(data),
@@ -51,7 +51,7 @@ def entry_channel_create(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} created channel {entry.user.guild.get_channel(entry.target.id).mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -82,7 +82,7 @@ def entry_channel_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} updated channel {entry.user.guild.get_channel(entry.target.id).mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     for attr in dir(entry.after):
         if attr in public_config.channel_update:
             embed.add_field(name="", value="", inline=False)
@@ -126,7 +126,7 @@ def entry_channel_delete(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} deleted channel `{entry.before.name}`**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -137,7 +137,7 @@ def entry_thread_create(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has created thread {entry.target.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -159,7 +159,7 @@ def entry_thread_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has updated thread {entry.target.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -187,7 +187,7 @@ def entry_thread_delete(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} deleted thread `{entry.before.name}`**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -198,7 +198,7 @@ def entry_kick(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} kicked member {entry.target.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.add_field(name="**REASON:**", value=f'{entry.reason}')
@@ -210,7 +210,7 @@ def entry_ban(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} banned member {entry.target.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.add_field(name="**REASON:**", value=f'{entry.reason}')
@@ -222,7 +222,7 @@ def entry_unban(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} unbanned user {entry.target.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -233,7 +233,7 @@ def entry_member_move(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} moved a user to {entry.user.guild.get_channel(entry.extra.channel.id).mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -244,7 +244,7 @@ def entry_member_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} updated user {entry.target.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     if hasattr(entry.before, "nick"):
@@ -271,7 +271,7 @@ def entry_member_role_update(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} updated user {entry.target.mention}'s roles**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     for y in range(len(x)):
@@ -284,9 +284,9 @@ def entry_member_role_update(entry):
 
 def entry_member_disconnect(entry):
     embed = disnake.Embed(
-        description=f'**{entry.user.mention} disconnected {entry.extra.count} user(s) from a voice channel**',
+        description=f'**{entry.user.mention} disconnected {("1 user", f"{entry.extra.count} users")[entry.extra.count > 1]} from a voice channel**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -297,7 +297,7 @@ def entry_role_create(entry):
     embed = disnake.Embed(
         description=f'**A new role has been added to the Guild by {entry.user.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -310,7 +310,7 @@ def entry_role_update(entry):
     embed = disnake.Embed(
         description=f'**The role {entry.target.mention} has been updated by {entry.user.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -342,7 +342,7 @@ def entry_role_delete(entry):
     embed = disnake.Embed(
         description=f'**A role has been deleted by {entry.user.mention} from the guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -357,7 +357,7 @@ def entry_guild_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has updated the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -375,7 +375,7 @@ def entry_member_prune(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has pruned members from the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -390,7 +390,7 @@ def entry_invite_create(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has created an invite to the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -408,7 +408,7 @@ def entry_invite_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has updated an invite to the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -419,7 +419,7 @@ def entry_invite_delete(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has deleted an invite to the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -437,7 +437,7 @@ def entry_emoji_create(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has added an emoji to the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -450,7 +450,7 @@ def entry_emoji_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has updated an emoji in the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -466,7 +466,7 @@ def entry_emoji_delete(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has removed an emoji from the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -479,7 +479,7 @@ def entry_sticker_create(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has added a sticker to the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -494,7 +494,7 @@ def entry_sticker_update(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has updated a sticker in the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -509,7 +509,7 @@ def entry_sticker_create(entry):
     embed = disnake.Embed(
         description=f'**{entry.user.mention} has deleted a sticker from the Guild**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -524,7 +524,7 @@ def entry_message_delete(entry):
     embed = disnake.Embed(
         description=f"**{(f'<@{entry.target.id}>',entry.target.mention)[hasattr(entry.target, 'mention')]}'s messages have been deleted by moderator {entry.user.mention}**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -539,7 +539,7 @@ def entry_message_bulk_delete(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has deleted {entry.extra['count']} message(s) from {entry.target.mention}**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -550,7 +550,7 @@ def entry_message_pin(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has pinned {entry.target.mention}'s message in {entry.extra.channel.mention}**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -561,7 +561,7 @@ def entry_message_unpin(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has unpinned {entry.target.mention}'s message from {entry.extra.channel.mention}**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -572,7 +572,7 @@ def entry_guild_scheduled_event_create(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has created a scheduled guild event**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -592,7 +592,7 @@ def entry_guild_scheduled_event_update(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has updated a scheduled guild event**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -618,7 +618,7 @@ def entry_guild_scheduled_event_delete(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has deleted a scheduled guild event**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -638,7 +638,7 @@ def entry_bot_add(entry):
     embed = disnake.Embed(
         description=f"**{entry.user.mention} has added a BOT - {entry.target.mention} - to the GUILD**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=entry.user.name,
                      icon_url=entry.user.display_avatar.url)
     embed.set_footer(text=f'{entry.user.guild.name}')
@@ -652,7 +652,7 @@ def switched(member, before, after):
     embed = disnake.Embed(
         description=f'**{member.mention} switched from {before.channel.mention} to {after.channel.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     return embed
@@ -662,7 +662,7 @@ def connected(member, after):
     embed = disnake.Embed(
         description=f"**{member.mention} joined voice channel {after.channel.mention}**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     return embed
@@ -672,7 +672,7 @@ def disconnected(member, before):
     embed = disnake.Embed(
         description=f'**{member.mention} left voice channel {before.channel.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     return embed
@@ -682,7 +682,7 @@ def afk(member, after):
     embed = disnake.Embed(
         description=f'**{member.mention} has gone AFK in {after.channel.mention}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     return embed
@@ -694,12 +694,11 @@ def welcome_message(member, user):
     embed = disnake.Embed(
         description=f'**{user.mention}, welcome to {helpers.get_guild_name(member.guild)}!**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["welcome_message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
-    embed.add_field(name="**⏲ Age of account:**", value=f'`{member.created_at.strftime("%d/%m/%Y %H:%M")}`\n**{helpers.get_welcome_time(member.created_at)}**',
-                    inline=True)
+    embed.add_field(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)
     embed.set_thumbnail(url=member.display_avatar.url)
     return embed
 
@@ -708,7 +707,7 @@ def profile_upd(before, after):
     embed = disnake.Embed(
         description=f'**{after.mention} has updated their profile**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=after.name, icon_url=after.display_avatar.url)
     embed.set_footer(text=f'{after.guild.name}')
@@ -727,7 +726,7 @@ def member_remove(payload):
     embed = disnake.Embed(
         description=f'**:no_entry_sign: {payload.user.mention} has left the server**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["ban_leave"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=payload.user.name,
                      icon_url=payload.user.display_avatar.url)
@@ -740,12 +739,11 @@ def member_join(member):
     embed = disnake.Embed(
         description=f'**:white_check_mark: {member.mention} has joined the server**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["welcome_message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
-    embed.add_field(name="**⏲ Age of account:**", value=f'`{member.created_at.strftime("%d/%m/%Y %H:%M")}`\n**{helpers.get_welcome_time(member.created_at)}**',
-                    inline=True)
+    embed.add_field(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)
     embed.set_thumbnail(url=member.display_avatar.url)
     return embed
 
@@ -754,7 +752,7 @@ def ban(guild, user):
     embed = disnake.Embed(
         description=f'**{public_config.emojis["cat_ban"]} {user.mention} has been banned from {guild.name}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["ban_leave"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=user.name, icon_url=user.display_avatar.url)
     embed.set_footer(text=f'{guild.name}')
@@ -766,7 +764,7 @@ def unban(guild, user):
     embed = disnake.Embed(
         description=f'**:ballot_box_with_check: {user.mention} has been unbanned from {guild.name}**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=user.name, icon_url=user.display_avatar.url)
     embed.set_footer(text=f'{guild.name}')
@@ -778,7 +776,7 @@ def get_status(member):
     embed = disnake.Embed(
         description=f"**{member.mention}'s status: {member.status}**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
@@ -800,7 +798,7 @@ def activity_update(member, old_user_status, new_user_status):
     embed = disnake.Embed(
         description=f"**{member.mention}'s has updated their status/activities**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
@@ -841,7 +839,7 @@ def message_edit(before, after):
     embed = disnake.Embed(
         description=f'**:pencil2:{before.author.mention} has edited a message in {before.channel.mention}. [Jump to message]({before.jump_url})**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=before.author.name,
                      icon_url=before.author.display_avatar.url)
@@ -857,7 +855,7 @@ def message_pin(before, after):
     embed = disnake.Embed(
         description=f'**:pushpin:A Message has been pinned in {before.channel.mention}. [Jump to message]({before.jump_url})**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=before.guild.name,
                      icon_url=before.guild.icon.url)
@@ -873,7 +871,7 @@ def message_unpin(before, after):
     embed = disnake.Embed(
         description=f'**:pushpin:A Message has been unpinned in {before.channel.mention}. [Jump to message]({before.jump_url})**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=before.guild.name,
                      icon_url=before.guild.icon.url)
@@ -889,7 +887,7 @@ def message_delete(message):
     embed = disnake.Embed(
         description=f'**:wastebasket: A Message sent by {message.author.mention} has been deleted in {message.channel.mention}.**',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=message.author,
                      icon_url=message.author.display_avatar.url)
@@ -905,7 +903,7 @@ def mute(member, after):
     embed = disnake.Embed(
         description=f"**{member.mention}'s voice state has been updated**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     if after.mute:
@@ -919,7 +917,7 @@ def deaf(member, after):
     embed = disnake.Embed(
         description=f"**{member.mention}'s voice state has been updated**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     if after.deaf:
@@ -933,7 +931,7 @@ def self_mute(member, before, after):
     embed = disnake.Embed(
         description=f"**{member.mention} updated their voice state**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
 
@@ -954,7 +952,7 @@ def self_stream(member, after):
     embed = disnake.Embed(
         description=f"**{member.mention} updated their stream status**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     if after.self_stream:
@@ -968,7 +966,7 @@ def self_video(member, after):
     embed = disnake.Embed(
         description=f"**{member.mention} updated their video status**",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     embed.set_author(name=member.name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f'{member.guild.name}')
     if after.self_video:
@@ -984,7 +982,7 @@ def role_notification(guild, roles_list):
     embed = disnake.Embed(
         description=f'**You got a new role!** {public_config.emojis["yay"]}' if len(roles_list) == 1 else f'**You got new roles!** {public_config.emojis["yay"]}',
         color=disnake.Colour.from_rgb(*public_config.embed_colors["welcome_message"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name=guild.name,
                      icon_url=guild.icon.url)
@@ -1001,7 +999,7 @@ def role_notification(guild, roles_list):
 def song_selections(author, songs):
     embed = disnake.Embed(
         color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     embed.set_author(name="Song selection. Select the song number to continue.", icon_url=author.avatar.url)
     selection_field = []
@@ -1026,7 +1024,7 @@ def queue(guild, queue, range_start, current_track):
     embed = disnake.Embed(
         description=f"**Currently playing : [{curr_song['title']}]({curr_song['webpage_url']})** {helpers.get_duration(curr_song)}",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.datetime.now()
+        timestamp=datetime.now()
     )
     queue_list = []
     if len(queue) > 0 and range_start + 10 <= len(queue):
@@ -1056,7 +1054,7 @@ def queue(guild, queue, range_start, current_track):
 def admin_list(admin_list, func):
     embed = disnake.Embed(
         color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.datetime.now())
+        timestamp=datetime.now())
     admin_s = ""
     num = 0
     for admin in admin_list:

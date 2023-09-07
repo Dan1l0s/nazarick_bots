@@ -13,7 +13,6 @@ try:
     sys.path.append("..")
     from configs.private_config import hosting_port, backup_login, backup_password, backup_url
     from configs.public_config import auto_backup_files, manual_backup_files
-    import helpers.helpers as helpers
 except:
     pass
 
@@ -234,7 +233,7 @@ class Host:
         active_branch = self.get_current_branch()
         current_commit = self.get_current_commit()
         try:
-            time_passed = helpers.get_welcome_time(self.last_start)
+            time_passed = self.get_passed_time(self.last_start)
         except:
             time_passed = None
 
@@ -291,6 +290,50 @@ class Host:
     def get_current_commit(self):
         current_commit = os.popen("git -C .. rev-parse HEAD").read()
         return current_commit.replace('\n', '')
+
+    def get_passed_time(self, date) -> str:
+        if not date:
+            return None
+        delta = datetime.now(timezone.utc) - date
+        amount = delta.days // 365
+        if amount > 0:
+            if amount == 1:
+                return "a year ago"
+            else:
+                return f"{amount} years ago"
+
+        amount = delta.days // 30
+        if amount > 0:
+            if amount == 1:
+                return "a month ago"
+            else:
+                return f"{amount} months ago"
+
+        amount = delta.days // 7
+        if amount > 0:
+            if amount == 1:
+                return "a week ago"
+            else:
+                return f"{amount} weeks ago"
+
+        amount = delta.days
+        if amount > 0:
+            if amount == 1:
+                return "a day ago"
+            else:
+                return f"{amount} days ago"
+
+        amount = delta.seconds // 3600
+        if amount > 0:
+            if amount == 1:
+                return "an hour ago"
+            else:
+                return f"{amount} hours ago"
+
+        amount = delta.seconds // 60
+        if amount <= 1:
+            return "a minute ago"
+        return f"{amount} minutes ago"
 
 
 async def main():

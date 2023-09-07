@@ -133,6 +133,8 @@ async def check_admin_kick(member) -> bool:
             entry = await member.guild.audit_logs(limit=1, action=disnake.AuditLogAction.member_disconnect).flatten()
         except:
             return ff
+        if not entry:
+            return ff
         entry = entry[0]
         delta = datetime.now(timezone.utc) - entry.created_at
         if entry.user != member and entry.user.id not in private_config.bot_ids.values() and delta.total_seconds() < 2 and (not await is_admin(entry.user) and not await is_untouchable(entry.user)):
@@ -146,51 +148,6 @@ def get_guild_name(guild) -> str:
     if guild.name == "Nazarick":
         return "the Great Tomb of Nazarick"
     return guild.name
-
-
-def get_welcome_time(date) -> str:
-    if not date:
-        return None
-    delta = datetime.now(timezone.utc) - date
-    amount = delta.days // 365
-    if amount > 0:
-        if amount == 1:
-            return "a year ago"
-        else:
-            return f"{amount} years ago"
-
-    amount = delta.days // 30
-    if amount > 0:
-        if amount == 1:
-            return "a month ago"
-        else:
-            return f"{amount} months ago"
-
-    amount = delta.days // 7
-    if amount > 0:
-        if amount == 1:
-            return "a week ago"
-        else:
-            return f"{amount} weeks ago"
-
-    amount = delta.days
-    if amount > 0:
-        if amount == 1:
-            return "a day ago"
-        else:
-            return f"{amount} days ago"
-
-    amount = delta.seconds // 3600
-    if amount > 0:
-        if amount == 1:
-            return "an hour ago"
-        else:
-            return f"{amount} hours ago"
-
-    amount = delta.seconds // 60
-    if amount <= 1:
-        return "a minute ago"
-    return f"{amount} minutes ago"
 
 
 def get_members_leveling_system(members) -> int:
