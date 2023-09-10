@@ -80,6 +80,7 @@ class SongSelection(disnake.ui.View):
 class QueueList(disnake.ui.View):
     embedder = None
     start_index = None
+    queue = None
 
     def __init__(self, queue, inter, song, bot):
         self.author = inter.author
@@ -93,6 +94,22 @@ class QueueList(disnake.ui.View):
 
         self.update_buttons()
 
+    @disnake.ui.button(label="<", style=disnake.ButtonStyle.secondary, custom_id="prev", disabled=True)
+    async def prev_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        await self.button_callback(-10, inter)
+
+    @disnake.ui.button(label=">", style=disnake.ButtonStyle.secondary, custom_id="next", disabled=True)
+    async def next_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        await self.button_callback(10, inter)
+
+    @disnake.ui.button(label="Refresh", style=disnake.ButtonStyle.secondary, custom_id="refresh", disabled=False)
+    async def refresh_queue(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        self.queue = self.bot.states[inter.guild.id].song_queue
+        await self.button_callback(0, inter)
+
+    async def send(self, embed=None):
+        _, self.message = await helpers.try_function(self.inter.text_channel.send, True, view=self, embed=embed)
+
     async def button_callback(self, button_num, inter):
         await inter.response.defer()
         if inter.author == self.author or await helpers.is_admin(inter.author):
@@ -104,17 +121,6 @@ class QueueList(disnake.ui.View):
                 await helpers.try_function(self.message.edit, True, view=self, embed=embed)
         else:
             await helpers.try_function(inter.author.send, True, f"Don't you even try to use someone's selection panel once again. {public_config.emojis['dead']}")
-
-    @disnake.ui.button(label="<", style=disnake.ButtonStyle.secondary, custom_id="prev", disabled=True)
-    async def prev_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
-        await self.button_callback(-10, inter)
-
-    @disnake.ui.button(label=">", style=disnake.ButtonStyle.secondary, custom_id="next", disabled=True)
-    async def next_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
-        await self.button_callback(10, inter)
-
-    async def send(self, embed=None):
-        _, self.message = await helpers.try_function(self.inter.text_channel.send, True, view=self, embed=embed)
 
     def update_buttons(self):
         for child in self.children:
