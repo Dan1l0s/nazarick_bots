@@ -241,7 +241,7 @@ class MusicBotInstance:
             return
         else:
             if not song.radio_mode:
-                track_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+                track_info = await self.run_in_process(helpers.ytdl_extract_info, url)
                 if track_info is None:
                     if respond:
                         await inter.orig_inter.delete_original_response()
@@ -274,7 +274,7 @@ class MusicBotInstance:
     async def add_from_playlist(self, inter, url, *, playnow=False):
         state = self.states[inter.guild.id]
         msg = await inter.text_channel.send("Processing playlist...")
-        playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url, download=False)
+        playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url)
         if playlist_info is None:
             await msg.delete()
             await inter.text_channel.send("Error processing playlist, there are unavailable videos!")
@@ -476,10 +476,13 @@ class MusicBotInstance:
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
             return
-        viewqueue = QueueList(state.song_queue, inter, state.current_song.track_info.result(), self)
-        await inter.orig_inter.delete_original_response()
-        curr_song = await state.current_song.track_info
+        if not state.current_song:
+            curr_song = {'title': "Nothing", 'webpage_url': "https://www.youtube.com/watch?v=dQw4w9WgXcQ", 'duration': 86399, 'artificial': True}
+        else:
+            curr_song = state.current_song.track_info.result()
+        viewqueue = QueueList(state.song_queue, inter, curr_song, self)
         embed = embedder.queue(inter.guild, state.song_queue, 0, curr_song)
+        await inter.orig_inter.delete_original_response()
         await viewqueue.send(embed=embed)
 
     async def wrong(self, inter):

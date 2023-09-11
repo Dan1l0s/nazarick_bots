@@ -1017,8 +1017,7 @@ def song_selections(author, songs):
     return embed
 
 
-def queue(guild, queue, range_start, current_track):
-    curr_song = current_track
+def queue(guild, queue, range_start, curr_song):
     if "entries" in curr_song:
         curr_song = curr_song["entries"][0]
     embed = disnake.Embed(
@@ -1026,23 +1025,14 @@ def queue(guild, queue, range_start, current_track):
         color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
         timestamp=datetime.now()
     )
-    queue_list = []
-    if len(queue) > 0 and range_start + 10 <= len(queue):
-        for num in range(10):
+
+    if len(queue) > 0 and not 'artificial' in curr_song:
+        for num in (range(10), range(len(queue) - range_start))[range_start + 10 > len(queue)]:
             curr_song = queue[num + range_start].track_info.result()
             title = curr_song['title']
             url = curr_song['webpage_url']
-            queue_list.append(f'**{num + range_start + 1}.** **[{title}]({url})** {helpers.get_duration(curr_song)}')
-        queue_list = '\n'.join(queue_list)
-        embed.add_field(name="", value=queue_list, inline=False)
-    elif len(queue) > 0 and range_start + 10 > len(queue):
-        for num in range(len(queue) - range_start):
-            curr_song = queue[num + range_start].track_info.result()
-            title = curr_song['title']
-            url = curr_song['webpage_url']
-            queue_list.append(f'**{num + range_start + 1}.** **[{title}]({url})** {helpers.get_duration(curr_song)}')
-        queue_list = '\n'.join(queue_list)
-        embed.add_field(name="", value=queue_list, inline=False)
+            song_info = f'**{num + range_start + 1}.** **[{title}]({url})** {helpers.get_duration(curr_song)}'
+            embed.add_field(name="", value=song_info, inline=False)
     else:
         embed.add_field(name="", value="Queue is currently empty!", inline=False)
     embed.set_author(name=guild.name,

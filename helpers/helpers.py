@@ -209,7 +209,7 @@ def parse_key(key) -> str:
     return res
 
 
-def ytdl_extract_info(url, download=True):
+def ytdl_extract_info(url, download=False):
     try:
         with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
             return ytdl.extract_info(url, download=download)

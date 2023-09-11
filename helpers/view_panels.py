@@ -13,6 +13,12 @@ import helpers.embedder as embedder
 class SongSelection(disnake.ui.View):
     url_list = None
     songs_list = None
+    author = None
+    song = None
+    func = None
+    inter = None
+    bot = None
+    value = None
 
     def __init__(self, songs, func, inter, song, bot):
         self.author = inter.author
@@ -78,9 +84,13 @@ class SongSelection(disnake.ui.View):
 
 
 class QueueList(disnake.ui.View):
-    embedder = None
+    author = None
+    inter = None
+    song = None
     start_index = None
     queue = None
+    bot = None
+    message = None
 
     def __init__(self, queue, inter, song, bot):
         self.author = inter.author
@@ -96,27 +106,52 @@ class QueueList(disnake.ui.View):
 
     @disnake.ui.button(label="<", style=disnake.ButtonStyle.secondary, custom_id="prev", disabled=True)
     async def prev_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        if not self.bot.states[inter.guild.id].voice:
+            await inter.response.defer()
+            await helpers.try_function(self.message.delete, True)
+            return
+        if not self.bot.states[inter.guild.id].current_song:
+            await inter.response.defer()
+            return
         await self.button_callback(-10, inter)
 
     @disnake.ui.button(label=">", style=disnake.ButtonStyle.secondary, custom_id="next", disabled=True)
     async def next_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        if not self.bot.states[inter.guild.id].voice:
+            await inter.response.defer()
+            await helpers.try_function(self.message.delete, True)
+            return
+        if not self.bot.states[inter.guild.id].current_song:
+            await inter.response.defer()
+            return
         await self.button_callback(10, inter)
 
     @disnake.ui.button(label="Refresh", style=disnake.ButtonStyle.secondary, custom_id="refresh", disabled=False)
     async def refresh_queue(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        if not self.bot.states[inter.guild.id].voice:
+            await inter.response.defer()
+            await helpers.try_function(self.message.delete, True)
+            return
+        if not self.bot.states[inter.guild.id].current_song:
+            await inter.response.defer()
+            return
+        self.song = await self.bot.states[inter.guild.id].current_song.track_info
         self.queue = self.bot.states[inter.guild.id].song_queue
         await self.button_callback(0, inter)
 
     async def send(self, embed=None):
         _, self.message = await helpers.try_function(self.inter.text_channel.send, True, view=self, embed=embed)
 
-    async def button_callback(self, button_num, inter):
+    async def button_callback(self, button_value, inter):
         await inter.response.defer()
         if inter.author == self.author or await helpers.is_admin(inter.author):
-            if self.start_index + button_num >= 0 and self.start_index + button_num <= len(self.queue):
-                self.start_index += button_num
-                self.update_buttons()
+            if button_value == 0:
+                while self.start_index > 0 and len(self.queue) <= self.start_index:
+                    self.start_index -= 10
 
+            if self.start_index + button_value >= 0 and self.start_index + button_value <= len(self.queue):
+                self.start_index += button_value
+                self.update_buttons()
                 embed = embedder.queue(self.inter.guild, self.queue, self.start_index, self.song)
                 await helpers.try_function(self.message.edit, True, view=self, embed=embed)
         else:

@@ -649,7 +649,11 @@ class AdminBot():
 
 
     async def monitor_errors(self) -> None:
-        os.set_blocking(sys.stdin.fileno(), False)
+        try:
+            os.set_blocking(sys.stdin.fileno(), False)
+        except:
+            pass
+
         while True:
             await asyncio.sleep(0.1)
             errors = ""
