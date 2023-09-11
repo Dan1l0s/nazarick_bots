@@ -17,7 +17,7 @@ This project is a group of discord-bots written in python, made in the setting o
 One of the features of this project is a unique system of music bots. Several instances can be on the server at the same time playing in different channels, but the user interacts with only one bot using slash commands, which controls which bot will connect to the voice channel.
 
 <p align="center">
-  <img src="https://github.com/Dan1l0s/discord_bots/assets/47472342/44c61df8-d019-4a2f-b733-0f44b83ddf91" alt="Multiple instances playback demo"/>
+  <img src="https://github.com/Dan1l0s/nazarick_bots/assets/47472342/1463b495-92d4-414c-8632-72744fc0d5fa" alt="Multiple instances playback demo"/>
 </p>
 
 Music bots also accept user requests, both as links and text queries. If a text query is received, the user will be prompted to select from several relevant options.
@@ -49,6 +49,14 @@ The bot also allows you to automatically display information about new members o
   <img src="https://i.imgur.com/uF0vHPN.png" alt="Logger bot welcome message example"/>
 </p>
 
+Logger bot currently supports the following commands:
+
+- **/set logs common** - allows server admin to set a channel to post logs messages to (admin-related functionality is dependent on Admin bot)
+- **/set logs status** - allows server admin to set a channel to post status changes logs to (admin-related functionality)
+- **/set logs welcome** - allows server admin to set a channel to post welcome messages to (admin-related functionality)
+- **/welcome** - allows to create a welcome banner manually
+- **/help** - displays list of commands
+
 ### Admin bot
 
 Admin bot allows moderators to clear messages, fix voice channels bitrate and do other admin stuff. Also it allows all users to create temporary channels which they can manage by connecting to a certain channel:
@@ -69,11 +77,39 @@ Also, admin bot has leveling system which allows users to create their own ranks
   <img src="https://i.imgur.com/Dxeq8IU.png" alt="Leveling system ranks list example"/>
 </p>
 
+Admin bot currently supports the following commands:
+
+- **/admin (add) (remove) (list)** - allows server owner to add or remove an admin, also allows common users to display the list of server admins
+- **/rank (add) (remove) (reset) (list)** - allows server admins to add, remove or reset ranks for server ranks system, also allows common users to display the list of current server ranks.
+- **/xp (set) (reset) (show)** - allows server admins to add or reset user's experience in the leveling system, also allows common users to show someone's xp
+- **/set private (channel) (category)** - allows server admin to set a channel to create temporary channels when connecting to this channel or to specify a category where temporary channels will be created at
+- **/bitrate** - allows server admin to fix voice channels' bitrate (the bitrate is set to the highest value possible for each server)
+- **/clear** - allows server admin to clear custom amount of messages in the text channel
+- **/help** - displays list of commands
+
 ## How to install and launch
 
-### How to install dependencies
+### Dependencies
 
-You need to execute file `setup.sh`, which will install python, all required libraries in python via pip. Also, for linux users it will install FFmpeg
+This is the list of required dependencies:
+
+- General:
+
+  - Python 3.11 or higher
+  - pip 23.2.1 or higher
+  - Disnake 2.9 or higher
+
+- Music bot:
+
+  - FFmpeg 4.0 or higher (without live-video playback v3.5 is sufficient)
+  - yt-dlp 2023.7.6 or higher
+  - youtube-search 2.1.2 or higher
+
+- Admin bot:
+  - openai 0.27.9 or higher
+  - aiosqlite 0.19.0 or higher
+
+You can execute [setup file](setup.sh), which will install python, all required libraries in python via pip. Also, for linux users it will install FFmpeg
 
 ### FFmpeg installation
 
@@ -91,12 +127,12 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 #### 2nd way: Add FFmpeg to working directory
 
 1. Download [this archieve](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z) and unzip its `bin` folder to any folder you want
-2. Proceed to `music_instance.py` and add to each `.play` method `executable` parameter with absolute path to `ffmpeg.exe` file in the `bin` folder, example:
+2. Proceed to `music_instance.py` and add to each `disnake.FFmpegPCMAudio` method `executable` parameter with absolute path to `ffmpeg.exe` file in the `bin` folder, example:
    `state.voice.play(disnake.FFmpegPCMAudio(source=link, **public_config.FFMPEG_OPTIONS, executable="C:\\nazarick_bots\\bin\\ffmpeg.exe"))`
 
 ### How to launch code
 
-1. Rename `private_config_example.py` to `private_config.py`
+1. Rename [private_config_example.py](configs/private_config_example.py) to `private_config.py`
 2. In `private_config.py` you have to edit all required variables (bots' info, openai api key and bot ids):
 
 ```python
@@ -118,5 +154,14 @@ bot_ids = {
 }
 ```
 
-4. To launch code just execute `main.py` file
-5. (Optional) Edit whatever you like in `public_config.py`, also you can add different ids to `private_config.py`, there are prompts to help you get started
+4. To launch code just execute [main.py](main.py) file
+5. (Optional) Edit whatever you like in [public_config.py](configs/public_config.py), also you can add different ids to `private_config.py`, there are prompts to help you get started
+
+#### How to create a discord bot
+
+1. Proceed to [Discord developer portal](https://discord.com/developers/applications/).
+2. Create a new application by clicking the `New Application` button and typing application name.
+3. Navigate to the `Bot` tab. Copy the token by clicking `Reset Token` and then using the `Copy` button.
+4. To invite your bot go to the `OAuth2` tab, then tick the `bot` checkbox under `scopes`.
+5. Tick the permissions required for your bot to function under Bot Permissions ("Administrator" permission is recommended for these bots)
+6. Copy and paste the given URL into your browser, choose a server to invite the bot to, and click `Authorize`.

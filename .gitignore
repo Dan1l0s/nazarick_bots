@@ -5,3 +5,4 @@ __pycache__/
 bot_database.db
 logs.db
 bots/notification_bot.py
+bots/clear_bot_commands.py
