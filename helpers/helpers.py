@@ -49,6 +49,11 @@ def get_duration(info) -> str:
         ans = "Live"
     else:
         ans = time.strftime('%H:%M:%S', time.gmtime(info['duration']))
+        days = info['duration'] // 86400
+        if days > 10:
+            ans = f"{days}:{ans}"
+        elif days > 0:
+            ans = f"0{days}:{ans}"
     return ans
 
 
@@ -225,7 +230,7 @@ def yt_search(query, max_results=5) -> (list | str):
 
 
 async def set_bitrate(guild) -> bool:
-    ff = False
+    ff = True
     voice_channels = guild.voice_channels
     bitrate_value = public_config.bitrate_values[guild.premium_tier]
     for channel in voice_channels:
@@ -584,7 +589,7 @@ async def try_function(function, await_flag: bool, *args, **kwargs):
         return False, tmp
 
 
-async def run_delayed_tasks(tasks):
+async def run_delayed_tasks(tasks) -> None:
     await asyncio.gather(*tasks)
 
 
@@ -594,3 +599,42 @@ async def dm_user(message: str, user_id: int, bot, embed=None, components=None, 
         return False
     ff, _ = await try_function(user.send, True, message, embed=embed, components=components, view=view, suppress_embeds=suppress_embeds)
     return ff
+
+
+async def add_playlist_delayed_task(function, await_flag: bool, playlist_future, *args, **kwargs) -> None:
+    while not playlist_future.done():
+        await asyncio.sleep(1)
+    if await_flag:
+        await function(*args, **kwargs)
+    else:
+        function(*args, **kwargs)
+
+
+def get_queue_duration(queue: list) -> None | str:
+    ans = ""
+    duration = 0
+    live_tracks = 0
+
+    for song in queue:
+        if not song.track_info.done():
+            continue
+        info = song.track_info.result()
+        if (isinstance(info, str)):
+            live_tracks += 1
+        else:
+            if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
+                live_tracks += 1
+            else:
+                duration += info['duration']
+
+    if duration > 0:
+        duration = {'duration': duration}
+        ans = f"**Queue duration: **{get_duration(duration)}"
+        if live_tracks > 0:
+            ans += f" and {('Live', f'{live_tracks} live tracks')[live_tracks > 1]}"
+    else:
+        if live_tracks == 0:
+            return None
+        else:
+            return f"**Queue duration: ** {('Live', f'{live_tracks} live tracks')[live_tracks > 1]}"
+    return ans

@@ -63,6 +63,22 @@ class SongSelection(disnake.ui.View):
     async def fifth_song(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
         await self.button_callback(4, inter)
 
+    @disnake.ui.button(label="Cancel", style=disnake.ButtonStyle.red)
+    async def cancel_selection(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        if self.value:
+            return
+        try:
+            await helpers.try_function(self.message.delete, True)
+            voice = self.bot.states[self.inter.guild.id].voice
+            self.value = True
+            self.song.track_info.set_result(None)
+            await helpers.try_function(self.bot.states[self.inter.guild.id].song_queue.remove, False, self.song)
+            if not (voice.is_playing() or voice.is_paused()):
+                await self.bot.abort_play(self.inter.guild.id, message=None)
+        except Exception as err:
+            print(f"Caught exception in select: {err}")
+            pass
+
     async def send(self):
         embed = embedder.song_selections(self.author, self.songs_list)
         _, self.message = await helpers.try_function(self.inter.text_channel.send, True, view=self, embed=embed)
@@ -75,6 +91,7 @@ class SongSelection(disnake.ui.View):
             voice = self.bot.states[self.inter.guild.id].voice
             self.value = True
             self.song.track_info.set_result(None)
+            await helpers.try_function(self.bot.states[self.inter.guild.id].song_queue.remove, False, self.song)
             _, self.message = await helpers.try_function(self.inter.text_channel.send, True, f"{self.inter.author.mention} You're out of time! Next time think faster!", delete_after=5)
             if not (voice.is_playing() or voice.is_paused()):
                 await self.bot.abort_play(self.inter.guild.id, message=None)
@@ -100,7 +117,7 @@ class QueueList(disnake.ui.View):
         self.song = song
         self.start_index = 0
 
-        super().__init__()
+        super().__init__(timeout=None)
 
         self.update_buttons()
 
@@ -144,18 +161,15 @@ class QueueList(disnake.ui.View):
 
     async def button_callback(self, button_value, inter):
         await inter.response.defer()
-        if inter.author == self.author or await helpers.is_admin(inter.author):
-            if button_value == 0:
-                while self.start_index > 0 and len(self.queue) <= self.start_index:
-                    self.start_index -= 10
+        if button_value == 0:
+            while self.start_index > 0 and len(self.queue) <= self.start_index:
+                self.start_index -= 10
 
-            if self.start_index + button_value >= 0 and self.start_index + button_value <= len(self.queue):
-                self.start_index += button_value
-                self.update_buttons()
-                embed = embedder.queue(self.inter.guild, self.queue, self.start_index, self.song)
-                await helpers.try_function(self.message.edit, True, view=self, embed=embed)
-        else:
-            await helpers.try_function(inter.author.send, True, f"Don't you even try to use someone's selection panel once again. {public_config.emojis['dead']}")
+        if self.start_index + button_value >= 0 and self.start_index + button_value <= len(self.queue):
+            self.start_index += button_value
+            self.update_buttons()
+            embed = embedder.queue(self.inter.guild, self.queue, self.start_index, self.song)
+            await helpers.try_function(self.message.edit, True, view=self, embed=embed)
 
     def update_buttons(self):
         for child in self.children:

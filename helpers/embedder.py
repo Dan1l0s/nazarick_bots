@@ -1017,24 +1017,56 @@ def song_selections(author, songs):
     return embed
 
 
-def queue(guild, queue, range_start, curr_song):
+def queue(guild, queue, start_index, curr_song):
     if "entries" in curr_song:
         curr_song = curr_song["entries"][0]
+
+    if (isinstance(curr_song, str)):
+        title = "Radio"
+        url = curr_song
+        duration = "Live"
+    else:
+        title = curr_song['title']
+        url = curr_song['webpage_url']
+        duration = helpers.get_duration(curr_song)
+
     embed = disnake.Embed(
-        description=f"**Currently playing : [{curr_song['title']}]({curr_song['webpage_url']})** {helpers.get_duration(curr_song)}",
+        description=f"**Currently playing : [{title}]({url})** {duration}",
         color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
         timestamp=datetime.now()
     )
-
+    ff = False
     if len(queue) > 0 and not 'artificial' in curr_song:
-        for num in (range(10), range(len(queue) - range_start))[range_start + 10 > len(queue)]:
-            curr_song = queue[num + range_start].track_info.result()
-            title = curr_song['title']
-            url = curr_song['webpage_url']
-            song_info = f'**{num + range_start + 1}.** **[{title}]({url})** {helpers.get_duration(curr_song)}'
+        ff = True
+        for num in (range(10), range(len(queue) - start_index))[start_index + 10 > len(queue)]:
+            try:
+                if not queue[num + start_index].track_info.done():
+                    num -= 1
+                    continue
+            except:
+                break
+            song = queue[num + start_index].track_info.result()
+            if (isinstance(song, str)):
+                title = "Radio"
+                url = song
+                duration = "Live"
+            else:
+                title = song['title']
+                url = song['webpage_url']
+                duration = helpers.get_duration(song)
+            song_info = f'**{num + start_index + 1}.** **[{title}]({url})** {duration}'
             embed.add_field(name="", value=song_info, inline=False)
+            ff = False
     else:
         embed.add_field(name="", value="Queue is currently empty!", inline=False)
+
+    if ff:
+        embed.add_field(name="", value="Queue is currently empty!", inline=False)
+    else:
+        duration = helpers.get_queue_duration(queue)
+        if duration:
+            embed.add_field(name="", value=duration, inline=False)
+
     embed.set_author(name=guild.name,
                      icon_url=guild.icon.url)
     embed.set_footer(text=f'{guild.name}')

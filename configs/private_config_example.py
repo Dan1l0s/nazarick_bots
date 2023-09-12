@@ -1,9 +1,9 @@
 # bots' specifications, value type: [[string, string, string], [string, string, string], ...]
 # bot_type can be one of a folowing values: MusicLeader, MusicInstance, Admin, Logger
-bots = {
+bots = [
     ["bot_name1", "bot_type1", "bot_token1"],
     ["bot_name1", "bot_type1", "bot_token1"],
-}
+]
 
 # openai api key, value type: string
 openai_api_key = "api_key"
@@ -12,6 +12,8 @@ openai_api_key = "api_key"
 bot_ids = {
     "bot_name1": bot_id1, "bot_name2": bot_id2,
 }
+
+# The following data is for hosting the bot on the VDS and VPS servers
 
 # (Optional) hosting address and port, value type: string, int
 # hosting_ip = "0.0.0.0"

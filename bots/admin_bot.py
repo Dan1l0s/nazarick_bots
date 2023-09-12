@@ -50,7 +50,6 @@ class AdminBot():
             print(f"{self.name} is logged as {self.bot.user}")
             self.bot.loop.create_task(self.scan_timer())
             asyncio.create_task(self.monitor_errors())
-
             for guild in self.bot.guilds:
                 await self.add_admin(guild.id, guild.owner_id)
 
@@ -303,7 +302,7 @@ class AdminBot():
                 await inter.edit_original_response(f'Bitrate was set to {bitrate}kbps!')
             else:
                 await inter.edit_original_response(f'Bitrate wasn\'t updated due to lack of permissions!')
-                await asyncio.sleep(5)
+            await asyncio.sleep(5)
             await inter.delete_original_response()
 
         @ self.bot.slash_command(dm_permission=False, description="Clears voice channel (authorized use only)")
@@ -652,7 +651,7 @@ class AdminBot():
         try:
             os.set_blocking(sys.stdin.fileno(), False)
         except:
-            pass
+            return
 
         while True:
             await asyncio.sleep(0.1)
@@ -688,9 +687,11 @@ class AdminBot():
             ff = True
             for guild_id, state in bot.states.items():
                 if state.current_song:
+                    if ff:
+                        message += " BUSY"
                     ff = False
                     ans = ""
-                    message += f"\n{guild_id} : BUSY : "
+                    message += f"\n{guild_id} : "
                     if state.current_song.track_info.done():
                         info = await state.current_song.track_info
                         ans = helpers.get_duration(info)

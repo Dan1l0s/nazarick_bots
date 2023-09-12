@@ -138,10 +138,10 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 ```python
 # bots' specifications, value type: [[string, string, string], [string, string, string], ...]
 # bot_type can be one of a folowing values: MusicLeader, MusicInstance, Admin, Logger
-bots = {
+bots = [
     ["bot_name1", "bot_type1", "bot_token1"],
     ["bot_name1", "bot_type1", "bot_token1"],
-}
+]
 
 
 # openai api key, value type: string

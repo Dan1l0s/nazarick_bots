@@ -178,11 +178,12 @@ class MusicBotInstance:
             if resume and not state.paused:
                 state.voice.resume()
         except:
-            try:
-                await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
-            except:
-                pass
-            await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
+            if len(self.states[guild_id].voice.channel) == 1:
+                try:
+                    await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
+                except:
+                    pass
+                await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
         state.cancel_timeout = None
 
     async def cancel_timeout(self, guild_id, resume=True):
@@ -214,7 +215,7 @@ class MusicBotInstance:
                 state.voice = None
                 voice.stop()
                 await helpers.try_function(voice.disconnect, True)
-                await state.last_inter.text_channel.send(message)
+                await helpers.try_function(state.last_inter.text_channel.send, True, message)
             except:
                 pass
         state.reset()
@@ -233,18 +234,29 @@ class MusicBotInstance:
             asyncio.create_task(self.add_from_url_to_queue(
                 inter, song, query, playnow=playnow))
 
-    async def add_from_url_to_queue(self, inter, song, url, *, respond=True, playnow=False):
+    async def add_from_url_to_queue(self, inter, song, url, *, respond=True, playnow=False, playlist_future=None):
         state = self.states[inter.guild.id]
-        if "list" in url:
-            await self.add_from_url_to_queue(inter, song, url[:url.find("list") - 1], playnow=playnow)
-            await self.add_from_playlist(inter, url, playnow=playnow)
+        if "?list=" in url or "&list=" in url:
+            future = (None, asyncio.Future())["playlist" in url]
+            orig_song = await self.add_from_url_to_queue(inter, song, url[:url.find("list=") - 1], playnow=playnow, playlist_future=future)
+            if not orig_song:
+                await self.add_from_playlist(inter, url, None, playnow=playnow, playlist_future=future)
+            else:
+                await self.add_from_playlist(inter, url, orig_song['webpage_url'], playnow=playnow, playlist_future=future)
             return
         else:
+            if "playlist" in url:
+                # song.track_info.set_result(None)
+                # await helpers.try_function(state.song_queue.remove, False, song)
+                asyncio.create_task(helpers.add_playlist_delayed_task(helpers.try_function, True, playlist_future, state.song_queue.remove, False, song))
+                if respond:
+                    await inter.orig_inter.delete_original_response()
+                return
             if not song.radio_mode:
                 track_info = await self.run_in_process(helpers.ytdl_extract_info, url)
                 if track_info is None:
                     if respond:
-                        await inter.orig_inter.delete_original_response()
+                        await helpers.try_function(inter.orig_inter.delete_original_response, True)
                     await inter.text_channel.send("Error processing video, try another one!")
                     await helpers.try_function(state.song_queue.remove, False, song)
                     if not state.current_song:
@@ -256,14 +268,15 @@ class MusicBotInstance:
                         song.author, track_info, "Song was added to queue!")
                     song.original_message = await inter.text_channel.send("", embed=embed)
                 if respond:
-                    await inter.orig_inter.delete_original_response()
+                    await helpers.try_function(inter.orig_inter.delete_original_response, True)
                 await database_logger.added(state.guild, track_info)
             else:
                 if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                     song.original_message = await inter.text_channel.send("Radio was added to queue!")
                 if respond:
-                    await inter.orig_inter.delete_original_response()
+                    await helpers.try_function(inter.orig_inter.delete_original_response, True)
                 song.track_info.set_result(url)
+            return song.track_info.result()
 
     async def select_song(self, inter, song, query):
         songs = await self.run_in_process(helpers.yt_search, query)
@@ -271,29 +284,47 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         await select.send()
 
-    async def add_from_playlist(self, inter, url, *, playnow=False):
+    async def add_from_playlist(self, inter, url, orig_url, *, playnow=False, playlist_future=None):
         state = self.states[inter.guild.id]
         msg = await inter.text_channel.send("Processing playlist...")
         playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url)
         if playlist_info is None:
             await msg.delete()
             await inter.text_channel.send("Error processing playlist, there are unavailable videos!")
+            if playlist_future:
+                playlist_future.set_result(None)
             return
 
         await msg.edit("Playlist has been processed!", delete_after=5)
 
         if not state.voice:
             return
+
         if playnow:
-            for entry in playlist_info['entries'][1:][::-1]:
+            for entry in playlist_info['entries'][::-1]:
+                if "entries" in entry:
+                    url = entry["entries"][0]['webpage_url']
+                else:
+                    url = entry['webpage_url']
+                if orig_url == url:
+                    continue
                 song = Song(author=inter.author)
                 song.track_info.set_result(entry)
                 state.song_queue.insert(0, song)
         else:
-            for entry in playlist_info['entries'][1:]:
+            for entry in playlist_info['entries']:
+                if "entries" in entry:
+                    url = entry["entries"][0]['webpage_url']
+                else:
+                    url = entry['webpage_url']
+                if orig_url == url:
+                    continue
                 song = Song(author=inter.author)
                 song.track_info.set_result(entry)
                 state.song_queue.append(song)
+
+        if playlist_future:
+            playlist_future.set_result(None)
 
     async def play_loop(self, guild_id):
         state = self.states[guild_id]
@@ -387,9 +418,10 @@ class MusicBotInstance:
         state.last_inter = inter
 
         if not state.voice:
-            ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True)
-            if not ff:
-                await self.abort_play(inter.guild.id, message="Couldn't connect to your voice channel, check my permissions and try again")
+            ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True, timeout=5)
+            if not ff or not state.voice:
+                await helpers.try_function(inter.orig_inter.send, True, "Couldn't connect to your voice channel, check my permissions and try again")
+                await self.abort_play(inter.guild.id, message=None)
                 return
             await self.process_song_query(inter, query, playnow=playnow, radio=radio)
             return asyncio.create_task(self.play_loop(inter.guild.id))
@@ -401,6 +433,7 @@ class MusicBotInstance:
             state.voice.stop()
             await self.cancel_timeout(inter.guild.id, False)
             state.reset()
+            state.last_inter = inter
             if radio:
                 song = Song(author=inter.author, radio_mode=radio)
             else:

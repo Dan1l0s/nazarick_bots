@@ -93,7 +93,7 @@ class MusicBotLeader(MusicBotInstance):
             if not assigned_instance:
                 return await inter.send("There are no available bots, you can get more music bots in discord.gg/nazarick")
             new_inter = Interaction(assigned_instance.bot, inter)
-            await assigned_instance.play(new_inter, query, True)
+            await assigned_instance.play(new_inter, query, playnow=True)
 
         @ self.bot.slash_command(dm_permission=False, description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
