@@ -47,6 +47,7 @@ class LogBot():
     name = None
     bot = None
     kicks_bans = None
+    on_ready_flag = None
 
     def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
@@ -54,6 +55,7 @@ class LogBot():
         self.name = name
         self.token = token
         self.kick_bans = {}
+        self.on_ready_flag = False
 
     # --------------------- MESSAGES --------------------------------
 
@@ -242,9 +244,11 @@ class LogBot():
     # --------------------- RANDOM --------------------------------
         @ self.bot.event
         async def on_ready():
-            await database_logger.enabled(self.bot)
-            print(f"{self.name} is logged as {self.bot.user}")
-            await self.status_check()
+            if not self.on_ready_flag:
+                self.on_ready_flag = True
+                await database_logger.enabled(self.bot)
+                print(f"{self.name} is logged as {self.bot.user}")
+                await self.status_check()
 
         @ self.bot.event
         async def on_disconnect():
@@ -331,7 +335,7 @@ class LogBot():
 
     async def status_check(self):
         prev_status = {}
-        while not self.bot.is_closed():
+        while True:
             try:
                 delayed_tasks = []
                 new_status = {}
@@ -376,7 +380,7 @@ class LogBot():
         for member, status in status_dict.items():
             status.status = str(member.status)
             for activity in member.activities:
-                if isinstance(activity, type(disnake.activity.Spotify)):
+                if type(activity) == disnake.activity.Spotify:
                     status.activities.append(Activity(type(activity), f'{activity.artists[0]} - "{activity.title}"'))
                 elif activity is not None:
                     status.activities.append(Activity(type(activity), f'{activity.name}'))

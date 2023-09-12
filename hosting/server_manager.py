@@ -132,7 +132,7 @@ class Host:
             case "backup":
                 return await self.backup()
             case "update":
-                branch = "master"
+                branch = self.get_current_branch()
                 if len(args) > 1:
                     branch = args[1]
                 return await self.update(branch)

@@ -95,6 +95,7 @@ class MusicBotInstance:
     states = None
     process_pool = None
     token = None
+    on_ready_flag = None
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
@@ -105,13 +106,16 @@ class MusicBotInstance:
         self.token = token
         self.states = {}
         self.process_pool = process_pool
+        self.on_ready_flag = False
 
         @self.bot.event
         async def on_ready():
-            await database_logger.enabled(self.bot)
-            for guild in self.bot.guilds:
-                self.states[guild.id] = GuildState(guild)
-            print(f"{self.name} is logged as {self.bot.user}")
+            if not self.on_ready_flag:
+                self.on_ready_flag = True
+                for guild in self.bot.guilds:
+                    self.states[guild.id] = GuildState(guild)
+                await database_logger.enabled(self.bot)
+                print(f"{self.name} is logged as {self.bot.user}")
 
         @self.bot.event
         async def on_message(message):
@@ -178,7 +182,7 @@ class MusicBotInstance:
             if resume and not state.paused:
                 state.voice.resume()
         except:
-            if len(self.states[guild_id].voice.channel) == 1:
+            if len(self.states[guild_id].voice.channel.members) == 1:
                 try:
                     await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
                 except:

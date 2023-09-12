@@ -7,1020 +7,579 @@ import configs.public_config as public_config
 import helpers.helpers as helpers
 
 
-def songs(client, data, text):
-    info = data
+class EmbedField():
+    name = None
+    value = None
+    inline = None
+
+    def __init__(self, name="", value="", inline=False):
+        self.name = name
+        self.value = value
+        self.inline = inline
+
+
+def create_embed(title=None, url=None, description=None, color_tag: str = None, author_name=None, author_icon_url=None, footer_text=None, footer_icon_url=None, thumbnail_url=None, fields=None):
+    embed = disnake.Embed(title=title, url=url, description=description, color=disnake.Colour.from_rgb(*public_config.embed_colors[color_tag]), timestamp=datetime.now())
+    embed.set_author(name=author_name, icon_url=author_icon_url)
+    if footer_text:
+        embed.set_footer(text=footer_text, icon_url=footer_icon_url)
+    elif footer_icon_url:
+        embed.set_footer(icon_url=footer_icon_url)
+    embed.set_thumbnail(url=thumbnail_url)
+    if fields:
+        for field in fields:
+            embed.add_field(name=field.name, value=field.value, inline=field.inline)
+    return embed
+
+
+def songs(author, info, text):
     if "entries" in info:
         info = info["entries"][0]
-    embed = disnake.Embed(
-        title=info['title'],
-        url=info['webpage_url'],
-        description=text,
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.now())
-    duration = helpers.get_duration(info)
-
-    embed.set_author(name=info['uploader'])
-    embed.set_thumbnail(url=f"https://img.youtube.com/vi/{info['id']}/0.jpg")
-    embed.add_field(name="*Duration*",
-                    value=duration, inline=True)
-    embed.add_field(name="*Requested by*",
-                    value=client.display_name, inline=True)
-    embed.add_field(name="*Channel*",
-                    value=client.voice.channel.name, inline=True)
-    return embed
+    fields = [
+        EmbedField(name="*Duration*", value=helpers.get_duration(info), inline=True),
+        EmbedField(name="*Requested by*", value=author.display_name, inline=True),
+        EmbedField(name="*Channel*", value=author.voice.channel.name, inline=True)
+    ]
+    return create_embed(title=info['title'], url=info['webpage_url'], description=text, color_tag="songs",
+                        author_name=info['uploader'], thumbnail_url=f"https://img.youtube.com/vi/{info['id']}/0.jpg", fields=fields)
 
 
 def radio(data):
-    embed = disnake.Embed(
-        title=data['name'],
-        description="Playing from ANISON.FM",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.now())
-    embed.set_author(name=data['source'])
-    embed.add_field(name="*Duration*",
-                    value=helpers.get_duration(data),
-                    inline=True)
-    embed.add_field(name="*Channel*",
-                    value=data['channel'].name, inline=True)
-    return embed
+    fields = [
+        EmbedField(name="*Duration*", value=helpers.get_duration(data), inline=True),
+        EmbedField(name="*Channel*", value=data['channel'].name, inline=True)
+    ]
+    return create_embed(title=data['name'], description="Playing from ANISON.FM", color_tag="songs", author_name=data['source'], fields=fields)
+
 
 # --------------------- Entry Actions --------------------------------
 
 
 def entry_channel_create(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} created channel {entry.user.guild.get_channel(entry.target.id).mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.after):
         if attr in public_config.channel_create:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=False)
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}"))
     if hasattr(entry.after, 'overwrites'):
         overwrites = []
         for role in entry.after.overwrites:
             if f"{role[1].pair()[0]}" == "<Permissions value=1024>":
-                overwrites += [f"User : {role[0].mention}"] if f"{type(role[0])}" == "<class 'disnake.member.Member'>" else [
-                    f"Role : {role[0].mention}"]
+                overwrites.append(f"{('Role', 'User')[type(role[0]) == disnake.member.Member]} : {role[0].mention}")
         overwrites = '\n'.join(overwrites)
-        embed.add_field(name=f"**Viewing Permissions:**",
-                        value=overwrites, inline=False)
+        fields.append(EmbedField(name=f"**Viewing Permissions:**", value=overwrites))
     if hasattr(entry.after, 'available_tags'):
         tags = []
         for tag in entry.after.available_tags:
-            tags += [tag.name]
+            tags.append(tag.name)
         tags = '\n'.join(tags)
-        embed.add_field(name=f"**Available tags:**",
-                        value=tags, inline=False)
-    return embed
+        fields.append(EmbedField(name=f"**Available tags:**", value=tags))
+    return create_embed(description=f'**{entry.user.mention} created channel {entry.user.guild.get_channel(entry.target.id).mention}**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_channel_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} updated channel {entry.user.guild.get_channel(entry.target.id).mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
+    fields = []
     for attr in dir(entry.after):
         if attr in public_config.channel_update:
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(name=f"**Old {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=True)
-            embed.add_field(name=f"**New {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=True)
-
+            fields.append(EmbedField())
+            fields.append(EmbedField(name=f"**Old {helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}", inline=True))
+            fields.append(EmbedField(name=f"**New {helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}", inline=True))
     if hasattr(entry.after, 'nsfw'):
         if entry.before.nsfw:
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(name="**Old NSFW settings:**",
-                            value="NSFW", inline=True)
-            embed.add_field(name="**New NSFW settings:**",
-                            value=":sob: Not NSFW", inline=True)
+            fields.append(EmbedField())
+            fields.append(EmbedField(name="**Old NSFW settings:**", value="NSFW", inline=True))
+            fields.append(EmbedField(name="**New NSFW settings:**", value=":sob: Not NSFW", inline=True))
         else:
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(name="**Old NSFW settings:**",
-                            value="Not NSFW", inline=True)
-            embed.add_field(name="**New NSFW settings:**",
-                            value=":smiling_imp: NSFW", inline=True)
-
+            fields.append(EmbedField())
+            fields.append(EmbedField(name="**Old NSFW settings:**", value="Not NSFW", inline=True))
+            fields.append(EmbedField(name="**New NSFW settings:**", value=":smiling_imp: NSFW", inline=True))
     if hasattr(entry.after, 'available_tags'):
         tags = []
         for tag in entry.before.available_tags:
             if tag not in entry.after.available_tags:
-                tags += [f"{public_config.emojis['false']} {tag.name}"]
+                tags.append(f"{public_config.emojis['false']} {tag.name}")
         for tag in entry.after.available_tags:
             if tag not in entry.before.available_tags:
-                tags += [f"{public_config.emojis['true']} {tag.name}"]
+                tags.append(f"{public_config.emojis['true']} {tag.name}")
         tags = '\n'.join(tags)
-        embed.add_field(name="**Tag Updates**", value=tags, inline=False)
-
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+        fields.append(EmbedField(name="**Tag Updates**", value=tags))
+    return create_embed(description=f'**{entry.user.mention} updated channel {entry.user.guild.get_channel(entry.target.id).mention}**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_channel_delete(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} deleted channel `{entry.before.name}`**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} deleted channel `{entry.before.name}`**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_thread_create(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has created thread {entry.target.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.after):
         if attr in public_config.threads:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=False)
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}"))
     if hasattr(entry.after, 'applied_tags'):
         tags = []
         for tag in entry.after.applied_tags:
-            tags += [tag.name]
+            tags.append(tag.name)
         tags = '\n'.join(tags)
-        embed.add_field(name=f"**Applied tags:**",
-                        value=tags, inline=False)
-    return embed
+        fields.append(EmbedField(name=f"**Applied tags:**", value=tags))
+    return create_embed(description=f'**{entry.user.mention} has created thread {entry.target.mention}**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_thread_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has updated thread {entry.target.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.after):
         if attr in public_config.threads:
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(name=f"**Old {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=True)
-            embed.add_field(name=f"**New {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=True)
+            fields.append(EmbedField())
+            fields.append(EmbedField(name=f"**Old {helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}", inline=True))
+            fields.append(EmbedField(name=f"**New {helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}", inline=True))
     if hasattr(entry.after, 'applied_tags'):
         tags = []
         for tag in entry.before.applied_tags:
             if tag not in entry.after.applied_tags:
-                tags += [f"{public_config.emojis['false']} {tag.name}"]
+                tags.append(f"{public_config.emojis['false']} {tag.name}")
         for tag in entry.after.applied_tags:
             if tag not in entry.before.applied_tags:
-                tags += [f"{public_config.emojis['true']} {tag.name}"]
+                tags.append(f"{public_config.emojis['true']} {tag.name}")
         tags = '\n'.join(tags)
-        embed.add_field(name="**Tag Updates**", value=tags, inline=False)
-    return embed
+        fields.append(EmbedField(name="**Tag Updates**", value=tags))
+    return create_embed(description=f'**{entry.user.mention} has updated thread {entry.target.mention}**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_thread_delete(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} deleted thread `{entry.before.name}`**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} deleted thread `{entry.before.name}`**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_kick(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} kicked member {entry.target.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.add_field(name="**REASON:**", value=f'{entry.reason}')
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} kicked member {entry.target.mention}**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=[EmbedField(name="**REASON:**", value=f'{entry.reason}')])
 
 
 def entry_ban(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} banned member {entry.target.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.add_field(name="**REASON:**", value=f'{entry.reason}')
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} banned member {entry.target.mention}**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=[EmbedField(name="**REASON:**", value=f'{entry.reason}')])
 
 
 def entry_unban(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} unbanned user {entry.target.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} unbanned member {entry.target.mention}**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_member_move(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} moved a user to {entry.user.guild.get_channel(entry.extra.channel.id).mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} moved a user to {entry.user.guild.get_channel(entry.extra.channel.id).mention}**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_member_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} updated user {entry.target.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
+    fields = []
     if hasattr(entry.before, "nick"):
         if entry.before.nick is not None:
-            embed.add_field(name="**Old Nickname:**",
-                            value=f'`{entry.before.nick}`')
+            fields.append(EmbedField(name="**Old Nickname:**", value=f'`{entry.before.nick}`'))
         if entry.after.nick is not None:
-            embed.add_field(name="**New Nickname:**",
-                            value=f'`{entry.after.nick}`')
+            fields.append(EmbedField(name="**New Nickname:**", value=f'`{entry.after.nick}`'))
     if hasattr(entry.after, "timeout"):
         if entry.after.timeout is not None:
-            embed.add_field(name="**Timeout expiration date:**",
-                            value=entry.after.timeout.strftime("%d/%m %H:%M:%S"))
+            fields.append(EmbedField(name="**Timeout expiration date:**", value=entry.after.timeout.strftime("%d/%m %H:%M:%S")))
         else:
-            embed.add_field(name="**Timeout:**",
-                            value="Timeout has been removed")
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+            fields.append(EmbedField(name="**Timeout:**", value="Timeout has been removed"))
+    return create_embed(description=f'**{entry.user.mention} updated user {entry.target.mention}**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_member_role_update(entry):
-    x = entry.after.roles
-    z = entry.before.roles
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} updated user {entry.target.mention}'s roles**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    for y in range(len(x)):
-        embed.add_field(name=f"Role added:", value=x[y].name)
-    for y in range(len(z)):
-        embed.add_field(name=f"Role removed:", value=z[y].name)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    fields = []
+    for role in entry.after.roles:
+        fields.append(EmbedField(name=f"Role added:", value=role.name))
+    for role in entry.before.roles:
+        fields.append(EmbedField(name=f"Role removed:", value=role.name))
+    return create_embed(description=f"**{entry.user.mention} updated user {entry.target.mention}'s roles**", color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_member_disconnect(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} disconnected {("1 user", f"{entry.extra.count} users")[entry.extra.count > 1]} from a voice channel**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} disconnected {("1 user", f"{entry.extra.count} users")[entry.extra.count > 1]} from a voice channel**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_role_create(entry):
-    embed = disnake.Embed(
-        description=f'**A new role has been added to the Guild by {entry.user.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
     if hasattr(entry.after, "name"):
-        embed.add_field(name="**Role name:**", value=entry.after.name)
-    return embed
+        fields = [EmbedField(name="**Role name:**", value=entry.after.name)]
+    else:
+        fields = None
+    return create_embed(description=f'**A new role has been added to the Guild by {entry.user.mention}**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_role_update(entry):
-    embed = disnake.Embed(
-        description=f'**The role {entry.target.mention} has been updated by {entry.user.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     if hasattr(entry.after, "name"):
-        embed.add_field(name="**Old name:**", value=entry.before.name, inline=True)
-        embed.add_field(name="**New name:**", value=entry.after.name, inline=True)
-        embed.add_field(name="", value="", inline=False)
+        fields.append(EmbedField())
+        fields.append(EmbedField(name="**Old name:**", value=entry.before.name, inline=True))
+        fields.append(EmbedField(name="**New name:**", value=entry.after.name, inline=True))
     if hasattr(entry.after, "icon"):
-        embed.set_thumbnail(url=entry.after.icon.url)
+        thumbnail = entry.after.icon.url
+    else:
+        thumbnail = None
     if hasattr(entry.after, "colour"):
-        embed.add_field(name="**Old Color:**", value=f'#{hex(entry.before.colour.r)[2:]}{hex(entry.before.colour.g)[2:]}{hex(entry.before.colour.b)[2:]}', inline=True)
-        embed.add_field(name="**New Color:**", value=f'#{hex(entry.after.colour.r)[2:]}{hex(entry.after.colour.g)[2:]}{hex(entry.after.colour.b)[2:]}', inline=True)
-        embed.add_field(name="", value="", inline=False)
-    # PERMISSIONS
+        fields.append(EmbedField())
+        fields.append(EmbedField(name="**Old Color:**", value=f'#{hex(entry.before.colour.r)[2:]}{hex(entry.before.colour.g)[2:]}{hex(entry.before.colour.b)[2:]}', inline=True))
+        fields.append(EmbedField(name="**New Color:**", value=f'#{hex(entry.after.colour.r)[2:]}{hex(entry.after.colour.g)[2:]}{hex(entry.after.colour.b)[2:]}', inline=True))
     if hasattr(entry.after, "permissions"):
         perms = []
         for attr in dir(entry.after.permissions):
             if attr in public_config.permissions_list:
                 if (getattr(entry.before.permissions, attr) != getattr(entry.after.permissions, attr)):
-                    perms += [f"{public_config.emojis['true']} {helpers.parse_key(attr)}"] if getattr(
-                        entry.before.permissions, attr) == False else [f"{public_config.emojis['false']} {helpers.parse_key(attr)}"]
+                    perms.append(f"{public_config.emojis[f'{str(getattr(entry.before.permissions, attr)).lower}']} {helpers.parse_key(attr)}")
         perms = '\n'.join(perms)
-        embed.add_field(name="**CHANGED PERMISSIONS:**",
-                        value=perms, inline=False)
-    return embed
+        fields.append(EmbedField(name="**CHANGED PERMISSIONS:**", value=perms))
+    return create_embed(description=f'**The role {entry.target.mention} has been updated by {entry.user.mention}**', color_tag="other_action", thumbnail_url=thumbnail,
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_role_delete(entry):
-    embed = disnake.Embed(
-        description=f'**A role has been deleted by {entry.user.mention} from the guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.before):
         if attr in public_config.role_delete:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=False)
-    return embed
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}"))
+    return create_embed(description=f'**A role has been deleted by {entry.user.mention} from the guild**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_guild_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has updated the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.before):
         if attr in public_config.guild_update:
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(name=f"**Old {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=True)
-            embed.add_field(name=f"**New {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=True)
-    return embed
+            fields.append(EmbedField())
+            fields.append(EmbedField(name=f"**Old {helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}", inline=True))
+            fields.append(EmbedField(name=f"**New {helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}", inline=True))
+    return create_embed(description=f'**{entry.user.mention} has updated the Guild**', color_tag="other_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_member_prune(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has pruned members from the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    embed.add_field(name="**Members Removed:**",
-                    value=entry.extra.members_removed, inline=False)
-    embed.add_field(name="**Prune size:**",
-                    value=entry.extra.delete_members_days, inline=False)
-    return embed
+    fields = [EmbedField(name="**Members Removed:**", value=entry.extra.members_removed), EmbedField(name="**Prune size:**", value=entry.extra.delete_members_days)]
+    return create_embed(description=f'**{entry.user.mention} has pruned members from the Guild**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_invite_create(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has created an invite to the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     if hasattr(entry.after, 'channel'):
-        embed.add_field(name="**Channel:**",
-                        value=entry.after.channel.mention, inline=False)
+        fields.append(EmbedField(name="**Channel:**", value=entry.after.channel.mention))
     for attr in dir(entry.after):
         if attr in public_config.invites:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=False)
-    return embed
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}"))
+    return create_embed(description=f'**{entry.user.mention} has created an invite to the Guild**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_invite_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has updated an invite to the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f'**{entry.user.mention} has updated an invite to the Guild**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_invite_delete(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has deleted an invite to the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     if hasattr(entry.before, 'channel'):
-        embed.add_field(name="**Channel:**",
-                        value=entry.after.channel.mention, inline=False)
+        fields.append(EmbedField(name="**Channel:**", value=entry.after.channel.mention))
     for attr in dir(entry.before):
         if attr in public_config.invites:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=False)
-    return embed
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}"))
+    return create_embed(description=f'**{entry.user.mention} has deleted an invite to the Guild**', color_tag="member_action",
+                        author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_emoji_create(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has added an emoji to the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    embed.add_field(name="**Emoji:**",
-                    value=entry.after.name, inline=False)
-    return embed
+    return create_embed(description=f'**{entry.user.mention} has added an emoji to the Guild**', color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=[EmbedField(name="**Emoji:**", value=entry.after.name)])
 
 
 def entry_emoji_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has updated an emoji in the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    embed.add_field(name="**Old Emoji Name:**",
-                    value=entry.before.name, inline=False)
-    embed.add_field(name="**New Emoji Name:**",
-                    value=entry.after.name, inline=False)
-
-    return embed
+    return create_embed(description=f'**{entry.user.mention} has updated an emoji in the Guild**', color_tag="other_action", author_name=entry.user.name, author_icon_url=entry.user.display_avatar.url,
+                        footer_text=entry.user.guild.name, fields=[EmbedField(name="**Old Emoji Name:**", value=entry.before.name), EmbedField(name="**New Emoji Name:**", value=entry.after.name)])
 
 
 def entry_emoji_delete(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has removed an emoji from the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    embed.add_field(name="**Emoji:**",
-                    value=entry.before.name, inline=False)
-    return embed
+    return create_embed(description=f'**{entry.user.mention} has removed an emoji from the Guild**', color_tag="member_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=[EmbedField(name="**Emoji:**", value=entry.before.name)])
 
 
 def entry_sticker_create(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has added a sticker to the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.before):
         if attr in public_config.sticker_ent:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=False)
-    return embed
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}"))
+    return create_embed(description=f'**{entry.user.mention} has added a sticker to the Guild**', color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_sticker_update(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has updated a sticker in the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.before):
         if attr in public_config.sticker_ent:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=False)
-    return embed
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}"))
+    return create_embed(description=f'**{entry.user.mention} has updated a sticker in the Guild**', color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_sticker_create(entry):
-    embed = disnake.Embed(
-        description=f'**{entry.user.mention} has deleted a sticker from the Guild**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     for attr in dir(entry.before):
         if attr in public_config.sticker_ent:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=False)
-    return embed
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}"))
+    return create_embed(description=f'**{entry.user.mention} has deleted a sticker from the Guild**', color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
 def entry_message_delete(entry):
-    embed = disnake.Embed(
-        description=f"**{(f'<@{entry.target.id}>',entry.target.mention)[hasattr(entry.target, 'mention')]}'s messages have been deleted by moderator {entry.user.mention}**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    embed.add_field(name="**Channel from which the messages were deleted**",
-                    value=entry.extra.channel.mention, inline=False)
-    embed.add_field(name="**Amount of deleted messages**",
-                    value=entry.extra.count, inline=False)
-    return embed
+    return create_embed(description=f"**{(f'<@{entry.target.id}>',entry.target.mention)[hasattr(entry.target, 'mention')]}'s messages have been deleted by moderator {entry.user.mention}**", color_tag="member_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=[EmbedField(
+                            name="**Channel from which the messages were deleted**", value=entry.extra.channel.mention), EmbedField(name="**Amount of deleted messages**", value=entry.extra.count)])
 
 
 def entry_message_bulk_delete(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has deleted {entry.extra['count']} message(s) from {entry.target.mention}**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f"**{entry.user.mention} has deleted {entry.extra['count']} message(s) from {entry.target.mention}**", color_tag="message", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_message_pin(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has pinned {entry.target.mention}'s message in {entry.extra.channel.mention}**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f"**{entry.user.mention} has pinned {entry.target.mention}'s message in {entry.extra.channel.mention}**", color_tag="message", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_message_unpin(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has unpinned {entry.target.mention}'s message from {entry.extra.channel.mention}**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f"**{entry.user.mention} has unpinned {entry.target.mention}'s message in {entry.extra.channel.mention}**", color_tag="message", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 def entry_guild_scheduled_event_create(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has created a scheduled guild event**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     if hasattr(entry.after, 'channel'):
-        embed.add_field(name="**Channel**",
-                        value=f"{entry.after.channel.mention}")
+        fields.append(EmbedField(name="**Channel**", value=f"{entry.after.channel.mention}"))
     for attr in dir(entry.after):
         if attr in public_config.guild_scheduled_event:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=False)
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}"))
     if hasattr(entry.after, 'image'):
-        embed.set_thumbnail(url=entry.after.image.url)
-    return embed
+        thumbnail_url = entry.after.image.url
+    else:
+        thumbnail_url = None
+    return create_embed(description=f"**{entry.user.mention} has created a scheduled guild event**", color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, thumbnail_url=thumbnail_url, fields=fields)
 
 
 def entry_guild_scheduled_event_update(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has updated a scheduled guild event**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     if hasattr(entry.after, 'channel'):
-        embed.add_field(name="", value="", inline=False)
-        embed.add_field(name="**Old Channel**",
-                        value=f"{entry.before.channel.mention}", inline=True)
-        embed.add_field(name="**New Channel**",
-                        value=f"{entry.after.channel.mention}", inline=True)
+        fields.append(EmbedField())
+        fields.append(EmbedField(name="**Old Channel**", value=f"{entry.before.channel.mention}", inline=True))
+        fields.append(EmbedField(name="**New Channel**", value=f"{entry.after.channel.mention}", inline=True))
     for attr in dir(entry.before):
         if attr in public_config.guild_scheduled_event:
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(name=f"**Old {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=True)
-            embed.add_field(name=f"**New {helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.after, attr)}", inline=True)
+            fields.append(EmbedField())
+            fields.append(EmbedField(name=f"**Old {helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}", inline=True))
+            fields.append(EmbedField(name=f"**New {helpers.parse_key(attr)}**", value=f"{getattr(entry.after, attr)}", inline=True))
     if hasattr(entry.after, 'image'):
-        embed.set_thumbnail(url=entry.after.image.url)
-    return embed
+        thumbnail_url = entry.after.image.url
+    else:
+        thumbnail_url = None
+    return create_embed(description=f"**{entry.user.mention} has updated a scheduled guild event**", color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, thumbnail_url=thumbnail_url, fields=fields)
 
 
 def entry_guild_scheduled_event_delete(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has deleted a scheduled guild event**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
+    fields = []
     if hasattr(entry.before, 'channel'):
-        embed.add_field(name="**Channel**",
-                        value=f"{entry.before.channel.mention}")
+        fields.append(EmbedField(name="**Channel**", value=f"{entry.before.channel.mention}"))
     for attr in dir(entry.before):
         if attr in public_config.guild_scheduled_event:
-            embed.add_field(name=f"**{helpers.parse_key(attr)}**",
-                            value=f"{getattr(entry.before, attr)}", inline=False)
+            fields.append(EmbedField(name=f"**{helpers.parse_key(attr)}**", value=f"{getattr(entry.before, attr)}"))
     if hasattr(entry.before, 'image'):
-        embed.set_thumbnail(url=entry.after.before.url)
-    return embed
+        thumbnail_url = entry.after.before.url
+    else:
+        thumbnail_url = None
+    return create_embed(description=f"**{entry.user.mention} has deleted a scheduled guild event**", color_tag="other_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, thumbnail_url=thumbnail_url, fields=fields)
 
 
 def entry_bot_add(entry):
-    embed = disnake.Embed(
-        description=f"**{entry.user.mention} has added a BOT - {entry.target.mention} - to the GUILD**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now())
-    embed.set_author(name=entry.user.name,
-                     icon_url=entry.user.display_avatar.url)
-    embed.set_footer(text=f'{entry.user.guild.name}')
-    return embed
+    return create_embed(description=f"**{entry.user.mention} has added a BOT - {entry.target.mention} - to the GUILD**", color_tag="member_action", author_name=entry.user.name,
+                        author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name)
 
 
 # --------------------- CHANNEL SWITCHING --------------------------------
 
 
 def switched(member, before, after):
-    embed = disnake.Embed(
-        description=f'**{member.mention} switched from {before.channel.mention} to {after.channel.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    return embed
+    return create_embed(description=f'**{member.mention} switched from {before.channel.mention} to {after.channel.mention}**', color_tag="voice_update", author_name=member.name,
+                        author_icon_url=member.display_avatar.url, footer_text=member.guild.name)
 
 
 def connected(member, after):
-    embed = disnake.Embed(
-        description=f"**{member.mention} joined voice channel {after.channel.mention}**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    return embed
+    return create_embed(description=f"**{member.mention} joined voice channel {after.channel.mention}**", color_tag="voice_update", author_name=member.name,
+                        author_icon_url=member.display_avatar.url, footer_text=member.guild.name)
 
 
 def disconnected(member, before):
-    embed = disnake.Embed(
-        description=f'**{member.mention} left voice channel {before.channel.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    return embed
+    return create_embed(description=f'**{member.mention} left voice channel {before.channel.mention}**', color_tag="voice_update", author_name=member.name,
+                        author_icon_url=member.display_avatar.url, footer_text=member.guild.name)
 
 
 def afk(member, after):
-    embed = disnake.Embed(
-        description=f'**{member.mention} has gone AFK in {after.channel.mention}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    return embed
+    return create_embed(description=f'**{member.mention} has gone AFK in {after.channel.mention}**', color_tag="voice_update", author_name=member.name,
+                        author_icon_url=member.display_avatar.url, footer_text=member.guild.name)
+
 
 # --------------------- USER ACTIONS --------------------------------
 
 
 def welcome_message(member, user):
-    embed = disnake.Embed(
-        description=f'**{user.mention}, welcome to {helpers.get_guild_name(member.guild)}!**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["welcome_message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    embed.add_field(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)
-    embed.set_thumbnail(url=member.display_avatar.url)
-    return embed
+    return create_embed(description=f'**{user.mention}, welcome to {helpers.get_guild_name(member.guild)}!**', color_tag="welcome_message",
+                        author_name=member.name, author_icon_url=member.display_avatar.url, thumbnail_url=member.display_avatar.url, footer_text=member.guild.name,
+                        fields=[EmbedField(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)])
 
 
 def profile_upd(before, after):
-    embed = disnake.Embed(
-        description=f'**{after.mention} has updated their profile**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=after.name, icon_url=after.display_avatar.url)
-    embed.set_footer(text=f'{after.guild.name}')
-    embed.set_thumbnail(url=after.display_avatar.url)
+    fields = []
     for attr in dir(before):
         if attr in public_config.member_update and getattr(before, attr) != getattr(after, attr):
-            embed.add_field(name="", value="", inline=False)
-            embed.add_field(
-                name=f"**Old {helpers.parse_key(attr)}**", value=f"{getattr(before, attr)}", inline=True)
-            embed.add_field(
-                name=f"**New {helpers.parse_key(attr)}**", value=f"{getattr(after, attr)}", inline=True)
-    return embed
+            fields.append(EmbedField())
+            fields.append(EmbedField(name=f"**Old {helpers.parse_key(attr)}**", value=f"{getattr(before, attr)}", inline=True))
+            fields.append(EmbedField(name=f"**New {helpers.parse_key(attr)}**", value=f"{getattr(after, attr)}", inline=True))
+    return create_embed(description=f'**{after.mention} has updated their profile**', color_tag="member_action", author_name=after.name,
+                        author_icon_url=after.display_avatar.url, footer_text=after.guild.name, thumbnail_url=after.display_avatar.url, fields=fields)
 
 
 def member_remove(payload):
-    embed = disnake.Embed(
-        description=f'**:no_entry_sign: {payload.user.mention} has left the server**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["ban_leave"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=payload.user.name,
-                     icon_url=payload.user.display_avatar.url)
-    embed.set_footer(text=f'{payload.user.guild.name}')
-    embed.set_thumbnail(url=payload.user.display_avatar.url)
-    return embed
+    return create_embed(description=f'**:no_entry_sign: {payload.user.mention} has left the server**', color_tag="ban_leave", author_name=payload.user.name,
+                        author_icon_url=payload.user.display_avatar.url, footer_text=payload.user.guild.name, thumbnail_url=payload.user.display_avatar.url)
 
 
 def member_join(member):
-    embed = disnake.Embed(
-        description=f'**:white_check_mark: {member.mention} has joined the server**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["welcome_message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    embed.add_field(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)
-    embed.set_thumbnail(url=member.display_avatar.url)
-    return embed
+    return create_embed(description=f'**:white_check_mark: {member.mention} has joined the server**', color_tag="welcome_message", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, thumbnail_url=member.display_avatar.url, fields=[EmbedField(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)])
 
 
 def ban(guild, user):
-    embed = disnake.Embed(
-        description=f'**{public_config.emojis["cat_ban"]} {user.mention} has been banned from {guild.name}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["ban_leave"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=user.name, icon_url=user.display_avatar.url)
-    embed.set_footer(text=f'{guild.name}')
-    embed.set_thumbnail(url=user.display_avatar.url)
-    return embed
+    return create_embed(description=f'**{public_config.emojis["cat_ban"]} {user.mention} has been banned from {guild.name}**', color_tag="ban_leave", author_name=user.name, author_icon_url=user.display_avatar.url,
+                        footer_text=guild.name, thumbnail_url=user.display_avatar.url)
 
 
 def unban(guild, user):
-    embed = disnake.Embed(
-        description=f'**:ballot_box_with_check: {user.mention} has been unbanned from {guild.name}**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["other_action"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=user.name, icon_url=user.display_avatar.url)
-    embed.set_footer(text=f'{guild.name}')
-    embed.set_thumbnail(url=user.display_avatar.url)
-    return embed
-
-
-def get_status(member):
-    embed = disnake.Embed(
-        description=f"**{member.mention}'s status: {member.status}**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    if member.activity is not None:
-        for acts in member.activities:
-            # embed.add_field(name = acts.name, value = acts.type)
-            if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
-                embed.add_field(name="**Listening to spotify:**",
-                                value=f'{acts.artists[0]} - "{acts.title}"\n Track url : {acts.track_url}', inline=False)
-                embed.set_thumbnail(url=f"{acts.album_cover_url}")
-            elif f"{type(acts)}" != "<class 'NoneType'>":
-                x = f'{acts.type}'[13:]
-                embed.add_field(
-                    name=f"**{x}**", value=f"{acts.name}", inline=False)
-    return embed
+    return create_embed(description=f'**:ballot_box_with_check: {user.mention} has been unbanned from {guild.name}**', color_tag="member_action", author_name=user.name, author_icon_url=user.display_avatar.url,
+                        footer_text=guild.name, thumbnail_url=user.display_avatar.url)
 
 
 def activity_update(member, old_user_status, new_user_status):
-    embed = disnake.Embed(
-        description=f"**{member.mention}'s has updated their status/activities**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["member_action"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
+    fields = []
     if old_user_status.status != new_user_status.status:
-        embed.add_field(name="", value="", inline=False)
-        embed.add_field(
-            name="**Old Status**", value=f'```{helpers.parse_key(old_user_status.status)}```', inline=True)
-        embed.add_field(name="**Current Status**",
-                        value=f'```{helpers.parse_key(new_user_status.status)}```', inline=True)
+        fields.append(EmbedField())
+        fields.append(EmbedField(name="**Old Status**", value=f'```{helpers.parse_key(old_user_status.status)}```', inline=True))
+        fields.append(EmbedField(name="**Current Status**", value=f'```{helpers.parse_key(new_user_status.status)}```', inline=True))
     if old_user_status.activities != new_user_status.activities and old_user_status.activities:
-        fin = []
-        for acts in old_user_status.activities:
-            if acts not in new_user_status.activities:
-                fin += [f'{acts.actname}']
-        fin = '\n'.join(fin)
-        if len(fin) > 0:
-            embed.add_field(name="**Finished Activities :**",
-                            value=f"```{fin}```", inline=False)
+        act_list = []
+        for act in old_user_status.activities:
+            if act not in new_user_status.activities:
+                act_list.append(f'{act.actname}')
+        act_list = '\n'.join(act_list)
+        if len(act_list) > 0:
+            fields.append(EmbedField(name="**Finished Activities :**", value=f"```{act_list}```"))
+    thumbnail_url = None
     if member.activity is not None:
-        embed.add_field(name="**Current Activities : **",
-                        value="", inline=False)
-        for acts in member.activities:
-            # embed.add_field(name = acts.name, value = acts.type)
-            if f"{type(acts)}" == "<class 'disnake.activity.Spotify'>":
-                embed.add_field(name="**Listening to spotify:**",
-                                value=f'```{acts.artists[0]} - "{acts.title}"```Track url : {acts.track_url}', inline=False)
-                embed.set_thumbnail(url=f"{acts.album_cover_url}")
-            elif f"{type(acts)}" != "<class 'NoneType'>":
-                x = f'{acts.type}'[13:]
-                embed.add_field(
-                    name=f"**{x}**", value=f"```{acts.name}```", inline=False)
-    return embed
+        fields.append(EmbedField(name="**Current Activities:**"))
+        for act in member.activities:
+            if type(act) == disnake.activity.Spotify:
+                fields.append(EmbedField(name="**Listening to spotify:**", value=f'```{act.artists[0]} - "{act.title}"```Track url : {act.track_url}'))
+                thumbnail_url = f"{act.album_cover_url}"
+            elif act is not None:
+                fields.append(EmbedField(name=f"**{f'{act.type}'[13:]}**", value=f"```{act.name}```"))
+    return create_embed(description=f"**{member.mention}'s has updated their status/activities**", color_tag="member_action", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, thumbnail_url=thumbnail_url, fields=fields)
 
 # --------------------- MESSAGES --------------------------------
 
 
 def message_edit(before, after):
-    embed = disnake.Embed(
-        description=f'**:pencil2:{before.author.mention} has edited a message in {before.channel.mention}. [Jump to message]({before.jump_url})**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=before.author.name,
-                     icon_url=before.author.display_avatar.url)
-    embed.set_footer(text=f'{before.guild.name}')
-    embed.add_field(name="** Before: **",
-                    value=f'```{before.content}```', inline=False)
-    embed.add_field(name="** After: **",
-                    value=f'```{after.content}```', inline=False)
-    return embed
+    return create_embed(description=f'**:pencil2:{before.author.mention} has edited a message in {before.channel.mention}. [Jump to message]({before.jump_url})**', color_tag="message", author_name=before.author.name, author_icon_url=before.author.display_avatar.url,
+                        footer_text=before.guild.name, fields=[EmbedField(name="** Before: **", value=f'```{before.content}```'), EmbedField(name="** After: **", value=f'```{after.content}```')])
 
 
 def message_pin(before, after):
-    embed = disnake.Embed(
-        description=f'**:pushpin:A Message has been pinned in {before.channel.mention}. [Jump to message]({before.jump_url})**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=before.guild.name,
-                     icon_url=before.guild.icon.url)
-    embed.set_footer(text=f'{before.guild.name}')
-    embed.add_field(name="** Message Author: **",
-                    value=f'{before.author.mention}', inline=False)
-    embed.add_field(name="** Message Content: **",
-                    value=f'```{after.content}```\n', inline=False)
-    return embed
+    return create_embed(description=f'**:pushpin:A Message has been pinned in {before.channel.mention}. [Jump to message]({before.jump_url})**', color_tag="message", author_name=before.guild.name, author_icon_url=before.guild.icon.url,
+                        footer_text=before.guild.name, fields=[EmbedField(name="** Message Author: **", value=f'{before.author.mention}'), EmbedField(name="** Message Content: **", value=f'```{after.content}```\n')])
 
 
 def message_unpin(before, after):
-    embed = disnake.Embed(
-        description=f'**:pushpin:A Message has been unpinned in {before.channel.mention}. [Jump to message]({before.jump_url})**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=before.guild.name,
-                     icon_url=before.guild.icon.url)
-    embed.set_footer(text=f'{before.guild.name}')
-    embed.add_field(name="** Message Author: **",
-                    value=f'{before.author.mention}\n', inline=False)
-    embed.add_field(name="** Message Content: **",
-                    value=f'```{after.content}```\n', inline=False)
-    return embed
+    return create_embed(description=f'**:pushpin:A Message has been unpinned in {before.channel.mention}. [Jump to message]({before.jump_url})**', color_tag="message", author_name=before.guild.name, author_icon_url=before.guild.icon.url,
+                        footer_text=before.guild.name, fields=[EmbedField(name="** Message Author: **", value=f'{before.author.mention}'), EmbedField(name="** Message Content: **", value=f'```{after.content}```\n')])
 
 
 def message_delete(message):
-    embed = disnake.Embed(
-        description=f'**:wastebasket: A Message sent by {message.author.mention} has been deleted in {message.channel.mention}.**',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=message.author,
-                     icon_url=message.author.display_avatar.url)
-    embed.set_footer(text=f'{message.channel.guild.name}')
-    embed.add_field(name="** Message Content: **",
-                    value=f'```{(f"{message.content[:1000]}...",message.content)[len(message.content) < 1000]}```\n', inline=False)
-    return embed
+    return create_embed(description=f'**:wastebasket: A Message sent by {message.author.mention} has been deleted in {message.channel.mention}.**', color_tag="message", author_name=message.author, author_icon_url=message.author.display_avatar.url,
+                        footer_text=message.channel.guild.name, fields=[EmbedField(name="** Message Content: **", value=f'```{(f"{message.content[:1010]}...",message.content)[len(message.content) < 1000]}```\n')])
 
 # --------------------- VOICE STATES --------------------------------
 
 
 def mute(member, after):
-    embed = disnake.Embed(
-        description=f"**{member.mention}'s voice state has been updated**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    if after.mute:
-        embed.add_field(name=f":microphone2:** Server Mute**", value="Yes")
-    else:
-        embed.add_field(name=f":microphone2:** Server Mute**", value="No")
-    return embed
+    return create_embed(description=f"**{member.mention}'s voice state has been updated**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, fields=[EmbedField(name=f":microphone2:** Server Mute**", value=('No', 'Yes')[after.mute])])
 
 
 def deaf(member, after):
-    embed = disnake.Embed(
-        description=f"**{member.mention}'s voice state has been updated**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    if after.deaf:
-        embed.add_field(name=f":mute:** Server Deafen**", value="Yes")
-    else:
-        embed.add_field(name=f":mute:** Server Deafen**", value="No")
-    return embed
+    return create_embed(description=f"**{member.mention}'s voice state has been updated**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, fields=[EmbedField(name=f":microphone2:** Server Deafen**", value=('No', 'Yes')[after.deaf])])
 
 
 def self_mute(member, before, after):
-    embed = disnake.Embed(
-        description=f"**{member.mention} updated their voice state**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-
-    if after.self_mute:
-        embed.add_field(name=f":microphone2:** Muted**", value="Yes", inline=True)
-    else:
-        embed.add_field(name=f":microphone2:** Muted**", value="No", inline=True)
-
+    fields = []
+    fields.append(EmbedField(name=f":microphone2:** Muted**", value=('No', 'Yes')[after.self_mute], inline=True))
     if after.self_deaf:
-        embed.add_field(name=f":mute:** Deafened**", value="Yes", inline=True)
+        fields.append(EmbedField(name=f":mute:** Deafened**", value="Yes", inline=True))
     elif before.self_deaf and not after.self_deaf:
-        embed.add_field(name=f":mute:** Deafened**", value="No", inline=True)
-
-    return embed
+        fields.append(EmbedField(name=f":mute:** Deafened**", value="No", inline=True))
+    return create_embed(description=f"**{member.mention} updated their voice state**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, fields=fields)
 
 
 def self_stream(member, after):
-    embed = disnake.Embed(
-        description=f"**{member.mention} updated their stream status**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    if after.self_stream:
-        embed.add_field(name=f":tv:** Stream enabled**", value="Yes")
-    else:
-        embed.add_field(name=f":tv:** Stream enabled**", value="No")
-    return embed
+    return create_embed(description=f"**{member.mention} updated their stream status**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, fields=[EmbedField(name=f":tv:** Stream enabled**", value=('No', 'Yes')[after.self_stream])])
 
 
 def self_video(member, after):
-    embed = disnake.Embed(
-        description=f"**{member.mention} updated their video status**",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-    embed.set_footer(text=f'{member.guild.name}')
-    if after.self_video:
-        embed.add_field(
-            name=f":video_camera:** Video enabled**", value="Yes")
-    else:
-        embed.add_field(
-            name=f":video_camera:** Video enabled**", value="No")
-    return embed
+    return create_embed(description=f"**{member.mention} updated their video status**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
+                        footer_text=member.guild.name, fields=[EmbedField(name=f":tv:** Video enabled**", value=('No', 'Yes')[after.self_video])])
 
 
 def role_notification(guild, roles_list):
-    embed = disnake.Embed(
-        description=f'**You got a new role!** {public_config.emojis["yay"]}' if len(roles_list) == 1 else f'**You got new roles!** {public_config.emojis["yay"]}',
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["welcome_message"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name=guild.name,
-                     icon_url=guild.icon.url)
-
     roles = []
     for role in roles_list:
         roles.append(role.name)
-
     roles = '\n* '.join(roles)
-    embed.add_field(name="", value=f"* {roles}", inline=False)
-    return embed
+    return create_embed(description=f'**You got {("a new role", "new roles")[len(roles_list) == 1]}"!** {public_config.emojis["yay"]}', color_tag="welcome_message", author_name=guild.name, author_icon_url=guild.icon.url,
+                        fields=[EmbedField(name="", value=f"* {roles}")])
 
 
 def song_selections(author, songs):
-    embed = disnake.Embed(
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.now()
-    )
-    embed.set_author(name="Song selection. Select the song number to continue.", icon_url=author.avatar.url)
     selection_field = []
     cnt = 0
     for song in songs:
         cnt += 1
-        title = song['title']
         suffix = song['url_suffix'][:song['url_suffix'].find("&")]
         if song['duration'] == 0:
             song['duration'] = "Live"
-        selection_field.append(f'**{cnt}.** {public_config.emojis["blue_diamond"]} **[{title}](https://www.youtube.com/{suffix})** ({song["duration"]})')
-    selection_field = '\n'.join(selection_field)
-    embed.add_field(name="", value=selection_field, inline=False)
-    embed.set_footer(text=f"This timeouts in {public_config.music_settings['SelectionPanelTimeout']} seconds", icon_url=author.avatar.url)
-    return embed
+        selection_field.append(f'**{cnt}.** {public_config.emojis["blue_diamond"]} **[{song["title"]}](https://www.youtube.com/{suffix})** ({song["duration"]})')
+    return create_embed(color_tag="songs", author_name="Song selection. Select the song number to continue.", author_icon_url=author.avatar.url,
+                        footer_text=f"This timeouts in {public_config.music_settings['SelectionPanelTimeout']} seconds", footer_icon_url=author.avatar.url, fields=[EmbedField(value='\n'.join(selection_field))])
 
 
 def queue(guild, queue, start_index, curr_song):
+    fields = []
     if "entries" in curr_song:
         curr_song = curr_song["entries"][0]
-
     if (isinstance(curr_song, str)):
         title = "Radio"
         url = curr_song
@@ -1029,12 +588,6 @@ def queue(guild, queue, start_index, curr_song):
         title = curr_song['title']
         url = curr_song['webpage_url']
         duration = helpers.get_duration(curr_song)
-
-    embed = disnake.Embed(
-        description=f"**Currently playing : [{title}]({url})** {duration}",
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["songs"]),
-        timestamp=datetime.now()
-    )
     ff = False
     if len(queue) > 0 and not 'artificial' in curr_song:
         ff = True
@@ -1055,35 +608,26 @@ def queue(guild, queue, start_index, curr_song):
                 url = song['webpage_url']
                 duration = helpers.get_duration(song)
             song_info = f'**{num + start_index + 1}.** **[{title}]({url})** {duration}'
-            embed.add_field(name="", value=song_info, inline=False)
+            fields.append(EmbedField(value=song_info))
             ff = False
     else:
-        embed.add_field(name="", value="Queue is currently empty!", inline=False)
-
+        fields.append(EmbedField(value="Queue is currently empty!"))
     if ff:
-        embed.add_field(name="", value="Queue is currently empty!", inline=False)
+        fields.append(EmbedField(value="Queue is currently empty!"))
     else:
         duration = helpers.get_queue_duration(queue)
         if duration:
-            embed.add_field(name="", value=duration, inline=False)
-
-    embed.set_author(name=guild.name,
-                     icon_url=guild.icon.url)
-    embed.set_footer(text=f'{guild.name}')
-    return embed
+            fields.append(EmbedField(value=duration))
+    return create_embed(description=f"**Currently playing : [{title}]({url})** {duration}", color_tag="songs", author_name=guild.name, author_icon_url=guild.icon.url,
+                        footer_text=guild.name, fields=fields)
 
 
 def admin_list(admin_list, func):
-    embed = disnake.Embed(
-        color=disnake.Colour.from_rgb(*public_config.embed_colors["voice_update"]),
-        timestamp=datetime.now())
-    admin_s = ""
+    ans = ""
     num = 0
     for admin in admin_list:
         user = func(admin)
         if user:
             num += 1
-            admin_s += f"{num}: {user.mention}\n"
-
-    embed.add_field(name="Admin list:", value=admin_s, inline=False)
-    return embed
+            ans += f"**{num}: **{user.mention}\n"
+    return create_embed(color_tag="welcome_message", fields=[EmbedField(name="Admin list:", value=ans)])

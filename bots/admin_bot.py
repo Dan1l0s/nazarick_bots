@@ -18,7 +18,11 @@ from helpers.view_panels import MessageForm
 
 class AdminBot():
     music_instances = None
+    on_ready_flag = None
     log_bot = None
+    bot = None
+    name = None
+    token = None
 
     def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
@@ -26,6 +30,7 @@ class AdminBot():
         self.name = name
         self.token = token
         self.music_instances = []
+        self.on_ready_flag = False
 
         @self.bot.event
         async def on_guild_join(guild):
@@ -46,12 +51,14 @@ class AdminBot():
 
         @self.bot.event
         async def on_ready():
-            await database_logger.enabled(self.bot)
-            print(f"{self.name} is logged as {self.bot.user}")
-            self.bot.loop.create_task(self.scan_timer())
-            asyncio.create_task(self.monitor_errors())
-            for guild in self.bot.guilds:
-                await self.add_admin(guild.id, guild.owner_id)
+            if not self.on_ready_flag:
+                await database_logger.enabled(self.bot)
+                print(f"{self.name} is logged as {self.bot.user}")
+                self.on_ready_flag = True
+                self.bot.loop.create_task(self.scan_timer())
+                asyncio.create_task(self.monitor_errors())
+                for guild in self.bot.guilds:
+                    await self.add_admin(guild.id, guild.owner_id)
 
         @self.bot.event
         async def on_disconnect():
@@ -529,7 +536,7 @@ class AdminBot():
         return remove_list, add_list
 
     async def scan_timer(self) -> None:
-        while not self.bot.is_closed():
+        while True:
             asyncio.create_task(self.scan_channels())
             await asyncio.sleep(60)
 
@@ -554,7 +561,6 @@ class AdminBot():
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
@@ -645,7 +651,6 @@ class AdminBot():
 
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def monitor_errors(self) -> None:
         try:
