@@ -12,11 +12,18 @@ emojis = {
     "false": ":no_entry:",
     "yay": "<a:RimuruYay:774377506659893268>",
     "blue_diamond": ":small_blue_diamond:",
+    "first_place": ":first_place:",
+    "second_place": ":second_place:",
+    "third_place": ":third_place:",
+    "deafen": ":mute:",
+    "microphone": ":microphone2:",
+    "stream": ":tv:",
 }
 
 # colors used in embeds
 embed_colors = {
     "songs": [0, 0, 0],
+    "xp": [0, 0, 0],
     "member_action": [150, 255, 255],
     "other_action": [150, 150, 255],
     "voice_update": [255, 255, 255],

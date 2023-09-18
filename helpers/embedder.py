@@ -453,12 +453,12 @@ def profile_upd(before, after):
 
 
 def member_remove(payload):
-    return create_embed(description=f'**:no_entry_sign: {payload.user.mention} has left the server**', color_tag="ban_leave", author_name=payload.user.name,
+    return create_embed(description=f'**{public_config.emojis["false"]} {payload.user.mention} has left the server**', color_tag="ban_leave", author_name=payload.user.name,
                         author_icon_url=payload.user.display_avatar.url, footer_text=payload.user.guild.name, thumbnail_url=payload.user.display_avatar.url)
 
 
 def member_join(member):
-    return create_embed(description=f'**:white_check_mark: {member.mention} has joined the server**', color_tag="welcome_message", author_name=member.name, author_icon_url=member.display_avatar.url,
+    return create_embed(description=f'**{public_config.emojis["true"]} {member.mention} has joined the server**', color_tag="welcome_message", author_name=member.name, author_icon_url=member.display_avatar.url,
                         footer_text=member.guild.name, thumbnail_url=member.display_avatar.url, fields=[EmbedField(name="**⏲ Age of account:**", value=f'**{f"<t:{int(member.created_at.timestamp())}:R>"}**', inline=True)])
 
 
@@ -525,33 +525,33 @@ def message_delete(message):
 
 def mute(member, after):
     return create_embed(description=f"**{member.mention}'s voice state has been updated**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
-                        footer_text=member.guild.name, fields=[EmbedField(name=f":microphone2:** Server Mute**", value=('No', 'Yes')[after.mute])])
+                        footer_text=member.guild.name, fields=[EmbedField(name=f"{public_config.emojis['microphone']}** Server Mute**", value=('No', 'Yes')[after.mute])])
 
 
 def deaf(member, after):
     return create_embed(description=f"**{member.mention}'s voice state has been updated**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
-                        footer_text=member.guild.name, fields=[EmbedField(name=f":microphone2:** Server Deafen**", value=('No', 'Yes')[after.deaf])])
+                        footer_text=member.guild.name, fields=[EmbedField(name=f"{public_config.emojis['deafen']}** Server Deafen**", value=('No', 'Yes')[after.deaf])])
 
 
 def self_mute(member, before, after):
     fields = []
-    fields.append(EmbedField(name=f":microphone2:** Muted**", value=('No', 'Yes')[after.self_mute], inline=True))
+    fields.append(EmbedField(name=f"{public_config.emojis['microphone']}** Muted**", value=('No', 'Yes')[after.self_mute], inline=True))
     if after.self_deaf:
-        fields.append(EmbedField(name=f":mute:** Deafened**", value="Yes", inline=True))
+        fields.append(EmbedField(name=f"{public_config.emojis['deafen']}** Deafened**", value="Yes", inline=True))
     elif before.self_deaf and not after.self_deaf:
-        fields.append(EmbedField(name=f":mute:** Deafened**", value="No", inline=True))
+        fields.append(EmbedField(name=f"{public_config.emojis['deafen']}** Deafened**", value="No", inline=True))
     return create_embed(description=f"**{member.mention} updated their voice state**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
                         footer_text=member.guild.name, fields=fields)
 
 
 def self_stream(member, after):
     return create_embed(description=f"**{member.mention} updated their stream status**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
-                        footer_text=member.guild.name, fields=[EmbedField(name=f":tv:** Stream enabled**", value=('No', 'Yes')[after.self_stream])])
+                        footer_text=member.guild.name, fields=[EmbedField(name=f"{public_config.emojis['stream']}** Stream enabled**", value=('No', 'Yes')[after.self_stream])])
 
 
 def self_video(member, after):
     return create_embed(description=f"**{member.mention} updated their video status**", color_tag="voice_update", author_name=member.name, author_icon_url=member.display_avatar.url,
-                        footer_text=member.guild.name, fields=[EmbedField(name=f":tv:** Video enabled**", value=('No', 'Yes')[after.self_video])])
+                        footer_text=member.guild.name, fields=[EmbedField(name=f"{public_config.emojis['stream']}** Video enabled**", value=('No', 'Yes')[after.self_video])])
 
 
 def role_notification(guild, roles_list):
@@ -559,7 +559,7 @@ def role_notification(guild, roles_list):
     for role in roles_list:
         roles.append(role.name)
     roles = '\n* '.join(roles)
-    return create_embed(description=f'**You got {("a new role", "new roles")[len(roles_list) == 1]}"!** {public_config.emojis["yay"]}', color_tag="welcome_message", author_name=guild.name, author_icon_url=guild.icon.url,
+    return create_embed(description=f'**You got {("a new role", "new roles")[len(roles_list) > 1]}!** {public_config.emojis["yay"]}', color_tag="welcome_message", author_name=guild.name, author_icon_url=guild.icon.url,
                         fields=[EmbedField(name="", value=f"* {roles}")])
 
 
@@ -630,4 +630,4 @@ def admin_list(admin_list, func):
         if user:
             num += 1
             ans += f"**{num}: **{user.mention}\n"
-    return create_embed(color_tag="welcome_message", fields=[EmbedField(name="Admin list:", value=ans)])
+    return create_embed(color_tag="welcome_message", fields=[EmbedField(name="**Admin list:**", value=ans)])
