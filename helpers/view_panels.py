@@ -101,7 +101,6 @@ class SongSelection(disnake.ui.View):
 
 
 class QueueList(disnake.ui.View):
-    author = None
     inter = None
     song = None
     start_index = None
@@ -110,7 +109,6 @@ class QueueList(disnake.ui.View):
     message = None
 
     def __init__(self, queue, inter, song, bot):
-        self.author = inter.author
         self.queue = queue
         self.bot = bot
         self.inter = inter
@@ -177,6 +175,63 @@ class QueueList(disnake.ui.View):
                 child.disabled = (self.start_index == 0)
             if isinstance(child, disnake.ui.Button) and child.custom_id and child.custom_id == "next":
                 child.disabled = (self.start_index + 10 > len(self.queue))
+
+class TopXP(disnake.ui.View):
+    inter = None
+    author_info = None
+    start_index = None
+    top_users = None
+    bot = None
+    message = None
+    type_voice = None
+
+    def __init__(self, top_users, inter, author_info, bot, xp_type_voice):
+        self.top_users = top_users
+        self.bot = bot
+        self.inter = inter
+        self.author_info = author_info
+        self.start_index = 0
+        self.type_voice = xp_type_voice
+
+        super().__init__(timeout=None)
+
+        self.update_buttons()
+
+    @disnake.ui.button(label="<", style=disnake.ButtonStyle.secondary, custom_id="prev", disabled=True)
+    async def prev_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        await self.button_callback(-10, inter)
+
+    @disnake.ui.button(label=">", style=disnake.ButtonStyle.secondary, custom_id="next", disabled=True)
+    async def next_page(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        await self.button_callback(10, inter)
+
+    @disnake.ui.button(label="Refresh", style=disnake.ButtonStyle.secondary, custom_id="refresh", disabled=False)
+    async def refresh_top(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        await self.button_callback(0, inter)
+
+    async def send(self, embed=None):
+        _, self.message = await helpers.try_function(self.inter.channel.send, True, view=self, embed=embed)
+
+    async def button_callback(self, button_value, inter):
+        await inter.response.defer()
+
+        v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, inter.author.id)
+        self.author_info = [inter.author.id, v_xp, t_xp]
+        self.top_users = await helpers.get_guild_top(inter.guild.id, self.type_voice)
+
+        if self.start_index + button_value >= 0 and self.start_index + button_value <= len(self.top_users):
+            self.start_index += button_value
+            self.update_buttons()
+            embed = embedder.xp_top(self.inter.guild, self.top_users, self.start_index, self.author_info, self.bot.get_user, self.type_voice)
+            await helpers.try_function(self.message.edit, True, view=self, embed=embed)
+
+    def update_buttons(self):
+        for child in self.children:
+            if isinstance(child, disnake.ui.Button) and child.custom_id and child.custom_id == "prev":
+                child.disabled = (self.start_index == 0)
+            if isinstance(child, disnake.ui.Button) and child.custom_id and child.custom_id == "next":
+                child.disabled = (self.start_index + 10 > len(self.top_users))
+
 
 
 class MessageForm(disnake.ui.Modal):

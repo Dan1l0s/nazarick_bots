@@ -20,8 +20,8 @@ class Rank:
     voice_xp: int
     remove_on_promotion: bool
 
-    def __init__(self, role_od: int, voice_xp: int, remove_on_promotion: bool):
-        self.role_id = role_od
+    def __init__(self, role_id: int, voice_xp: int, remove_on_promotion: bool):
+        self.role_id = role_id
         self.voice_xp = voice_xp
         self.remove_on_promotion = remove_on_promotion
 
@@ -489,6 +489,41 @@ async def get_user_xp(guild_id: int, user_id: int):
     else:
         return 0, 0
 
+async def get_guild_top(guild_id: int, xp_type_voice: bool):
+    await ensure_tables()
+    db = await aiosqlite.connect('bot_database.db', timeout=1000)
+    db.row_factory = aiosqlite.Row
+    
+    cursor = await db.cursor()
+    await cursor.execute(f"SELECT user_id, voice_xp, text_xp FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
+    users = await cursor.fetchall()
+    await db.close()
+    
+    if not users:
+        return []
+    
+    ans = []
+    users = sorted(users, key = lambda user: user[(2,1)[xp_type_voice]], reverse=True)
+
+    for user in users:
+        if user[(2, 1)[xp_type_voice]] != 0:
+            ans.append([int(user["user_id"]), user["voice_xp"], user["text_xp"]])
+    del users
+    return ans
+
+async def get_next_rank(member: disnake.Member):
+    v_xp, t_xp = await get_user_xp(member.guild.id, member.id)
+    ranks = await get_guild_option(member.guild.id, GuildOption.RANK_LIST)
+    ranks = sort_ranks(ranks)
+    max_rank = None
+    next_rank = None
+    for rank in ranks:
+        if rank.voice_xp <= v_xp and rank.remove_on_promotion:
+            max_rank = rank
+        elif rank.remove_on_promotion:
+            next_rank = rank
+            break
+    return max_rank, next_rank
 
 async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], roles_to_add: List[any] = []) -> None:
     if not member:

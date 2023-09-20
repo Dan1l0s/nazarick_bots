@@ -13,7 +13,7 @@ import helpers.database_logger as database_logger
 import helpers.embedder as embedder
 
 from helpers.helpers import GuildOption, Rank
-from helpers.view_panels import MessageForm
+from helpers.view_panels import MessageForm, TopXP
 
 
 class AdminBot():
@@ -162,7 +162,7 @@ class AdminBot():
             await inter.response.defer()
 
             admin_list = await helpers.get_guild_option(inter.guild.id, GuildOption.ADMIN_LIST)
-            embed = embedder.admin_list(admin_list, self.bot.get_user)
+            embed = embedder.admin_list(admin_list, self.bot.get_user, inter.guild)
 
             await helpers.try_function(inter.delete_original_response, True)
             await helpers.try_function(inter.channel.send, True, embed=embed)
@@ -216,33 +216,17 @@ class AdminBot():
             if len(ranks) == 0:
                 await inter.edit_original_response("There are no ranks yet")
                 return
-
             ranks = helpers.sort_ranks(ranks, reverse=True)
 
-            rank_s = ""
-            role_column = "Role"
-            voice_xp_column = "VoiceXP"
-
-            max_num_len = max(0, len(str(len(ranks))))
-            max_name_len = len(role_column)
-            max_voice_xp_len = len(voice_xp_column)
             for rank in ranks:
                 role = inter.guild.get_role(rank.role_id)
                 if not role:
                     ranks.remove(rank)
                     await helpers.remove_guild_option(inter.guild.id, GuildOption.RANK, rank.role_id)
                     continue
-                max_name_len = max(max_name_len, len(role.name))
-                max_voice_xp_len = max(max_voice_xp_len, len(str(rank.voice_xp)))
-            num = 1
-            rank_s += f"{' ' * (max_num_len + 1)} {role_column.ljust(max_name_len, ' ')} {voice_xp_column.ljust(max_voice_xp_len,' ')}\n"
-            for rank in ranks:
-                role = inter.guild.get_role(rank.role_id)
-                rank_s += f"{str(num).ljust(max_num_len, ' ')}: {str(role.name).ljust(max_name_len, ' ')} {str(rank.voice_xp).ljust(max_voice_xp_len,' ')}\n"
-                num += 1
-            rank_s = "```" + rank_s + "```"
 
-            await inter.edit_original_response(rank_s)
+            embed = embedder.rank_list(ranks, inter.guild)
+            await inter.send(embed=embed)
 
         @rank.sub_command(description="Resets all ranks")
         async def reset(inter: disnake.AppCmdInter):
@@ -276,7 +260,32 @@ class AdminBot():
             await inter.response.defer()
 
             v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, member.id)
-            await inter.edit_original_response(f"{member.mention} has {v_xp} voice xp and {t_xp} text xp")
+            user_info = [member.id, v_xp, t_xp]
+            curr_rank, next_rank = await helpers.get_next_rank(member)
+            if not next_rank:
+                next_role = None
+                required_xp = None
+            else:
+                next_role = inter.guild.get_role(next_rank.role_id)
+                required_xp = next_rank.voice_xp - v_xp
+            if not curr_rank:
+                curr_role = None
+            else:
+                curr_role = inter.guild.get_role(curr_rank.role_id)
+            embed = embedder.xp_show(member, user_info, curr_role, next_role, required_xp)
+            await inter.send(embed=embed)
+
+        @xp.sub_command(description="Shows server's top XP users")
+        async def top(inter: disnake.AppCmdInter, type: str = commands.Param(description="Specify the type of server top", choices=["Voice", "Text"])):
+            await inter.response.defer()
+            
+            guild_top = await helpers.get_guild_top(inter.guild.id, (False, True)[type == "Voice"])
+            v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, inter.author.id)
+            author_info = [inter.author.id, v_xp, t_xp]
+            top_list = TopXP(guild_top, inter, author_info, self.bot, (False, True)[type == "Voice"])
+            embed = embedder.xp_top(inter.guild, guild_top, 0, author_info, self.bot.get_user, (False, True)[type == "Voice"])
+            await helpers.try_function(inter.delete_original_response, True)
+            await top_list.send(embed=embed)
 
         @xp.sub_command(description="Sets user`s xp")
         async def set(inter: disnake.AppCmdInter,
@@ -581,7 +590,7 @@ class AdminBot():
                             continue
 
                         roles_to_remove, roles_to_add = self.get_roles_from_xp(v_xp, ranks, guild)
-                        roles_to_add = await helpers.modify_roles(member, roles_to_remove=roles_to_remove, roles_to_add=roles_to_add)
+                        await helpers.modify_roles(member, roles_to_remove=roles_to_remove, roles_to_add=roles_to_add)
 
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________

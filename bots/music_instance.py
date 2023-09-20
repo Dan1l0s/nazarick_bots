@@ -422,7 +422,7 @@ class MusicBotInstance:
         state.last_inter = inter
 
         if not state.voice:
-            ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True, timeout=5)
+            ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True, timeout=10)
             if not ff or not state.voice:
                 await helpers.try_function(inter.orig_inter.send, True, "Couldn't connect to your voice channel, check my permissions and try again")
                 await self.abort_play(inter.guild.id, message=None)
