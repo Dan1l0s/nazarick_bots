@@ -234,6 +234,9 @@ class LogBot():
                                 else:
                                     embed = s(member, after)
                                 await helpers.try_function(channel.send, True, embed=embed)
+                    if before.self_mute == after.self_mute and before.self_deaf != after.self_deaf:
+                        embed = embedder.self_mute(member, before, after)
+                        await helpers.try_function(channel.send, True, embed=embed)
             elif before.channel:
                 await database_logger.disconnected(member, before)
                 await helpers.try_function(channel.send, True, embed=embedder.disconnected(member, before))

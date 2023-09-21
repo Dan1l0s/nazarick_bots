@@ -633,21 +633,12 @@ def xp_top(guild, top_users, start_index, author_info, func, xp_type_voice):
             user_mention = f'<@{user_info[0]}>'
         else:
             user_mention = f'{user.mention}'
-        match (num+start_index):
-            case 0:
-                pos = public_config.emojis['first_place']
-            case 1:
-                pos = public_config.emojis['second_place']
-            case 2:
-                pos = public_config.emojis['third_place']
-            case _:
-                pos = f"**{num+start_index+1}.**"
-        value = f'{pos} **{user_mention} - {user_info[(2, 1)[xp_type_voice]]}xp**'
+        value = f'**{helpers.get_user_num_badge(num+start_index)}** **{user_mention} - {user_info[(2, 1)[xp_type_voice]]}xp**'
         fields.append(EmbedField(value=value))
     if ff:
         description = ""
     else:
-        description = f"*{top_users.index(author_info) + 1}. {func(author_info[0]).mention} - {author_info[(2, 1)[xp_type_voice]]}xp*"
+        description = f"*{helpers.get_user_num_badge(top_users.index(author_info))}* {func(author_info[0]).mention} - {author_info[(2, 1)[xp_type_voice]]}xp*"
     return create_embed(title=("Type: Text", "Type: Voice")[xp_type_voice], description=description, color_tag="xp", 
                         author_name=guild.name, author_icon_url=guild.icon.url, footer_text=guild.name, fields=fields)
 

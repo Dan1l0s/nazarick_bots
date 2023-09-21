@@ -644,6 +644,18 @@ async def add_playlist_delayed_task(function, await_flag: bool, playlist_future,
     else:
         function(*args, **kwargs)
 
+def get_user_num_badge(index: int) -> str:
+    match index:
+        case 0:
+            pos = public_config.emojis['first_place']
+        case 1:
+            pos = public_config.emojis['second_place']
+        case 2:
+            pos = public_config.emojis['third_place']
+        case _:
+            pos = f"{pos+1}."
+    return pos
+
 
 def get_queue_duration(queue: list) -> None | str:
     ans = ""
