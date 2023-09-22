@@ -150,8 +150,6 @@ class QueueList(disnake.ui.View):
         if not self.bot.states[inter.guild.id].current_song:
             await inter.response.defer()
             return
-        self.song = await self.bot.states[inter.guild.id].current_song.track_info
-        self.queue = self.bot.states[inter.guild.id].song_queue
         await self.button_callback(0, inter)
 
     async def send(self, embed=None):
@@ -159,15 +157,16 @@ class QueueList(disnake.ui.View):
 
     async def button_callback(self, button_value, inter):
         await inter.response.defer()
-        if button_value == 0:
-            while self.start_index > 0 and len(self.queue) <= self.start_index:
-                self.start_index -= 10
+        self.song = await self.bot.states[inter.guild.id].current_song.track_info
+        self.queue = self.bot.states[inter.guild.id].song_queue
+        while self.start_index > 0 and len(self.queue) <= self.start_index:
+            self.start_index -= 10
 
         if self.start_index + button_value >= 0 and self.start_index + button_value <= len(self.queue):
             self.start_index += button_value
-            self.update_buttons()
-            embed = embedder.queue(self.inter.guild, self.queue, self.start_index, self.song)
-            await helpers.try_function(self.message.edit, True, view=self, embed=embed)
+        self.update_buttons()
+        embed = embedder.queue(self.inter.guild, self.queue, self.start_index, self.song)
+        await helpers.try_function(self.message.edit, True, view=self, embed=embed)
 
     def update_buttons(self):
         for child in self.children:
@@ -175,6 +174,7 @@ class QueueList(disnake.ui.View):
                 child.disabled = (self.start_index == 0)
             if isinstance(child, disnake.ui.Button) and child.custom_id and child.custom_id == "next":
                 child.disabled = (self.start_index + 10 > len(self.queue))
+
 
 class TopXP(disnake.ui.View):
     inter = None
@@ -231,7 +231,6 @@ class TopXP(disnake.ui.View):
                 child.disabled = (self.start_index == 0)
             if isinstance(child, disnake.ui.Button) and child.custom_id and child.custom_id == "next":
                 child.disabled = (self.start_index + 10 > len(self.top_users))
-
 
 
 class MessageForm(disnake.ui.Modal):

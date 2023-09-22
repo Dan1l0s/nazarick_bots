@@ -278,7 +278,7 @@ class AdminBot():
         @xp.sub_command(description="Shows server's top XP users")
         async def top(inter: disnake.AppCmdInter, type: str = commands.Param(description="Specify the type of server top", choices=["Voice", "Text"])):
             await inter.response.defer()
-            
+
             guild_top = await helpers.get_guild_top(inter.guild.id, (False, True)[type == "Voice"])
             v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, inter.author.id)
             author_info = [inter.author.id, v_xp, t_xp]
@@ -508,9 +508,9 @@ class AdminBot():
 
         @ self.bot.slash_command(dm_permission=False, description="Manages user in the untouchables list", guild_ids=[778558780111060992])
         async def manage_untouchable(inter: disnake.AppCmdInter,
-                          user_id: str = commands.Param(description="User's id"),
-                          guild_id: str = commands.Param(description="Guild's id"),
-                          type: str = commands.Param(description="Choose the action",choices=["Add","Remove"])):
+                                     user_id: str = commands.Param(description="User's id"),
+                                     guild_id: str = commands.Param(description="Guild's id"),
+                                     type: str = commands.Param(description="Choose the action", choices=["Add", "Remove"])):
             await inter.response.defer()
 
             if not helpers.is_supreme_being(inter.author):
@@ -519,7 +519,7 @@ class AdminBot():
             user_id = int(user_id)
             guild_id = int(guild_id)
 
-            if type=="Add":
+            if type == "Add":
                 if await self.add_untouchable(guild_id, user_id):
                     await inter.edit_original_response(f'{user_id} is now an untouchable user in guild {guild_id}')
                 else:
@@ -670,7 +670,7 @@ class AdminBot():
             await helpers.set_guild_option(guild_id, GuildOption.UNTOUCHABLES_LIST, untouchables_list)
             return True
         return False
-    
+
     async def remove_untouchable(self, guild_id: int, user_id: int) -> bool:
         untouchables_list = await helpers.get_guild_option(guild_id, GuildOption.UNTOUCHABLES_LIST)
         if user_id in untouchables_list:
@@ -678,7 +678,7 @@ class AdminBot():
             await helpers.set_guild_option(guild_id, GuildOption.UNTOUCHABLES_LIST, untouchables_list)
             return True
         return False
-    
+
     def help(self) -> str:
         ans = "All commands can be used only by admins\n"
         ans += "Type **/admin add** to add a new server admin (can be used only by server owner)\n"

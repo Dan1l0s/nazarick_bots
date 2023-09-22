@@ -618,8 +618,9 @@ def queue(guild, queue, start_index, curr_song):
         duration = helpers.get_queue_duration(queue)
         if duration:
             fields.append(EmbedField(value=duration))
-    return create_embed(description=f"**Currently playing : [{curr_title}]({curr_url})** {curr_duration}", color_tag="songs", author_name=guild.name, author_icon_url=guild.icon.url,
-                        footer_text=guild.name, fields=fields)
+    return create_embed(description=f"**Currently playing : [{curr_title}]({curr_url})** {curr_duration}", color_tag="songs",
+                        author_name=guild.name, author_icon_url=guild.icon.url, footer_text=guild.name, fields=fields)
+
 
 def xp_top(guild, top_users, start_index, author_info, func, xp_type_voice):
     fields = []
@@ -639,14 +640,15 @@ def xp_top(guild, top_users, start_index, author_info, func, xp_type_voice):
         description = ""
     else:
         description = f"*{helpers.get_user_num_badge(top_users.index(author_info))}* {func(author_info[0]).mention} - {author_info[(2, 1)[xp_type_voice]]}xp*"
-    return create_embed(title=("Type: Text", "Type: Voice")[xp_type_voice], description=description, color_tag="xp", 
+    return create_embed(title=("Type: Text", "Type: Voice")[xp_type_voice], description=description, color_tag="xp",
                         author_name=guild.name, author_icon_url=guild.icon.url, footer_text=guild.name, fields=fields)
+
 
 def xp_show(member: disnake.Member, user_info: list, curr_rank: disnake.Role, next_rank: disnake.Role, required_xp: int):
     fields = [
         EmbedField(name="**Voice XP**", value=f"**{user_info[1]}**", inline=True),
         EmbedField(name="**Text XP**", value=f"**{user_info[2]}**", inline=True),
-        ]
+    ]
     if next_rank:
         fields.append(EmbedField(name="**Next rank**", value=f"**{next_rank.mention} in {required_xp} voice xp**"))
     if curr_rank:
@@ -654,8 +656,9 @@ def xp_show(member: disnake.Member, user_info: list, curr_rank: disnake.Role, ne
     else:
         desc = f"**{member.mention} currently has no ranks :c**"
     return create_embed(description=desc, color_tag="xp",
-                        author_name=member.name, author_icon_url=member.display_avatar.url, thumbnail_url=member.display_avatar.url, 
+                        author_name=member.name, author_icon_url=member.display_avatar.url, thumbnail_url=member.display_avatar.url,
                         footer_text=member.guild.name, fields=fields)
+
 
 def admin_list(admin_list, func, guild):
     ans = ""
@@ -666,7 +669,8 @@ def admin_list(admin_list, func, guild):
             num += 1
             ans += f"**{num}: **{user.mention}\n"
     return create_embed(color_tag="xp", fields=[EmbedField(name="**Admin list:**", value=ans)],
-                        author_name=guild.name,author_icon_url=guild.icon.url, footer_text=guild.name)
+                        author_name=guild.name, author_icon_url=guild.icon.url, footer_text=guild.name)
+
 
 def rank_list(ranks, guild):
     fields = []
@@ -675,5 +679,5 @@ def rank_list(ranks, guild):
         num += 1
         role = guild.get_role(rank.role_id)
         fields.append(EmbedField(value=f"**{num}. {role.mention} - {rank.voice_xp} XP**"))
-    
-    return create_embed(description="**Rank list:**", color_tag="xp", fields=fields, footer_text=guild.name, author_name=guild.name,author_icon_url=guild.icon.url)
+
+    return create_embed(description="**Rank list:**", color_tag="xp", fields=fields, footer_text=guild.name, author_name=guild.name, author_icon_url=guild.icon.url)

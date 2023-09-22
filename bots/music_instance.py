@@ -203,6 +203,11 @@ class MusicBotInstance:
         if before.channel != state.voice.channel and after.channel != state.voice.channel:
             return
         if member.id == self.bot.application_id and not after.channel:
+            await asyncio.sleep(1)
+            channel = member.guild.get_channel(before.channel.id)
+            for member in channel.members:
+                if member.id == self.bot.application_id:
+                    return
             await database_logger.finished(before.channel)
             return await self.abort_play(guild_id)
         if helpers.get_true_members_count(state.voice.channel.members) < 1:
