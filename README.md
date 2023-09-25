@@ -1,5 +1,19 @@
 # Nazarick Bots
 
+- ### [About this project](#about-this-project-1)
+- ### [Functionality](#functionality-1)
+
+  - #### [Related music bots](#related-music-bots-1)
+  - #### [Logger bot](#logger-bot-1)
+  - #### [Admin bot](#admin-bot-1)
+
+- ### [How to install and launch](#how-to-install-and-launch-1)
+
+  - #### [Dependencies](#dependencies-1)
+  - #### [FFmpeg installation](#ffmpeg-installation-1)
+  - #### [How to launch code](#how-to-launch-code-1)
+  - #### [How to create a discord bot](#how-to-create-a-discord-bot-1)
+
 ## About this project
 
 This project is a group of discord-bots written in python, made in the setting of the anime series "Overlord", specifically as the pleiades of the great tomb "Nazarick".
@@ -37,7 +51,7 @@ Music bots currently support the following commands:
 
 ### Logger bot
 
-Logger bot allows you to print to the text channel information about all events that occur on the server: the connection of participants to the voice channels, the actions of moderators, and so on in the form of fine-looking embes:
+Logger bot allows you to print to the text channel information about all events that occur on the server: the connection of participants to the voice channels, the actions of moderators, and so on in the form of fine-looking embeds:
 
 <p align="center">
   <img src="https://i.imgur.com/tJ26hOs.png" alt="Logger bot default log messages example"/>
@@ -157,7 +171,7 @@ bot_ids = {
 4. To launch code just execute [main.py](main.py) file
 5. (Optional) Edit whatever you like in [public_config.py](configs/public_config.py), also you can add different ids to `private_config.py`, there are prompts to help you get started
 
-#### How to create a discord bot
+### How to create a discord bot
 
 1. Proceed to [Discord developer portal](https://discord.com/developers/applications/).
 2. Create a new application by clicking the `New Application` button and typing application name.
