@@ -225,8 +225,8 @@ def entry_role_update(entry):
         thumbnail = None
     if hasattr(entry.after, "colour"):
         fields.append(EmbedField())
-        fields.append(EmbedField(name="**Old Color:**", value=f'#{hex(entry.before.colour.r)[2:]}{hex(entry.before.colour.g)[2:]}{hex(entry.before.colour.b)[2:]}', inline=True))
-        fields.append(EmbedField(name="**New Color:**", value=f'#{hex(entry.after.colour.r)[2:]}{hex(entry.after.colour.g)[2:]}{hex(entry.after.colour.b)[2:]}', inline=True))
+        fields.append(EmbedField(name="**Old Color:**", value=helpers.rgb_to_hex(entry.before.colour.r, entry.before.colour.g, entry.before.colour.b), inline=True))
+        fields.append(EmbedField(name="**New Color:**", value=helpers.rgb_to_hex(entry.after.colour.r, entry.after.colour.g, entry.after.colour.b), inline=True))
     if hasattr(entry.after, "permissions"):
         perms = []
         for attr in dir(entry.after.permissions):

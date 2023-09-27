@@ -208,25 +208,22 @@ async def gpt(member, messages, guild_id="gpt"):
 
 async def commit_to_database(table_name: str, guild_id: str = None, tag: str = None, comment: str = None, query: str = None, response: str = None, user_id: str = None):
     await helpers.ensure_tables_logger()
+    async with aiosqlite.connect('logs.db', timeout=1000) as db:
+        cursor = await db.cursor()
 
-    db = await aiosqlite.connect('logs.db', timeout=1000)
-    cursor = await db.cursor()
+        date = datetime.datetime.now().strftime('%Y-%m-%d')
+        time = datetime.datetime.now().strftime("%H:%M:%S")
 
-    date = datetime.datetime.now().strftime('%Y-%m-%d')
-    time = datetime.datetime.now().strftime("%H:%M:%S")
+        match table_name:
+            case "common":
+                await cursor.execute(f"INSERT INTO common VALUES(?, ?, ?, ?, ?)", (guild_id, date, time, tag, comment))
+            case "bots":
+                await cursor.execute(f"INSERT INTO bots VALUES(?, ?, ?, ?)", (date, time, tag, comment))
+            case "gpt":
+                await cursor.execute(f"INSERT INTO gpt VALUES(?, ?, ?, ?, ?)", (date, time, user_id, query, response))
+            case "status":
+                await cursor.execute(f"INSERT INTO status VALUES(?, ?, ?, ?)", (date, time, user_id, comment))
+            case _:
+                raise (f"Incorrect table name '{table_name}' in commit_to_database!")
 
-    match table_name:
-        case "common":
-            await cursor.execute(f"INSERT INTO common VALUES(?, ?, ?, ?, ?)", (guild_id, date, time, tag, comment))
-        case "bots":
-            await cursor.execute(f"INSERT INTO bots VALUES(?, ?, ?, ?)", (date, time, tag, comment))
-        case "gpt":
-            await cursor.execute(f"INSERT INTO gpt VALUES(?, ?, ?, ?, ?)", (date, time, user_id, query, response))
-        case "status":
-            await cursor.execute(f"INSERT INTO status VALUES(?, ?, ?, ?)", (date, time, user_id, comment))
-        case _:
-            await db.close()
-            raise (f"Incorrect table name '{table_name}' in commit_to_database!")
-
-    await db.commit()
-    await db.close()
+        await db.commit()
