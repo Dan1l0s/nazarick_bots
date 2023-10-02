@@ -18,7 +18,8 @@ class EmbedField():
         self.inline = inline
 
 
-def create_embed(title=None, url=None, description=None, color_tag: str = None, author_name=None, author_icon_url=None, footer_text=None, footer_icon_url=None, thumbnail_url=None, fields=None):
+def create_embed(title=None, url=None, description=None, color_tag: str = None, author_name=None, author_icon_url=None,
+                 footer_text=None, footer_icon_url=None, thumbnail_url=None, fields=None) -> disnake.Embed:
     embed = disnake.Embed(title=title, url=url, description=description, color=disnake.Colour.from_rgb(*public_config.embed_colors[color_tag]), timestamp=datetime.now())
     embed.set_author(name=author_name, icon_url=author_icon_url)
     if footer_text:

@@ -45,7 +45,7 @@ async def is_untouchable(member) -> bool:
 
 
 def get_duration(info) -> str:
-    if "live_status" in info and info['live_status'] == "is_live" or info['duration'] == 0:
+    if type(info) == str or ("live_status" in info and info['live_status'] == "is_live") or info['duration'] == 0:
         ans = "Live"
     else:
         ans = time.strftime('%H:%M:%S', time.gmtime(info['duration']))
@@ -282,7 +282,7 @@ class GuildOption(Enum):
                 return None
 
 
-def convert_to_python(option: GuildOption, value) -> Any:
+def convert_to_python(option: GuildOption, value) -> (int | list):
     to_int = [GuildOption.LOG_CHANNEL, GuildOption.WELCOME_CHANNEL, GuildOption.STATUS_LOG_CHANNEL, GuildOption.PRIVATE_CATEGORY, GuildOption.PRIVATE_CHANNEL]
     to_int_list = [GuildOption.ADMIN_LIST, GuildOption.UNTOUCHABLES_LIST]
     match option:
@@ -375,7 +375,7 @@ async def ensure_tables_logger() -> None:
         await db.commit()
 
 
-async def request_guild_option(guild_id, option: GuildOption):
+async def request_guild_option(guild_id: int, option: GuildOption):
     if not guild_id:
         return None
     opt_str = option.to_str()
@@ -399,12 +399,12 @@ async def request_guild_option(guild_id, option: GuildOption):
     return res
 
 
-async def get_guild_option(guild_id, option: GuildOption):
+async def get_guild_option(guild_id: int, option: GuildOption):
     ans = await request_guild_option(guild_id, option)
     return convert_to_python(option, ans)
 
 
-async def add_guild_option(guild_id, option: GuildOption, value):
+async def add_guild_option(guild_id: int, option: GuildOption, value):
     if not guild_id:
         return
 
@@ -425,7 +425,7 @@ async def add_guild_option(guild_id, option: GuildOption, value):
     return not res
 
 
-async def remove_guild_option(guild_id, option: GuildOption, value):
+async def remove_guild_option(guild_id: int, option: GuildOption, value):
     if not guild_id:
         return
     await ensure_tables()
@@ -445,7 +445,7 @@ async def remove_guild_option(guild_id, option: GuildOption, value):
     return res
 
 
-async def set_guild_option(guild_id, option: GuildOption, value):
+async def set_guild_option(guild_id: int, option: GuildOption, value):
     if not guild_id:
         return
     opt_str = option.to_str()
@@ -516,7 +516,7 @@ async def get_next_rank(member: disnake.Member):
     return max_rank, next_rank
 
 
-async def modify_roles(member: disnake.Member, roles_to_remove: List[any] = [], roles_to_add: List[any] = []) -> None:
+async def modify_roles(member: disnake.Member, roles_to_remove: List[Any] = [], roles_to_add: List[Any] = []) -> None:
     if not member:
         return
     if not member.guild.me.guild_permissions.manage_roles:
@@ -596,7 +596,7 @@ async def add_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
     await set_user_xp(guild_id, user_id, v_xp, t_xp)
 
 
-def sort_ranks(ranks, reverse: bool = False):
+def sort_ranks(ranks: list, reverse: bool = False) -> list:
     return sorted(ranks, key=lambda rank: (rank.voice_xp, rank.remove_on_promotion,), reverse=reverse)
 
 
@@ -612,7 +612,7 @@ async def try_function(function, await_flag: bool, *args, **kwargs):
         return False, tmp
 
 
-async def run_delayed_tasks(tasks) -> None:
+async def run_delayed_tasks(tasks: list) -> None:
     await asyncio.gather(*tasks)
 
 
@@ -624,7 +624,7 @@ async def dm_user(message: str, user_id: int, bot, embed=None, components=None, 
     return ff
 
 
-async def add_playlist_delayed_task(function, await_flag: bool, playlist_future, *args, **kwargs) -> None:
+async def add_playlist_delayed_task(function, await_flag: bool, playlist_future: asyncio.Future, *args, **kwargs) -> None:
     while not playlist_future.done():
         await asyncio.sleep(1)
     if await_flag:

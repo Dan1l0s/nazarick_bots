@@ -743,14 +743,18 @@ class AdminBot():
                 if state.current_song:
                     if ff:
                         message += " BUSY"
-                    ff = False
+                        ff = False
                     ans = ""
                     message += f"\n{guild_id} : "
+                    queue_duration = helpers.get_queue_duration(state.song_queue)
                     if state.current_song.track_info.done():
                         info = await state.current_song.track_info
                         ans = helpers.get_duration(info)
                     else:
                         ans = "Processing track"
+
+                    if queue_duration:
+                        ans += " and queue duration: " + queue_duration[20:]
                     message += ans
             if ff:
                 message += f" IDLE"
