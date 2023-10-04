@@ -265,8 +265,8 @@ member_update = [
 bitrate_values = {0: 96000, 1: 128000, 2: 256000, 3: 384000}
 
 # list of files to backup
-auto_backup_files = ['bot_database.db',]
-manual_backup_files = ['bot_database.db', 'logs.db']
+auto_backup_files = ['db/bot_database.db',]
+manual_backup_files = ['db/bot_database.db', 'db/logs.db']
 
 # limit of kicks+bans per bot startup
 kick_ban_limit = 5

@@ -2,7 +2,6 @@ private_config.py
 **/tempCodeRunnerFile.py
 logs/
 __pycache__/
-bot_database.db
-logs.db
+db/
 bots/notification_bot.py
 bots/clear_bot_commands.py

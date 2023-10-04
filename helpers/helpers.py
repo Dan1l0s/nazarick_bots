@@ -309,7 +309,7 @@ def convert_to_python(option: GuildOption, value) -> (int | list):
 
 
 async def ensure_tables() -> None:
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (
                             guild_id TEXT,
                             user_id TEXT,
@@ -341,7 +341,7 @@ async def ensure_tables() -> None:
 
 
 async def ensure_tables_logger() -> None:
-    async with aiosqlite.connect('logs.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/logs.db', timeout=1000) as db:
         await db.execute('''CREATE TABLE IF NOT EXISTS status (
                             date TEXT,
                             time TEXT,
@@ -383,7 +383,7 @@ async def request_guild_option(guild_id: int, option: GuildOption):
     if not opt_str or not opt_table:
         raise f"Wrong option {option}"
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
 
@@ -409,7 +409,7 @@ async def add_guild_option(guild_id: int, option: GuildOption, value):
         return
 
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         match option:
@@ -429,7 +429,7 @@ async def remove_guild_option(guild_id: int, option: GuildOption, value):
     if not guild_id:
         return
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         match option:
@@ -453,7 +453,7 @@ async def set_guild_option(guild_id: int, option: GuildOption, value):
     if not opt_str or not opt_table:
         raise f"Wrong option {option}"
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"INSERT OR IGNORE INTO {opt_table} (guild_id) VALUES(?)", (str(guild_id),))
@@ -469,7 +469,7 @@ async def get_user_xp(guild_id: int, user_id: int):
         return None
 
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"SELECT voice_xp, text_xp FROM users_xp_data WHERE guild_id = ? AND user_id = ?", (str(guild_id), str(user_id),))
@@ -482,7 +482,7 @@ async def get_user_xp(guild_id: int, user_id: int):
 
 async def get_guild_top(guild_id: int, xp_type_voice: bool):
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"SELECT user_id, voice_xp, text_xp FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
@@ -555,7 +555,7 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
         return None
 
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"INSERT OR IGNORE INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) VALUES(?,?,?,?)", (str(guild_id), str(user_id), 0, 0))
@@ -568,7 +568,7 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
 
 async def reset_xp(guild_id: int) -> None:
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"DELETE FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
@@ -577,7 +577,7 @@ async def reset_xp(guild_id: int) -> None:
 
 async def reset_ranks(guild_id: int) -> None:
     await ensure_tables()
-    async with aiosqlite.connect('bot_database.db', timeout=1000) as db:
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"DELETE FROM ranks_data WHERE guild_id = ?", (str(guild_id),))
