@@ -682,3 +682,41 @@ def rank_list(ranks, guild):
         fields.append(EmbedField(value=f"**{num}. {role.mention} - {rank.voice_xp} XP**"))
 
     return create_embed(description="**Rank list:**", color_tag="xp", fields=fields, footer_text=guild.name, author_name=guild.name, author_icon_url=guild.icon.url)
+
+
+def guild_info(guild: disnake.Guild, bot, invites: list[disnake.Invite] | None, vanity_invite: disnake.Invite | None) -> disnake.Embed:
+    fields = []
+
+    fields.append(EmbedField(name="**Server ID:**", value=guild.id, inline=True))
+    fields.append(EmbedField(name="**Created on:**", value=f'**{f"<t:{int(guild.created_at.timestamp())}:R>"}**', inline=True))
+    fields.append(EmbedField(name="**Server owner:**", value=f"{guild.owner.name} : {bot.get_user(guild.owner_id).mention}", inline=True))
+    if guild.premium_subscription_count > 0:
+        fields.append(EmbedField(name="**Premium tier:**", value=f"**Tier {guild.premium_tier}** with {guild.premium_subscription_count} boosts", inline=True))
+        subs = ""
+        for sub in guild.premium_subscribers[::-1]:
+            user = bot.get_user(sub.id)
+            subs += f"{user.name} : {user.mention}\n"
+        fields.append(EmbedField(name="**Server boosters:**", value=subs, inline=True))
+    fields.append(EmbedField())
+    for channel in guild.voice_channels:
+        if len(channel.members) > 0:
+            channels = ""
+            for member in channel.members:
+                user = bot.get_user(member.id)
+                channels += f"{user.name} : {user.mention}\n"
+            fields.append(EmbedField(name=f"**{channel.name}**", value=channels, inline=True))
+
+    if invites or vanity_invite:
+        invites_str = ""
+        if vanity_invite:
+            invites_str += f"**[Vanity invite]({vanity_invite.url})**\n"
+        if invites:
+            if len(invites) > 3:
+                invites_str += f"Invites amount: {len(invites)}\n{invites[0].url}"
+            else:
+                for invite in invites:
+                    invites_str += f"{invite.url}\n"
+        fields.append(EmbedField(name="**Invites:**", value=invites_str))
+
+    return create_embed(color_tag="xp", author_name=guild.name, author_icon_url=guild.icon.url,
+                        thumbnail_url=guild.icon.url, footer_text=guild.name, fields=fields)

@@ -387,9 +387,17 @@ class AdminBot():
             if not helpers.is_supreme_being(inter.author):
                 return await inter.send("Unauthorized access, you are not the Supreme Being!")
 
-            guild = self.bot.get_guild(int(guild_id))
-            if not guild:
-                return await inter.send("Incorrect guild, try again")
+            bots = [self.bot, self.log_bot.bot]
+            for music_instance in self.music_instances:
+                bots.append(music_instance.bot)
+            guild = None
+            for bot in bots:
+                guild = bot.get_guild(int(guild_id))
+                if guild:
+                    break
+            else:
+                return await inter.send("Incorrect guild!")
+
             try:
                 if guild.id in private_config.test_guilds:
                     await helpers.try_function(inter.send, True, "How dare you try to betray Nazarick? Ainz-sama was notified about your actions, trash. Beware.")
@@ -444,6 +452,39 @@ class AdminBot():
             if total_emojis > 0:
                 msg += f"**Emojis:** {emojis_cnt}/{total_emojis} = {round(emojis_cnt * 100 / total_emojis, 3)}%\n"
             await inter.send(msg)
+
+        @ self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
+        async def get_guild_info(inter: disnake.AppCmdInter,
+                                 guild_id: str = commands.Param(description="ID of the required guild")):
+            await inter.response.defer()
+
+            bots = [self.bot, self.log_bot.bot]
+            for music_instance in self.music_instances:
+                bots.append(music_instance.bot)
+            guild = None
+            required_bot = None
+            for bot in bots:
+                guild = bot.get_guild(int(guild_id))
+                if guild:
+                    required_bot = bot
+                    break
+            else:
+                return await inter.send("Incorrect guild!")
+
+            invites = None
+            for bot in bots:
+                tmp_guild = bot.get_guild(int(guild_id))
+                if not tmp_guild:
+                    continue
+                ff, vanity_invite = await helpers.try_function(tmp_guild.vanity_invite, True)
+                if ff:
+                    invites = await guild.invites()
+                    if not invites or len(invites) == 0:
+                        invites = None
+                    break
+
+            embed = embedder.guild_info(guild, required_bot, invites, vanity_invite)
+            await inter.send(embed=embed)
 
         @ self.bot.slash_command(description="Sends message to other Supreme Beings")
         async def message(inter: disnake.AppCmdInter):
@@ -595,6 +636,7 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
+
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -700,6 +742,7 @@ class AdminBot():
 
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def monitor_errors(self) -> None:
         try:
