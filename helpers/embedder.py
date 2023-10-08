@@ -233,7 +233,7 @@ def entry_role_update(entry):
         for attr in dir(entry.after.permissions):
             if attr in public_config.permissions_list:
                 if (getattr(entry.before.permissions, attr) != getattr(entry.after.permissions, attr)):
-                    perms.append(f"{public_config.emojis[f'{str(getattr(entry.before.permissions, attr)).lower}']} {helpers.parse_key(attr)}")
+                    perms.append(f"{public_config.emojis[f'{str(getattr(entry.before.permissions, attr)).lower()}']} {helpers.parse_key(attr)}")
         perms = '\n'.join(perms)
         fields.append(EmbedField(name="**CHANGED PERMISSIONS:**", value=perms))
     return create_embed(description=f'**The role {entry.target.mention} has been updated by {entry.user.mention}**', color_tag="other_action", thumbnail_url=thumbnail,

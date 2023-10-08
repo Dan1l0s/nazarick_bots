@@ -494,15 +494,15 @@ class AdminBot():
 
             if not await helpers.dm_user(message, int(user_id), self.bot, suppress_embeds=True):
                 errors += f"{user_id}"
-            if user2_id:
+            if user2_id is not None:
                 if not await helpers.dm_user(message, int(user2_id), self.bot, suppress_embeds=True):
                     errors += f", {user2_id}"
-            if user3_id:
+            if user3_id is not None:
                 if not await helpers.dm_user(message, int(user3_id), self.bot, suppress_embeds=True):
                     errors += f", {user3_id}"
 
             if len(errors) == 0:
-                await inter.send(f"The {('users were', 'user was')[user2_id or user3_id]} notified successfully, my master.")
+                await inter.send(f"The {('user was', 'users were')[bool(user2_id is not None or user3_id is not None)]} notified successfully, my master.")
             else:
                 await inter.send(f"Couldn't send message to `{errors}`, my master.")
 
