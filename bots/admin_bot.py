@@ -476,11 +476,9 @@ class AdminBot():
                 tmp_guild = bot.get_guild(int(guild_id))
                 if not tmp_guild:
                     continue
-                ff, vanity_invite = await helpers.try_function(tmp_guild.vanity_invite, True)
+                _, vanity_invite = await helpers.try_function(tmp_guild.vanity_invite, True)
+                ff, invites = await helpers.try_function(tmp_guild.invites, True)
                 if ff:
-                    invites = await guild.invites()
-                    if not invites or len(invites) == 0:
-                        invites = None
                     break
 
             embed = embedder.guild_info(guild, required_bot, invites, vanity_invite)

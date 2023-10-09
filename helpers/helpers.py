@@ -389,10 +389,10 @@ async def request_guild_option(guild_id: int, option: GuildOption):
 
         match option:
             case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST:
-                await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (str(guild_id),))
+                await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (guild_id,))
                 res = await cursor.fetchone()
             case GuildOption.RANK_LIST:
-                await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (str(guild_id),))
+                await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (guild_id,))
                 res = await cursor.fetchall()
             case _:
                 raise f"Wrong option {option}"
@@ -414,11 +414,11 @@ async def add_guild_option(guild_id: int, option: GuildOption, value):
         cursor = await db.cursor()
         match option:
             case GuildOption.RANK:
-                await cursor.execute(f"SELECT {option.to_str()} FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ?", (str(guild_id), str(value.role_id),))
+                await cursor.execute(f"SELECT {option.to_str()} FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ?", (guild_id, value.role_id,))
                 res = await cursor.fetchone()
                 res = bool(res)
                 if not res:
-                    await cursor.execute(f"INSERT INTO {option.get_table()} (guild_id, {option.to_str()}) VALUES(?, ?, ?, ?)", (str(guild_id), int(value.voice_xp), str(value.role_id), int(value.remove_on_promotion)))
+                    await cursor.execute(f"INSERT INTO {option.get_table()} (guild_id, {option.to_str()}) VALUES(?, ?, ?, ?)", (guild_id, int(value.voice_xp), value.role_id, int(value.remove_on_promotion)))
             case _:
                 raise f"Wrong option {option}"
         await db.commit()
@@ -434,11 +434,11 @@ async def remove_guild_option(guild_id: int, option: GuildOption, value):
         cursor = await db.cursor()
         match option:
             case GuildOption.RANK:
-                await cursor.execute(f"SELECT {option.to_str()} FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ?", (str(guild_id), str(value),))
+                await cursor.execute(f"SELECT {option.to_str()} FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ?", (guild_id, int(value),))
                 res = await cursor.fetchone()
                 res = bool(res)
                 if res:
-                    await cursor.execute(f"DELETE FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ? ", (str(guild_id), str(value),))
+                    await cursor.execute(f"DELETE FROM {option.get_table()} WHERE guild_id = ? AND rank_id = ? ", (guild_id, int(value),))
             case _:
                 raise f"Wrong option {option}"
         await db.commit()
@@ -456,11 +456,14 @@ async def set_guild_option(guild_id: int, option: GuildOption, value):
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute(f"INSERT OR IGNORE INTO {opt_table} (guild_id) VALUES(?)", (str(guild_id),))
+        await cursor.execute(f"INSERT OR IGNORE INTO {opt_table} (guild_id) VALUES(?)", (guild_id,))
         if value:
-            await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (str(value), str(guild_id),))
+            if option == GuildOption.ADMIN_LIST or option == GuildOption.UNTOUCHABLES_LIST:
+                await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (str(value), guild_id,))
+            else:
+                await cursor.execute(f"UPDATE server_options SET {opt_str} = ? WHERE guild_id = ?", (int(value), guild_id,))
         else:
-            await cursor.execute(f"UPDATE server_options SET {opt_str} = NULL WHERE guild_id = ?", (str(guild_id),))
+            await cursor.execute(f"UPDATE server_options SET {opt_str} = NULL WHERE guild_id = ?", (guild_id,))
         await db.commit()
 
 
@@ -472,7 +475,7 @@ async def get_user_xp(guild_id: int, user_id: int):
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute(f"SELECT voice_xp, text_xp FROM users_xp_data WHERE guild_id = ? AND user_id = ?", (str(guild_id), str(user_id),))
+        await cursor.execute(f"SELECT voice_xp, text_xp FROM users_xp_data WHERE guild_id = ? AND user_id = ?", (guild_id, user_id,))
         res = await cursor.fetchone()
     if res:
         return res["voice_xp"], res["text_xp"]
@@ -485,7 +488,7 @@ async def get_guild_top(guild_id: int, xp_type_voice: bool):
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute(f"SELECT user_id, voice_xp, text_xp FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
+        await cursor.execute(f"SELECT user_id, voice_xp, text_xp FROM users_xp_data WHERE guild_id = ?", (guild_id,))
         users = await cursor.fetchall()
 
     if not users:
@@ -558,11 +561,11 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute(f"INSERT OR IGNORE INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) VALUES(?,?,?,?)", (str(guild_id), str(user_id), 0, 0))
+        await cursor.execute(f"INSERT OR IGNORE INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) VALUES(?,?,?,?)", (guild_id, user_id, 0, 0))
         if voice_xp is not None:
-            await cursor.execute(f"UPDATE users_xp_data SET voice_xp = ? WHERE guild_id = ? AND user_id = ?", (voice_xp, str(guild_id), str(user_id),))
+            await cursor.execute(f"UPDATE users_xp_data SET voice_xp = ? WHERE guild_id = ? AND user_id = ?", (voice_xp, guild_id, user_id,))
         if text_xp is not None:
-            await cursor.execute(f"UPDATE users_xp_data SET text_xp = ? WHERE guild_id = ? AND user_id = ?", (text_xp, str(guild_id), str(user_id),))
+            await cursor.execute(f"UPDATE users_xp_data SET text_xp = ? WHERE guild_id = ? AND user_id = ?", (text_xp, guild_id, user_id,))
         await db.commit()
 
 
@@ -571,7 +574,7 @@ async def reset_xp(guild_id: int) -> None:
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute(f"DELETE FROM users_xp_data WHERE guild_id = ?", (str(guild_id),))
+        await cursor.execute(f"DELETE FROM users_xp_data WHERE guild_id = ?", (guild_id,))
         await db.commit()
 
 
@@ -580,7 +583,7 @@ async def reset_ranks(guild_id: int) -> None:
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute(f"DELETE FROM ranks_data WHERE guild_id = ?", (str(guild_id),))
+        await cursor.execute(f"DELETE FROM ranks_data WHERE guild_id = ?", (guild_id,))
         await db.commit()
 
 
