@@ -645,7 +645,7 @@ def get_user_num_badge(index: int) -> str:
         case 2:
             pos = public_config.emojis['third_place']
         case _:
-            pos = f"{pos+1}."
+            pos = f"{index+1}."
     return pos
 
 
