@@ -3,7 +3,7 @@ import os
 import sys
 import signal
 import functools
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 import configs.private_config as private_config
 
@@ -45,7 +45,7 @@ def worker_init():
 
 async def main():
     os.chdir(os.path.dirname(__file__))
-    pool = ProcessPoolExecutor(initializer=worker_init)
+    pool = ThreadPoolExecutor(initializer=worker_init)
 
     try:
         loop = asyncio.get_running_loop()

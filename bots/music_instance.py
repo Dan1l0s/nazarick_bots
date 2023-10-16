@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 from urllib.request import urlopen
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 
 import configs.private_config as private_config
@@ -99,7 +99,7 @@ class MusicBotInstance:
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
-    def __init__(self, name: str, token: str, process_pool: ProcessPoolExecutor):
+    def __init__(self, name: str, token: str, process_pool: ThreadPoolExecutor):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
         ), activity=disnake.Activity(name="/play", type=disnake.ActivityType.listening))
         self.name = name
