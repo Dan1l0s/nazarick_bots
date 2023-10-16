@@ -462,26 +462,49 @@ class AdminBot():
             for music_instance in self.music_instances:
                 bots.append(music_instance.bot)
             guild = None
-            required_bot = None
             for bot in bots:
                 guild = bot.get_guild(int(guild_id))
                 if guild:
-                    required_bot = bot
                     break
             else:
                 return await inter.send("Incorrect guild!")
 
-            invites = None
+            embed = await self.get_guild_info(guild, bots)
+
+            await inter.send(embed=embed)
+
+        @ self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
+        async def find_user(inter: disnake.AppCmdInter, user_id: str = commands.Param(description="ID of the user")):
+            await inter.response.defer()
+
+            bots = [self.bot, self.log_bot.bot]
+            for music_instance in self.music_instances:
+                bots.append(music_instance.bot)
+
+            desired_guild = None
+            user_id = int(user_id)
             for bot in bots:
-                tmp_guild = bot.get_guild(int(guild_id))
-                if not tmp_guild:
-                    continue
-                _, vanity_invite = await helpers.try_function(tmp_guild.vanity_invite, True)
-                ff, invites = await helpers.try_function(tmp_guild.invites, True)
-                if ff:
+                if desired_guild:
                     break
 
-            embed = embedder.guild_info(guild, required_bot, invites, vanity_invite)
+                for guild in bot.guilds:
+                    if desired_guild:
+                        break
+
+                    for channel in guild.voice_channels:
+                        if desired_guild:
+                            break
+                        if len(channel.members) == 0:
+                            continue
+
+                        for member in channel.members:
+                            if member.id == user_id:
+                                desired_guild = guild
+                                break
+            else:
+                return await inter.send("Provided user was not found!")
+
+            embed = await self.get_guild_info(desired_guild, bots)
             await inter.send(embed=embed)
 
         @ self.bot.slash_command(description="Sends message to other Supreme Beings")
@@ -686,6 +709,21 @@ class AdminBot():
                     return await message.reply(f"How dare you tag me? Know your place, trash")
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
+
+    async def get_guild_info(self, guild: disnake.Guild, bots: list) -> disnake.Embed:
+        invites = None
+        for bot in bots:
+            tmp_guild = bot.get_guild(guild.id)
+            if not tmp_guild:
+                continue
+            required_bot = bot
+            _, vanity_invite = await helpers.try_function(tmp_guild.vanity_invite, True)
+            ff, invites = await helpers.try_function(tmp_guild.invites, True)
+            if ff:
+                required_bot = bot
+                break
+
+        return embedder.guild_info(guild, required_bot, invites, vanity_invite)
 
     async def add_admin(self, guild_id: int, user_id: int) -> bool:
         admin_list = await helpers.get_guild_option(guild_id, GuildOption.ADMIN_LIST)
