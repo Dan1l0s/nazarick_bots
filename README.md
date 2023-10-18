@@ -3,7 +3,7 @@
 - ### [About this project](#about-this-project-1)
 - ### [Functionality](#functionality-1)
 
-  - #### [Related music bots](#related-music-bots-1)
+  - #### [Music bots](#music-bots-1)
   - #### [Logger bot](#logger-bot-1)
   - #### [Admin bot](#admin-bot-1)
 
@@ -16,7 +16,7 @@
 
 ## About this project
 
-This project is a group of discord-bots written in python, made in the setting of the anime series "Overlord", specifically as the pleiades of the great tomb "Nazarick".
+This project is a group of discord-bots written in python, made in the setting of the anime series "Overlord", specifically as the pleiades of the Great Tomb of Nazarick.
 
 ### List of bots currently developed:
 
@@ -26,7 +26,7 @@ This project is a group of discord-bots written in python, made in the setting o
 
 ## Functionality
 
-### Related music bots
+### Music bots
 
 One of the features of this project is a unique system of music bots. Several instances can be on the server at the same time playing in different channels, but the user interacts with only one bot using slash commands, which controls which bot will connect to the voice channel.
 
