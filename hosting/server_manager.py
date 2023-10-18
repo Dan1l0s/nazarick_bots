@@ -21,17 +21,19 @@ class FileWithDates():
     file = None
     buffer = None
 
-    def __init__(self, filename):
-        if not os.path.exists(f"../logs/{filename}"):
-            os.makedirs(f"../logs/{filename}")
-        file_name = datetime.now().strftime('%d-%m-%Y') + ".txt"
-        script_dir = os.path.dirname(__file__)
-        rel_path = f"../logs/{filename}/{file_name}"
-        abs_path = os.path.join(script_dir, rel_path)
-        self.file = open(abs_path, "a", encoding="utf-8")
+    def __init__(self):
         self.buffer = ""
 
-    def write(self, value):
+    def check_filename(self) -> None:
+        if not os.path.exists(f"../logs"):
+            os.makedirs(f"../logs")
+        file_name = datetime.now().strftime('%d-%m-%Y') + ".txt"
+        script_dir = os.path.dirname(__file__)
+        rel_path = f"../logs/{file_name}"
+        abs_path = os.path.join(script_dir, rel_path)
+        self.file = open(abs_path, "a", encoding="utf-8")
+
+    def write(self, value) -> None:
         if len(value) == 0:
             return
         lines = value.split('\n')
@@ -45,11 +47,13 @@ class FileWithDates():
             lines[0] = self.buffer + lines[0]
         tm = datetime.now().strftime('%d.%m.%Y | %H.%M.%S')
         tm_s = f"[{tm}]: "
+        self.check_filename()
         for line in lines:
             if len(line) == 0:
                 continue
             self.file.write(f"{tm_s}{line}\n")
         self.file.flush()
+        self.file.close()
         if remaining:
             self.buffer = remaining
         else:
@@ -350,7 +354,7 @@ async def main():
     await h.start(start)
 
 if __name__ == "__main__":
-    f = FileWithDates("host")
+    f = FileWithDates()
     sys.stdout = f
     sys.stderr = f
     asyncio.run(main())
