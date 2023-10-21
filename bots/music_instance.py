@@ -123,7 +123,7 @@ class MusicBotInstance:
                 if helpers.is_supreme_being(message.author):
                     await message.reply(public_config.on_message_supreme_being)
                 return
-            await self.check_mentions(message)
+            await helpers.check_mentions(message)
 
         @self.bot.event
         async def on_voice_state_update(member, before, after):
@@ -406,22 +406,11 @@ class MusicBotInstance:
             await database_logger.error(err, state.guild)
             print(f"Caught exception in play_before_interrupt: {err}")
 
-    async def check_mentions(self, message) -> bool:
-        if len(message.role_mentions) > 0 or len(message.mentions) > 0:
-            client = message.guild.me
-            if helpers.is_mentioned(client, message):
-                if await helpers.is_admin(message.author):
-                    if "ping" in message.content.lower() or "пинг" in message.content.lower():
-                        return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
-                    else:
-                        return await message.reply("At your service, my master.")
-                else:
-                    await helpers.try_function(message.author.timeout, True, duration=10, reason="Ping by inferior life form")
-                    return await message.reply(f"How dare you tag me? Know your place, trash")
 
 # *_______PlayerFuncs________________________________________________________________________________________________________________________________________
 
     # *Requires author of inter to be in voice channel
+
     async def play(self, inter, query, playnow=False, radio=False):
         state = self.states[inter.guild.id]
         state.last_inter = inter

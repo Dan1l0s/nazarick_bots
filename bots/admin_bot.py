@@ -81,7 +81,7 @@ class AdminBot():
             if ff:
                 return
 
-            await self.check_mentions(message)
+            await helpers.check_mentions(message)
 
             if not message.author.bot and not ff:
                 await helpers.add_user_xp(message.guild.id, message.author.id, text_xp=1)
@@ -695,18 +695,6 @@ class AdminBot():
             return True
         return False
 
-    async def check_mentions(self, message) -> bool:
-        if len(message.role_mentions) > 0 or len(message.mentions) > 0:
-            client = message.guild.me
-            if helpers.is_mentioned(client, message):
-                if await helpers.is_admin(message.author):
-                    if "ping" in message.content.lower() or "пинг" in message.content.lower():
-                        return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
-                    else:
-                        return await message.reply("At your service, my master.")
-                else:
-                    await helpers.try_function(message.author.timeout, True, duration=10, reason="Ping by inferior life form")
-                    return await message.reply(f"How dare you tag me? Know your place, trash")
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
 
