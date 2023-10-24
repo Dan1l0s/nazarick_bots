@@ -149,7 +149,7 @@ async def check_admin_kick(member) -> bool:
     return ff
 
 
-async def check_mentions(self, message):
+async def check_mentions(message, bot):
     if len(message.role_mentions) > 0 or len(message.mentions) > 0:
         client = message.guild.me
 
@@ -160,7 +160,7 @@ async def check_mentions(self, message):
 
             if await is_admin(message.author):
                 if "ping" in message.content.lower() or "пинг" in message.content.lower():
-                    return await message.reply(f"Yes, my master. My ping is {round(self.bot.latency*1000)} ms")
+                    return await message.reply(f"Yes, my master. My ping is {round(bot.latency*1000)} ms")
                 else:
                     return await message.reply("At your service, my master.")
             else:

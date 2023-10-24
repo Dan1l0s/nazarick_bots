@@ -81,7 +81,7 @@ class AdminBot():
             if ff:
                 return
 
-            await helpers.check_mentions(message)
+            await helpers.check_mentions(message, self.bot)
 
             if not message.author.bot and not ff:
                 await helpers.add_user_xp(message.guild.id, message.author.id, text_xp=1)

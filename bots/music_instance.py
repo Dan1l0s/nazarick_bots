@@ -5,6 +5,7 @@ import random
 import asyncio
 import json
 import re
+import datetime
 from urllib.request import urlopen
 from concurrent.futures import ThreadPoolExecutor
 
@@ -123,7 +124,7 @@ class MusicBotInstance:
                 if helpers.is_supreme_being(message.author):
                     await message.reply(public_config.on_message_supreme_being)
                 return
-            await helpers.check_mentions(message)
+            await helpers.check_mentions(message, self.bot)
 
         @self.bot.event
         async def on_voice_state_update(member, before, after):
@@ -296,10 +297,13 @@ class MusicBotInstance:
     async def add_from_playlist(self, inter, url, orig_url, *, playnow=False, playlist_future=None):
         state = self.states[inter.guild.id]
         msg = await inter.text_channel.send("Processing playlist...")
+        tmp_song = Song(author=datetime.datetime.now())
+        state.song_queue.append(tmp_song)
         playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url)
         if playlist_info is None:
             await msg.delete()
             await inter.text_channel.send("Error processing playlist, there are unavailable videos!")
+            await helpers.try_function(state.song_queue.remove, False, tmp_song)
             if playlist_future:
                 playlist_future.set_result(None)
             return
@@ -308,7 +312,6 @@ class MusicBotInstance:
 
         if not state.voice:
             return
-
         if playnow:
             for entry in playlist_info['entries'][::-1]:
                 if "entries" in entry:
@@ -332,6 +335,7 @@ class MusicBotInstance:
                 song.track_info.set_result(entry)
                 state.song_queue.append(song)
 
+        await helpers.try_function(state.song_queue.remove, False, tmp_song)
         if playlist_future:
             playlist_future.set_result(None)
 

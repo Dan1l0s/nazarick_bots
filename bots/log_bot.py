@@ -65,7 +65,7 @@ class LogBot():
                 if helpers.is_supreme_being(message.author):
                     await message.reply(public_config.on_message_supreme_being)
                 return
-            await helpers.check_mentions(message)
+            await helpers.check_mentions(message, self.bot)
 
         @self.bot.event
         async def on_message_edit(before, after):

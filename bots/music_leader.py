@@ -48,7 +48,7 @@ class MusicBotLeader(MusicBotInstance):
 
             if self.bot.get_user(private_config.bot_ids["moderate"]) == None:
                 await self.check_message_content(message)
-            await helpers.check_mentions(message)
+            await helpers.check_mentions(message, self.bot)
 
         @ self.bot.slash_command(dm_permission=False, description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter: disnake.AppCmdInter,
