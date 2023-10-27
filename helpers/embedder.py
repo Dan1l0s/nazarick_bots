@@ -623,14 +623,14 @@ def queue(guild, queue, start_index, curr_song):
                         author_name=guild.name, author_icon_url=guild.icon.url, footer_text=guild.name, fields=fields)
 
 
-def xp_top(guild, top_users, start_index, author_info, func, xp_type_voice):
+def xp_top(guild, top_users, start_index, author_info, get_user_function, xp_type_voice):
     fields = []
     ff = False
     for num in (range(10), range(len(top_users) - start_index))[start_index + 10 > len(top_users)]:
         user_info = top_users[num + start_index]
         if user_info == author_info:
             ff = True
-        user = func(user_info[0])
+        user = get_user_function(user_info[0])
         if not user:
             user_mention = f'<@{user_info[0]}>'
         else:
@@ -640,7 +640,7 @@ def xp_top(guild, top_users, start_index, author_info, func, xp_type_voice):
     if ff:
         description = ""
     else:
-        description = f"*{helpers.get_user_num_badge(top_users.index(author_info))}* {func(author_info[0]).mention} - {author_info[(2, 1)[xp_type_voice]]}xp*"
+        description = f"*{helpers.get_user_num_badge(top_users.index(author_info))}* *{get_user_function(author_info[0]).mention} - {author_info[(2, 1)[xp_type_voice]]}xp*"
     return create_embed(title=("Type: Text", "Type: Voice")[xp_type_voice], description=description, color_tag="xp",
                         author_name=guild.name, author_icon_url=guild.icon.url, footer_text=guild.name, fields=fields)
 
