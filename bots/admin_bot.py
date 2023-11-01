@@ -507,6 +507,56 @@ class AdminBot():
             embed = await self.get_guild_info(desired_guild, bots)
             await inter.send(embed=embed)
 
+        @ self.bot.slash_command(dm_permission=False, description="Moves provided user to provided channel", guild_ids=[778558780111060992])
+        async def move_user(inter: disnake.AppCmdInter, guild_id: str = commands.Param(description="Target guild ID"), channel_id: str = commands.Param(description="Target voice channel ID"), user_id: str = commands.Param(default=None, description="ID of the user")):
+            await inter.response.defer()
+
+            bots = [self.bot, self.log_bot.bot]
+            for music_instance in self.music_instances:
+                bots.append(music_instance.bot)
+
+            desired_bot, guild = None, None
+            if not user_id:
+                user_id = inter.author.id
+            else:
+                user_id = int(user_id)
+            guild_id = int(guild_id)
+
+            for bot in bots:
+                guild = bot.get_guild(guild_id)
+                if not guild:
+                    continue
+
+                if guild.me.guild_permissions.move_members:
+                    desired_bot = bot
+                    break
+            else:
+                return await inter.send("Incorrect guild or lack of move members permission!")
+
+            target_member = None
+            for channel in guild.voice_channels:
+                if len(channel.members) == 0:
+                    continue
+
+                for member in channel.members:
+                    if member.id == user_id:
+                        target_member = member
+                        break
+
+                if target_member:
+                    break
+            else:
+                return await inter.send("Provided user was not found in any voice channel!")
+
+            target_channel = guild.get_channel(int(channel_id))
+
+            if not target_channel:
+                return await inter.send("Incorrect channel ID!")
+
+            await helpers.try_function(target_member.move_to, True, target_channel)
+
+            await inter.send("The user has been moved successfully, my master.", delete_after=5)
+
         @ self.bot.slash_command(description="Sends message to other Supreme Beings")
         async def message(inter: disnake.AppCmdInter):
             # await inter.response.defer()
@@ -657,7 +707,6 @@ class AdminBot():
 
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
-
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
@@ -697,6 +746,7 @@ class AdminBot():
 
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
+
 
     async def get_guild_info(self, guild: disnake.Guild, bots: list) -> disnake.Embed:
         invites = None
@@ -766,7 +816,6 @@ class AdminBot():
 
 
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
-
 
     async def monitor_errors(self) -> None:
         try:

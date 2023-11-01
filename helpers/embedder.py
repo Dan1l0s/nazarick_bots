@@ -704,7 +704,7 @@ def guild_info(guild: disnake.Guild, bot, invites: list[disnake.Invite] | None, 
             for member in channel.members:
                 user = bot.get_user(member.id)
                 channels += f"{user.name} : {user.mention}\n"
-            fields.append(EmbedField(name=f"**{channel.name}**", value=channels, inline=True))
+            fields.append(EmbedField(name=f"**{channel.name} : {channel.id}**", value=channels, inline=True))
 
     if invites or vanity_invite:
         invites_str = ""
