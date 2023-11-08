@@ -291,13 +291,12 @@ class MusicBotLeader(MusicBotInstance):
         if inter.author.id not in self.chatgpt_messages:
             self.chatgpt_messages[inter.author.id] = []
         messages_list = self.chatgpt_messages[inter.author.id]
-        messages_list.append(
-            {"role": "user", "content": message})
+        messages_list.append({"role": "user", "content": message})
+
         while True:
             try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=messages_list).choices[0].message.content
+                response = await self.run_in_process(openai.ChatCompletion.create, model="gpt-3.5-turbo", messages=messages_list)
+                response = response.choices[0].message.content
                 break
             except Exception as e:
                 print(e)
