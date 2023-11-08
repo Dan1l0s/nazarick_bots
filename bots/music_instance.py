@@ -241,8 +241,7 @@ class MusicBotInstance:
         if not "https://" in query and not radio:
             asyncio.create_task(self.select_song(inter, song, query))
         else:
-            asyncio.create_task(self.add_from_url_to_queue(
-                inter, song, query, playnow=playnow))
+            asyncio.create_task(self.add_from_url_to_queue(inter, song, query, playnow=playnow))
 
     async def add_from_url_to_queue(self, inter, song, url, *, respond=True, playnow=False, playlist_future=None):
         state = self.states[inter.guild.id]
@@ -256,8 +255,6 @@ class MusicBotInstance:
             return
         else:
             if "playlist" in url:
-                # song.track_info.set_result(None)
-                # await helpers.try_function(state.song_queue.remove, False, song)
                 asyncio.create_task(helpers.add_playlist_delayed_task(helpers.try_function, True, playlist_future, state.song_queue.remove, False, song))
                 if respond:
                     await inter.orig_inter.delete_original_response()
@@ -302,16 +299,17 @@ class MusicBotInstance:
         playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url)
         if playlist_info is None:
             await msg.delete()
-            await inter.text_channel.send("Error processing playlist, there are unavailable videos!")
+            await inter.text_channel.send("Error processing playlist, try another one!")
             await helpers.try_function(state.song_queue.remove, False, tmp_song)
             if playlist_future:
                 playlist_future.set_result(None)
             return
 
-        await msg.edit("Playlist has been processed!", delete_after=5)
-
         if not state.voice:
+            await msg.delete()
             return
+
+        videos_amount = playlist_info['playlist_count']
         if playnow:
             for entry in playlist_info['entries'][::-1]:
                 if "entries" in entry:
@@ -320,21 +318,39 @@ class MusicBotInstance:
                     url = entry['webpage_url']
                 if orig_url == url:
                     continue
+                track_info = await self.run_in_process(helpers.ytdl_extract_info, url)
+                if not state.voice:
+                    await msg.delete()
+                    return
+                if not track_info:
+                    videos_amount -= 1
+                    continue
                 song = Song(author=inter.author)
-                song.track_info.set_result(entry)
+                song.track_info.set_result(track_info)
                 state.song_queue.insert(0, song)
         else:
             for entry in playlist_info['entries']:
                 if "entries" in entry:
-                    url = entry["entries"][0]['webpage_url']
+                    url = entry["entries"][0]['url']
                 else:
-                    url = entry['webpage_url']
+                    url = entry['url']
                 if orig_url == url:
                     continue
+                track_info = await self.run_in_process(helpers.ytdl_extract_info, url)
+                if not state.voice:
+                    await msg.delete()
+                    return
+                if not track_info:
+                    videos_amount -= 1
+                    continue
                 song = Song(author=inter.author)
-                song.track_info.set_result(entry)
+                song.track_info.set_result(track_info)
                 state.song_queue.append(song)
 
+        new_msg = "Playlist has been processed!"
+        if videos_amount != playlist_info['playlist_count']:
+            new_msg += f"\nAdded {videos_amount} out of {playlist_info['playlist_count']} tracks"
+        await msg.edit(new_msg, delete_after=10)
         await helpers.try_function(state.song_queue.remove, False, tmp_song)
         if playlist_future:
             playlist_future.set_result(None)
@@ -358,8 +374,9 @@ class MusicBotInstance:
 
                 if not state.current_song.radio_mode:
                     link = current_track.get("url", None)
-                    state.voice.play(disnake.FFmpegPCMAudio(
-                        source=link, **public_config.FFMPEG_OPTIONS))
+
+                    state.voice.play(disnake.FFmpegPCMAudio(source=link, **public_config.FFMPEG_OPTIONS))
+
                     if state.current_song.original_message:
                         await helpers.try_function(state.current_song.original_message.delete, True)
 
@@ -380,7 +397,7 @@ class MusicBotInstance:
                     if (current_track == public_config.radio_url):
                         asyncio.create_task(self.radio_message(state))
 
-                await self.play_before_interrupt(guild_id)
+                await self.play_until_interrupt(guild_id)
                 if not state.voice:
                     break
 
@@ -398,9 +415,9 @@ class MusicBotInstance:
         except Exception as err:
             print(f"Exception in play_loop: {err}")
             await database_logger.error(err, state.guild)
-            await self.abort_play(guild_id, "There was an error playing the song, try again :c")
+            await self.abort_play(guild_id)
 
-    async def play_before_interrupt(self, guild_id):
+    async def play_until_interrupt(self, guild_id):
         state = self.states[guild_id]
         try:
             while (state.voice and (state.voice.is_playing() or state.voice.is_paused()) and not state.skip_flag):
@@ -408,12 +425,10 @@ class MusicBotInstance:
         except Exception as err:
             await self.abort_play(guild_id)
             await database_logger.error(err, state.guild)
-            print(f"Caught exception in play_before_interrupt: {err}")
+            print(f"Caught exception in play_until_interrupt: {err}")
 
 
 # *_______PlayerFuncs________________________________________________________________________________________________________________________________________
-
-    # *Requires author of inter to be in voice channel
 
     async def play(self, inter, query, playnow=False, radio=False):
         state = self.states[inter.guild.id]

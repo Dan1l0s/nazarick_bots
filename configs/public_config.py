@@ -37,8 +37,9 @@ embed_colors = {
 
 # yt-dlp configuration
 YTDL_OPTIONS = {
+    'extract_flat': 'in_playlist',
     'format': 'bestaudio/best', 'noplaylist': False,
-    'simulate': True, 'key': 'FFmpegExtractAudio', 'forceduration': True, 'quiet': True, 'no_warnings': True
+    'simulate': True, 'key': 'FFmpegExtractAudio', 'quiet': True, 'no_warnings': True
 }
 
 # ffmpeg configuration

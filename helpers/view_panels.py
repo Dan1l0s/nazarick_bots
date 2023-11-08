@@ -158,7 +158,6 @@ class QueueList(disnake.ui.View):
     async def button_callback(self, button_value, inter):
         await inter.response.defer()
         self.song = await self.bot.states[inter.guild.id].current_song.track_info
-        self.queue = self.bot.states[inter.guild.id].song_queue
         while self.start_index > 0 and len(self.queue) <= self.start_index:
             self.start_index -= 10
 

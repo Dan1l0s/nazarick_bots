@@ -592,6 +592,7 @@ def queue(guild, queue, start_index, curr_song):
     ff = False
     if len(queue) > 0 and not 'artificial' in curr_song:
         ff = True
+        cnt = 0
         for num in (range(10), range(len(queue) - start_index))[start_index + 10 > len(queue)]:
             try:
                 if not queue[num + start_index].track_info.done():
@@ -608,7 +609,8 @@ def queue(guild, queue, start_index, curr_song):
                 title = song['title']
                 url = song['webpage_url']
                 duration = helpers.get_duration(song)
-            song_info = f'**{num + start_index + 1}.** **[{title}]({url})** {duration}'
+            song_info = f'**{cnt + start_index + 1}.** **[{title}]({url})** {duration}'
+            cnt += 1
             fields.append(EmbedField(value=song_info))
             ff = False
     else:
