@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
-    from configs.private_config import hosting_port, backup_login, backup_password, backup_url
+    from configs.private_config import hosting_port, backup_login, backup_password, backup_url, server_manager_password
     from configs.public_config import auto_backup_files, manual_backup_files
 except:
     pass
@@ -121,10 +121,12 @@ class Host:
     async def process_command(self, command):
         args = command.split()
         print(f"Processing command {args}")
-        if len(args) == 0:
+        if len(args) < 2:
             return None
-        args[0] = args[0].lower()
-        match args[0]:
+        if args[0] != server_manager_password:
+            return "Unauthorized access"
+        args[1] = args[1].lower()
+        match args[1]:
             case "run" | "start":
                 return await self.run()
             case "stop":
@@ -137,8 +139,8 @@ class Host:
                 return await self.backup()
             case "update":
                 branch = self.get_current_branch()
-                if len(args) > 1:
-                    branch = args[1]
+                if len(args) > 2:
+                    branch = args[2]
                 return await self.update(branch)
             case "clear":
                 return await self.clear_errors()

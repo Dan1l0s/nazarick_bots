@@ -5,7 +5,7 @@ import os
 try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
-    from configs.private_config import hosting_ip, hosting_port
+    from configs.private_config import hosting_ip, hosting_port, server_manager_password
 except:
     pass
 
@@ -32,7 +32,7 @@ def main():
             continue
         print(f"Connected to {host}:{port}\n")
 
-        sock.sendall("status".encode("utf8"))
+        sock.sendall(f"{server_manager_password} status".encode("utf8"))
         response = ""
         while True:
             data = sock.recv(1024)
@@ -71,7 +71,7 @@ def main():
         except:
             print(f"Failed to connect to {host}:{port}\n")
             continue
-
+        cmd = server_manager_password + " " + cmd
         sock.sendall(cmd.encode('utf8'))
 
         response = ""
