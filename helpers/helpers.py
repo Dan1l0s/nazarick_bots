@@ -334,6 +334,7 @@ async def ensure_tables() -> None:
                             user_id TEXT,
                             voice_xp INTEGER,
                             text_xp INTEGER,
+                            last_activity INTEGER,
                             UNIQUE(guild_id, user_id)
                         )''')
 
@@ -576,16 +577,26 @@ async def set_user_xp(guild_id: int, user_id: int, voice_xp: int | None = None, 
     if not guild_id or not user_id or (voice_xp is None and text_xp is None):
         return None
 
+    last_activity = int(time.time())
     await ensure_tables()
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         await cursor.execute(f"INSERT OR IGNORE INTO users_xp_data (guild_id, user_id, voice_xp, text_xp) VALUES(?,?,?,?)", (guild_id, user_id, 0, 0))
         if voice_xp is not None:
-            await cursor.execute(f"UPDATE users_xp_data SET voice_xp = ? WHERE guild_id = ? AND user_id = ?", (voice_xp, guild_id, user_id,))
+            await cursor.execute(f"UPDATE users_xp_data SET voice_xp = ?, last_activity = ? WHERE guild_id = ? AND user_id = ?", (voice_xp, last_activity, guild_id, user_id,))
         if text_xp is not None:
-            await cursor.execute(f"UPDATE users_xp_data SET text_xp = ? WHERE guild_id = ? AND user_id = ?", (text_xp, guild_id, user_id,))
+            await cursor.execute(f"UPDATE users_xp_data SET text_xp = ?, last_activity = ? WHERE guild_id = ? AND user_id = ?", (text_xp, last_activity, guild_id, user_id,))
         await db.commit()
+
+async def get_activity_info():
+    await ensure_tables()
+    async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.cursor()
+        await cursor.execute(f"SELECT guild_id, user_id, last_activity FROM users_xp_data")
+        res = await cursor.fetchall()
+        return res
 
 
 async def reset_xp(guild_id: int) -> None:

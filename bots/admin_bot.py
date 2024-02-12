@@ -3,7 +3,7 @@ from disnake.ext import commands
 import asyncio
 import sys
 import os
-import datetime
+import time
 
 import configs.private_config as private_config
 import configs.public_config as public_config
@@ -56,6 +56,7 @@ class AdminBot():
                 print(f"{self.name} is logged as {self.bot.user}")
                 self.on_ready_flag = True
                 self.bot.loop.create_task(self.scan_timer())
+                self.bot.loop.create_task(self.scan_activity())
                 asyncio.create_task(self.monitor_errors())
                 for guild in self.bot.guilds:
                     await self.add_admin(guild.id, guild.owner_id)
@@ -679,6 +680,33 @@ class AdminBot():
                 else:
                     add_list.append(rank.role_id)
         return remove_list, add_list
+
+    async def scan_activity(self) -> None:
+        while True:
+            timestamp = int(time.time())
+            guilds_ranks = {}
+            activity_info = await helpers.get_activity_info()
+            for row in activity_info:
+                guild = self.bot.get_guild(row['guild_id'])
+                if not guild:
+                    continue
+                member = guild.get_member(row['user_id'])
+                if not member:
+                    continue
+
+                if guild.id not in guilds_ranks.keys():
+                    guilds_ranks[guild.id] = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)                    
+
+                last_activity = row['last_activity']
+                if timestamp - last_activity >= 5_184_000:
+                    roles_to_remove = []
+                    for role in member.roles:
+                        if any(rank.role_id == role.id for rank in guilds_ranks[guild.id]):
+                            roles_to_remove.append(role)
+                    if roles_to_remove:
+                        asyncio.create_task(helpers.try_function(member.remove_roles, True, *roles_to_remove))
+
+            await asyncio.sleep(86400)
 
     async def scan_timer(self) -> None:
         while True:
