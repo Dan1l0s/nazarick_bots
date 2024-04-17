@@ -509,7 +509,7 @@ class AdminBot():
             await inter.send(embed=embed)
 
         @ self.bot.slash_command(dm_permission=False, description="Moves provided user to provided channel", guild_ids=[778558780111060992])
-        async def move_user(inter: disnake.AppCmdInter, guild_id: str = commands.Param(description="Target guild ID"), channel_id: str = commands.Param(description="Target voice channel ID"), user_id: str = commands.Param(default=None, description="ID of the user")):
+        async def move_user(inter: disnake.AppCmdInter, guild_id: str = commands.Param(description="Target guild ID"), channel_id: str = commands.Param(default="None", description="Target voice channel ID"), user_id: str = commands.Param(default=None, description="ID of the user")):
             await inter.response.defer()
 
             bots = [self.bot, self.log_bot.bot]
@@ -548,11 +548,12 @@ class AdminBot():
                     break
             else:
                 return await inter.send("Provided user was not found in any voice channel!")
-
-            target_channel = guild.get_channel(int(channel_id))
-
-            if not target_channel:
-                return await inter.send("Incorrect channel ID!")
+            if not channel_id or channel_id == "None":
+                target_channel = None
+            else:
+                target_channel = guild.get_channel(int(channel_id))
+                if not target_channel:
+                    return await inter.send("Incorrect channel ID!")
 
             await helpers.try_function(target_member.move_to, True, target_channel)
 
@@ -762,14 +763,26 @@ class AdminBot():
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message) -> bool:
+        cnt = 0
+        if "leaks" in message.content.lower() or ":underage:" in message.content.lower():
+            cnt+=1
         if "discord.gg" in message.content.lower():
+            cnt+=1
+
+        if cnt == 2:
             if hasattr(message.author, "guild"):
                 if not await helpers.is_admin(message.author):
                     await helpers.try_function(message.delete, True)
-                    await helpers.try_function(message.author.send, True, f"Do NOT try to invite anyone to another servers {public_config.emojis['banned']}")
-            else:
-                await helpers.try_function(message.delete, True)
-            return True
+                    await helpers.try_function(message.author.send, True, f"You've been banned for suspicious activity. [⠀](https://tenor.com/view/one-punch-man-gif-23643267)")
+                    await helpers.try_function(message.author.ban, True, reason="Suspicious activity")
+
+        elif cnt == 1:
+            if hasattr(message.author, "guild"):
+                if not await helpers.is_admin(message.author):
+                    await helpers.try_function(message.delete, True)
+                    await helpers.try_function(message.author.send, True, f"You've been timed out for suspicious activity. If you think that this is a mistake, try appealling by DMing one of the admins. Get good ;)")
+                    await helpers.try_function(message.author.timeout, True, duration=2_332_800, reason="Suspicious activity")
+                    return True
         return False
 
 
@@ -860,7 +873,7 @@ class AdminBot():
                     break
                 lines = data.split("\n")
                 for line in lines:
-                    if "[tls @" in line or "[https @" in line or "[hls @" in line:
+                    if "[tls @" in line or "[https @" in line or "[hls @" or "retrying with new connection" in line:
                         continue
                     if len(line) > 0:
                         errors += line + "\n"

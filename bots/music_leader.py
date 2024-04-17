@@ -14,15 +14,15 @@ from bots.music_instance import MusicBotInstance, Interaction
 
 class MusicBotLeader(MusicBotInstance):
     instances = None
-    chatgpt_messages = None
+    # chatgpt_messages = None
 
     def __init__(self, name, token, process_pool):
         super().__init__(name, token, process_pool)
         self.instances = []
         self.instances.append(self)
         self.instance_count = 0
-        self.chatgpt_messages = {}
-        openai.api_key = private_config.openai_api_key
+        # self.chatgpt_messages = {}
+        # openai.api_key = private_config.openai_api_key
 
         @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
@@ -38,8 +38,8 @@ class MusicBotLeader(MusicBotInstance):
 
         @self.bot.event
         async def on_message(message):
-            if await self.check_gpt_interaction(message):
-                return
+            # if await self.check_gpt_interaction(message):
+            #     return
 
             if not message.guild:
                 if helpers.is_supreme_being(message.author):
@@ -165,20 +165,20 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.shuffle(new_inter)
 
-        @ self.bot.slash_command(description="Allows to use ChatGPT")
-        async def gpt(inter: disnake.AppCmdInter,
-                      message: str = commands.Param(description="Type a query to get ChatGPT's reply")):
-            await inter.response.defer()
+        # @ self.bot.slash_command(description="Allows to use ChatGPT")
+        # async def gpt(inter: disnake.AppCmdInter,
+        #               message: str = commands.Param(description="Type a query to get ChatGPT's reply")):
+        #     await inter.response.defer()
 
-            new_inter = Interaction(self.bot, inter)
-            asyncio.create_task(self.gpt_helper(new_inter, message))
+        #     new_inter = Interaction(self.bot, inter)
+        #     asyncio.create_task(self.gpt_helper(new_inter, message))
 
-        @ self.bot.slash_command(description="Clears chat history with ChatGPT (it will forget all your messages)")
-        async def gpt_clear(inter: disnake.AppCmdInter):
-            await inter.response.defer()
+        # @ self.bot.slash_command(description="Clears chat history with ChatGPT (it will forget all your messages)")
+        # async def gpt_clear(inter: disnake.AppCmdInter):
+        #     await inter.response.defer()
 
-            self.chatgpt_messages[inter.author.id] = []
-            await inter.send("Done!", delete_after=5)
+        #     self.chatgpt_messages[inter.author.id] = []
+        #     await inter.send("Done!", delete_after=5)
 
         @ self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):

@@ -110,7 +110,7 @@ class Host:
                     self.process.stdin.flush()
                     lines = data.decode('utf-8', errors='replace').split('\n')
                     for line in lines:
-                        if "[tls @" in line or "[https @" in line or "[hls @" in line:
+                        if "[tls @" in line or "[https @" in line or "[hls @" or "retrying with new connection" in line:
                             continue
                         if len(line) > 0:
                             self.errors += "\n" + line
@@ -209,7 +209,7 @@ class Host:
         self.last_start = datetime.now(timezone.utc)
         self.errors = ""
         self.process = subprocess.Popen(
-            ["python3.11", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+            ["python", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
         if not self.process:
             return "Failed to create bot process"
@@ -284,7 +284,7 @@ class Host:
         arg = ""
         if was_running:
             arg = "-r"
-        cmd = f"python3.11 server_manager.py {self.port} {arg} &"
+        cmd = f"python server_manager.py {self.port} {arg} &"
         print(f"Executing: {cmd}\n")
         os.system(cmd)
         return f"Updated to branch {branch}"
