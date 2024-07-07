@@ -269,6 +269,8 @@ class GuildOption(Enum):
     RANK_LIST = 7,
     RANK = 8,
     UNTOUCHABLES_LIST = 9,
+    GIVEAWAY_MESSAGE = 10,
+    GIVEAWAY_ROLE = 11,
 
     def to_str(self) -> (str | None):
         match self:
@@ -288,12 +290,16 @@ class GuildOption(Enum):
                 return "voice_xp, rank_id, remove_flag"
             case GuildOption.UNTOUCHABLES_LIST:
                 return "untouchables_list"
+            case GuildOption.GIVEAWAY_MESSAGE:
+                return "giveaway_message"
+            case GuildOption.GIVEAWAY_ROLE:
+                return "giveaway_role"
             case _:
                 return None
 
     def get_table(self) -> (str | None):
         match self:
-            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST:
+            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST | GuildOption.GIVEAWAY_MESSAGE | GuildOption.GIVEAWAY_ROLE:
                 return "server_options"
             case GuildOption.RANK_LIST | GuildOption.RANK:
                 return "ranks_data"
@@ -302,7 +308,7 @@ class GuildOption(Enum):
 
 
 def convert_to_python(option: GuildOption, value) -> (int | list):
-    to_int = [GuildOption.LOG_CHANNEL, GuildOption.WELCOME_CHANNEL, GuildOption.STATUS_LOG_CHANNEL, GuildOption.PRIVATE_CATEGORY, GuildOption.PRIVATE_CHANNEL]
+    to_int = [GuildOption.LOG_CHANNEL, GuildOption.WELCOME_CHANNEL, GuildOption.STATUS_LOG_CHANNEL, GuildOption.PRIVATE_CATEGORY, GuildOption.PRIVATE_CHANNEL, GuildOption.GIVEAWAY_MESSAGE, GuildOption.GIVEAWAY_ROLE]
     to_int_list = [GuildOption.ADMIN_LIST, GuildOption.UNTOUCHABLES_LIST]
     match option:
         case option if option in to_int:
@@ -330,8 +336,8 @@ def convert_to_python(option: GuildOption, value) -> (int | list):
 async def ensure_tables() -> None:
     async with aiosqlite.connect('db/bot_database.db', timeout=1000) as db:
         await db.execute('''CREATE TABLE IF NOT EXISTS users_xp_data (
-                            guild_id TEXT,
-                            user_id TEXT,
+                            guild_id INTEGER,
+                            user_id INTEGER,
                             voice_xp INTEGER,
                             text_xp INTEGER,
                             last_activity INTEGER,
@@ -339,22 +345,24 @@ async def ensure_tables() -> None:
                         )''')
 
         await db.execute('''CREATE TABLE IF NOT EXISTS ranks_data (
-                            guild_id TEXT,
-                            rank_id TEXT,
+                            guild_id INTEGER,
+                            rank_id INTEGER,
                             voice_xp INTEGER,
                             remove_flag INTEGER,
                             UNIQUE(guild_id, rank_id)
                         )''')
 
         await db.execute('''CREATE TABLE IF NOT EXISTS server_options (
-                            guild_id TEXT PRIMARY KEY,
-                            log_channel TEXT,
-                            status_log_channel TEXT,
-                            welcome_channel TEXT,
-                            private_category TEXT,
-                            private_channel TEXT,
+                            guild_id INTEGER PRIMARY KEY,
+                            log_channel INTEGER,
+                            status_log_channel INTEGER,
+                            welcome_channel INTEGER,
+                            private_category INTEGER,
+                            private_channel INTEGER,
                             admin_list TEXT,
-                            untouchables_list TEXT
+                            untouchables_list TEXT,
+                            giveaway_message INTEGER,
+                            giveaway_role INTEGER
                         )''')
 
         await db.commit()
@@ -365,14 +373,14 @@ async def ensure_tables_logger() -> None:
         await db.execute('''CREATE TABLE IF NOT EXISTS status (
                             date TEXT,
                             time TEXT,
-                            user_id TEXT,
+                            user_id INTEGER,
                             comment TEXT
                         )''')
 
         await db.execute('''CREATE TABLE IF NOT EXISTS gpt (
                             date TEXT,
                             time TEXT,
-                            user_id TEXT,
+                            user_id INTEGER,
                             query TEXT,
                             response TEXT
                         )''')
@@ -385,7 +393,7 @@ async def ensure_tables_logger() -> None:
                         )''')
 
         await db.execute('''CREATE TABLE IF NOT EXISTS common (
-                            guild_id TEXT,
+                            guild_id INTEGER,
                             date TEXT,
                             time TEXT,
                             tag TEXT,
@@ -408,7 +416,7 @@ async def request_guild_option(guild_id: int, option: GuildOption):
         cursor = await db.cursor()
 
         match option:
-            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST:
+            case GuildOption.LOG_CHANNEL | GuildOption.WELCOME_CHANNEL | GuildOption.STATUS_LOG_CHANNEL | GuildOption.PRIVATE_CATEGORY | GuildOption.PRIVATE_CHANNEL | GuildOption.ADMIN_LIST | GuildOption.UNTOUCHABLES_LIST | GuildOption.GIVEAWAY_MESSAGE | GuildOption.GIVEAWAY_ROLE:
                 await cursor.execute(f"SELECT {opt_str} FROM {option.get_table()} WHERE guild_id = ?", (guild_id,))
                 res = await cursor.fetchone()
             case GuildOption.RANK_LIST:

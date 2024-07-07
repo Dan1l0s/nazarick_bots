@@ -87,6 +87,45 @@ class AdminBot():
             if not message.author.bot and not ff:
                 await helpers.add_user_xp(message.guild.id, message.author.id, text_xp=1)
 
+        @self.bot.event
+        async def on_raw_reaction_add(payload: disnake.RawReactionActionEvent):
+            if not payload.guild_id:
+                return
+
+            guild_message_id = await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_MESSAGE)
+            if payload.message_id != guild_message_id:
+                return
+            
+            guild = self.bot.get_guild(payload.guild_id)
+            role = guild.get_role(await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE))
+            if not role:
+                await helpers.remove_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE)
+                return
+            
+            await helpers.try_function(payload.member.add_roles, True, role, reason="Subscribed to notifications")
+
+
+        @self.bot.event
+        async def on_raw_reaction_remove(payload: disnake.RawReactionActionEvent):
+            if not payload.guild_id:
+                return
+
+            guild_message_id = await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_MESSAGE)
+            if payload.message_id != guild_message_id:
+                return
+            
+            guild = self.bot.get_guild(payload.guild_id)
+            role = guild.get_role(await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE))
+            if not role:
+                await helpers.remove_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE)
+                return
+            
+            member = guild.get_member(payload.user_id)
+            if not member:
+                return
+
+            await helpers.try_function(member.remove_roles, True, role, reason="Unubscribed from notifications")
+
         @self.bot.slash_command(dm_permission=False)
         async def set(inter: disnake.AppCmdInter):
             pass
@@ -124,6 +163,44 @@ class AdminBot():
             else:
                 await helpers.set_guild_option(inter.guild.id, GuildOption.PRIVATE_CHANNEL, None)
                 await inter.edit_original_response(f'Private channels are disabled. To enable them just set a voice channel and a category')
+
+        @set.sub_command_group()
+        async def giveaway(inter: disnake.AppCmdInter):
+            pass
+
+        @giveaway.sub_command(description="Allows admins to set a message to react on for giveaway roles")
+        async def message(inter: disnake.AppCmdInter,
+                           message_id: (str | None) = commands.Param(default=None, description='Provide message ID to track reactions on')):
+            await inter.response.defer()
+
+            if not await helpers.is_admin(inter.author):
+                return await inter.edit_original_response("Unauthorized access, you are not an admin!")
+
+            if message_id:
+                message = self.bot.get_message(int(message_id))
+                await helpers.set_guild_option(inter.guild.id, GuildOption.GIVEAWAY_MESSAGE, message_id)
+                if message:
+                    message_id = message.jump_url
+                await inter.edit_original_response(f'Tracked message has been set to {message_id}')
+            else:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.GIVEAWAY_MESSAGE, None)
+                await inter.edit_original_response(f'Tracked message has been removed, the giveaway role is no longer obtainable')
+
+        @giveaway.sub_command(description="Allows admins to set a role for giveaway messages subscriptions")
+        async def role(inter: disnake.AppCmdInter,
+                          role: (disnake.Role | None) = commands.Param(default=None, description='Select a role to be given for reactions on a message')):
+            await inter.response.defer()
+
+            if not await helpers.is_admin(inter.author):
+                return await inter.send("Unauthorized access, you are not an admin!")
+
+            if role:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.GIVEAWAY_ROLE, role.id)
+                await inter.edit_original_response(f'The giveaway notification role was set to {role.mention}')
+            else:
+                await helpers.set_guild_option(inter.guild.id, GuildOption.GIVEAWAY_ROLE, None)
+                await inter.edit_original_response(f'The giveaway notification role was removed')
+
 
         @self.bot.slash_command(dm_permission=False)
         async def admin(inter: disnake.AppCmdInter):
