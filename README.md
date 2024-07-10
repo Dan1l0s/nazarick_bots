@@ -88,7 +88,7 @@ In addition, admin bot has access to OpenAI API which allows users to interact C
 Also, admin bot has leveling system which allows users to create their own ranks (roles) for each discord server and get voice and text xp during chatting, each rank requires an exact number of experience, the ranks are assigned automatically when user has enough experience:
 
 <p align="center">
-  <img src="https://i.imgur.com/Dxeq8IU.png" alt="Leveling system ranks list example"/>
+  <img src="https://i.imgur.com/p5Wo1gd.png" alt="Leveling system ranks list example"/>
 </p>
 
 Admin bot currently supports the following commands:
