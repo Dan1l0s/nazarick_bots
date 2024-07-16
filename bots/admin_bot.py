@@ -97,6 +97,19 @@ class AdminBot():
                 return
             
             guild = self.bot.get_guild(payload.guild_id)
+
+            channel = guild.get_channel_or_thread(payload.channel_id)
+            if not channel:
+                return
+            
+            message = await channel.fetch_message(payload.message_id)
+            if not message:
+                return
+            
+            if len(message.reactions) > 1:
+                await helpers.try_function(message.remove_reaction, True, payload.emoji, payload.member)
+                return
+
             role = guild.get_role(await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE))
             if not role:
                 await helpers.remove_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE)
@@ -115,11 +128,25 @@ class AdminBot():
                 return
             
             guild = self.bot.get_guild(payload.guild_id)
+
+            channel = guild.get_channel_or_thread(payload.channel_id)
+            if not channel:
+                return
+            
+            message = await channel.fetch_message(payload.message_id)
+            if not message:
+                return
+
+            if len(message.reactions) > 0:
+                user = self.bot.get_user(payload.user_id)
+                if user in await message.reactions[0].users().flatten():
+                    return
+
             role = guild.get_role(await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE))
             if not role:
                 await helpers.remove_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE)
                 return
-            
+
             member = guild.get_member(payload.user_id)
             if not member:
                 return
