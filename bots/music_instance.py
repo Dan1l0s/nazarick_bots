@@ -199,10 +199,18 @@ class MusicBotInstance:
     async def on_voice_event(self, member, before, after):
         guild_id = member.guild.id
         state = self.states[guild_id]
-        if not state.voice or before.channel == after.channel:
+        if not state.voice:
             return
         if before.channel != state.voice.channel and after.channel != state.voice.channel:
             return
+
+        if before.channel == after.channel:
+            if helpers.get_members_except_deaf_count(state.voice.channel.members) < 1:
+                if state.voice.is_playing():
+                    state.voice.pause()
+            elif not state.paused and not state.voice.is_playing():
+                state.voice.resume()
+
         if member.id == self.bot.application_id and not after.channel:
             await asyncio.sleep(1)
             channel = member.guild.get_channel(before.channel.id)
@@ -211,10 +219,11 @@ class MusicBotInstance:
                     return
             await database_logger.finished(before.channel)
             return await self.abort_play(guild_id)
+
         if helpers.get_true_members_count(state.voice.channel.members) < 1:
             if state.cancel_timeout == None:
                 await self.timeout(guild_id)
-        else:
+        else: 
             await self.cancel_timeout(guild_id)
 
     async def abort_play(self, guild_id, message="Finished playing music!"):

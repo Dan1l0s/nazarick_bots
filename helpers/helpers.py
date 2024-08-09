@@ -189,6 +189,12 @@ def get_true_members_count(members) -> int:
             cnt -= 1
     return cnt
 
+def get_members_except_deaf_count(members) -> int:
+    cnt = len(members)
+    for member in members:
+        if member.bot or member.voice.self_deaf or member.voice.deaf:
+            cnt -= 1
+    return cnt
 
 def split_into_chunks(msg: list[str], chunk_size: int = 1990) -> list[str]:
     source = msg.split("\n")
