@@ -257,6 +257,8 @@ class MusicBotInstance:
         if "?list=" in url or "&list=" in url:
             future = (None, asyncio.Future())["playlist" in url]
             orig_song = await self.add_from_url_to_queue(inter, song, url[:url.find("list=") - 1], playnow=playnow, playlist_future=future)
+            if url.endswith("?list=LL") or "?list=LL&index=" in url:
+                return
             if not orig_song:
                 await self.add_from_playlist(inter, url, None, playnow=playnow, playlist_future=future)
             else:
@@ -442,7 +444,7 @@ class MusicBotInstance:
     async def play(self, inter, query, playnow=False, radio=False):
         state = self.states[inter.guild.id]
         state.last_inter = inter
-
+        query = query.strip()
         if not state.voice:
             ff, state.voice = await helpers.try_function(inter.voice_channel.connect, True, timeout=10)
             if not ff or not state.voice:
