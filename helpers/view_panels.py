@@ -1,5 +1,6 @@
 import disnake
 import asyncio
+import random
 from disnake import TextInputStyle
 
 import configs.private_config as private_config
@@ -150,6 +151,18 @@ class QueueList(disnake.ui.View):
         if not self.bot.states[inter.guild.id].current_song:
             await inter.response.defer()
             return
+        await self.button_callback(0, inter)
+
+    @disnake.ui.button(label="Shuffle", style=disnake.ButtonStyle.secondary, custom_id="shuffle", disabled=False)
+    async def shuffle_queue(self, button: disnake.ui.Button, inter: disnake.AppCmdInter):
+        if not self.bot.states[inter.guild.id].voice:
+            await inter.response.defer()
+            await helpers.try_function(self.message.delete, True)
+            return
+        if not self.bot.states[inter.guild.id].current_song:
+            await inter.response.defer()
+            return
+        random.shuffle(self.queue)
         await self.button_callback(0, inter)
 
     async def send(self, embed=None):
