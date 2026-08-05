@@ -23,9 +23,15 @@ import sys
 from datetime import datetime, timezone
 from enum import Enum
 
+os.chdir(os.path.dirname(__file__))
+sys.path.append("..")
+
+# Imported before the config block on purpose: it has no config dependency, and
+# putting it inside the try below would leave it undefined whenever
+# private_config is missing.
+from hosting import status as status_module  # noqa: E402
+
 try:
-    os.chdir(os.path.dirname(__file__))
-    sys.path.append("..")
     from configs.private_config import hosting_port, backup_login, backup_password, backup_url, server_manager_password
     from configs.public_config import auto_backup_files, manual_backup_files
 except Exception:
@@ -33,6 +39,17 @@ except Exception:
     # the port can still be supplied via argv, and backup/auth commands will
     # fail at call time instead of at import time.
     pass
+
+# This process runs with hosting/ as its working directory; the bot process
+# runs from the repo root, so the shared status file needs the ".." prefix here.
+STATUS_PATH = os.path.join("..", status_module.STATUS_PATH)
+
+# How often the deferred-action watcher re-checks whether the bots are idle.
+DEFERRED_POLL_INTERVAL = 20
+
+# A deferred action gives up waiting and executes anyway after this long, so a
+# bot stuck reporting "playing" can never block a deploy indefinitely.
+DEFERRED_FORCE_AFTER = 6 * 3600
 
 # Substrings identifying routine ffmpeg/network chatter that should not be
 # treated as an error. Kept in sync with bots/admin_bot.py's copy - see the
@@ -130,6 +147,26 @@ def force_exit():
     exit()
 
 
+class PendingAction:
+    """An action waiting for the bots to stop playing before it runs."""
+
+    def __init__(self, kind: str, branch: str = None):
+        self.kind = kind              # "update" | "reboot" | "upgrade"
+        self.branch = branch
+        self.requested_at = datetime.now(timezone.utc)
+        self.last_reason = "not checked yet"
+
+    def deadline_passed(self) -> bool:
+        elapsed = (datetime.now(timezone.utc) - self.requested_at).total_seconds()
+        return elapsed >= DEFERRED_FORCE_AFTER
+
+    def describe(self) -> str:
+        target = f" {self.branch}" if self.branch else ""
+        waited = int((datetime.now(timezone.utc) - self.requested_at).total_seconds())
+        return (f"{self.kind}{target} (queued {waited}s ago; "
+                f"waiting because: {self.last_reason})")
+
+
 class Host:
 
     def __init__(self, port):
@@ -139,6 +176,7 @@ class Host:
         self.last_start = None
         self.process = None
         self.port = port
+        self.pending = None
         self.listener_socket = socket.socket(family=socket.AF_INET)
         self.listener_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -171,12 +209,23 @@ class Host:
 
     async def process_command(self, command):
         args = command.split()
-        print(f"Processing command {args}")
+        # Never print the command verbatim - args[0] is the password.
+        print(f"Processing command {args[1:] if len(args) > 1 else '(empty)'}")
         if len(args) < 2:
             return None
         if args[0] != server_manager_password:
             return "Unauthorized access"
         args[1] = args[1].lower()
+
+        # A trailing `when-idle` on update/reboot/upgrade queues the action
+        # instead of running it immediately; the watcher fires it once no bot is
+        # playing. Anything else keeps the original immediate behavior.
+        deferred = False
+        rest = args[2:]
+        if rest and rest[-1].lower() in ("when-idle", "when_idle", "whenidle"):
+            deferred = True
+            rest = rest[:-1]
+
         match args[1]:
             case "run" | "start":
                 return await self.run()
@@ -185,18 +234,145 @@ class Host:
             case "status":
                 return await self.status()
             case "reboot" | "reload" | "restart":
+                if deferred:
+                    return self.queue_action("reboot")
                 return await self.reboot()
             case "backup":
                 return await self.backup()
             case "update":
-                branch = self.get_current_branch()
-                if len(args) > 2:
-                    branch = args[2]
+                branch = rest[0] if rest else self.get_current_branch()
+                if deferred:
+                    return self.queue_action("update", branch)
                 return await self.update(branch)
+            case "upgrade":
+                return await self.upgrade_ytdlp(deferred=deferred)
+            case "cancel":
+                return self.cancel_pending()
             case "clear":
                 return await self.clear_errors()
             case _:
                 return None
+
+# *_______DeferredActions____________________________________________________________________________________
+
+    def queue_action(self, kind: str, branch: str = None) -> str:
+        """Queues an action to run once the bots stop playing.
+
+        A newly queued action replaces any existing one - the most recent
+        request wins, which is what you want when several deploys land in a row.
+        """
+        replaced = self.pending
+        self.pending = PendingAction(kind, branch)
+        idle, reason = status_module.is_idle(STATUS_PATH)
+        self.pending.last_reason = reason
+        message = f"Queued: {self.pending.describe()}"
+        if replaced:
+            message = f"Replaced pending {replaced.kind}.\n{message}"
+        if idle:
+            message += "\nBots are idle now - it will run within " \
+                       f"{DEFERRED_POLL_INTERVAL}s."
+        else:
+            message += f"\nWill force-run after {DEFERRED_FORCE_AFTER // 3600}h regardless."
+        return message
+
+    def cancel_pending(self) -> str:
+        if not self.pending:
+            return "Nothing is queued"
+        cancelled = self.pending.describe()
+        self.pending = None
+        return f"Cancelled: {cancelled}"
+
+    async def deferred_watcher(self) -> None:
+        """Polls the bot's status file and runs the queued action once it is
+        safe (or once the force deadline passes)."""
+        while self.state != BotState.SHUTDOWN:
+            await asyncio.sleep(DEFERRED_POLL_INTERVAL)
+            if not self.pending:
+                continue
+
+            idle, reason = status_module.is_idle(STATUS_PATH)
+            self.pending.last_reason = reason
+            forced = self.pending.deadline_passed()
+            if not idle and not forced:
+                continue
+
+            action = self.pending
+            self.pending = None
+            trigger = "force deadline reached" if forced and not idle else reason
+            print(f"Running deferred {action.kind} ({trigger})")
+            try:
+                if action.kind == "update":
+                    print(await self.update(action.branch))
+                elif action.kind == "reboot":
+                    print(await self.reboot())
+                elif action.kind == "upgrade":
+                    print(await self.run_ytdlp_upgrade())
+            except Exception as ex:
+                print(f"Deferred {action.kind} failed: {ex}")
+
+# *_______Dependencies_______________________________________________________________________________________
+
+    def get_ytdlp_version(self) -> str:
+        """Version of yt-dlp as the *bot* process would import it, or None."""
+        try:
+            result = subprocess.run(
+                ["python", "-c", "import yt_dlp; print(yt_dlp.version.__version__)"],
+                capture_output=True, text=True, timeout=60)
+            return result.stdout.strip() or None
+        except Exception:
+            return None
+
+    async def run_ytdlp_upgrade(self) -> str:
+        """Upgrades yt-dlp and restarts only if the version actually changed.
+
+        Restarting on every check would be pointless churn; yt-dlp publishes
+        frequently but most days there is nothing new.
+        """
+        before = self.get_ytdlp_version()
+        try:
+            result = subprocess.run(
+                ["python", "-m", "pip", "install", "--upgrade", "yt-dlp"],
+                capture_output=True, text=True, timeout=600)
+        except Exception as ex:
+            return f"yt-dlp upgrade failed to run: {ex}"
+
+        if result.returncode != 0:
+            tail = (result.stderr or result.stdout or "").strip().splitlines()[-5:]
+            return "yt-dlp upgrade failed:\n" + "\n".join(tail)
+
+        after = self.get_ytdlp_version()
+        if before == after:
+            return f"yt-dlp already current ({after}); no restart needed"
+
+        message = f"yt-dlp upgraded {before} -> {after}"
+        if self.state == BotState.RUNNING:
+            message += "\n" + await self.reboot()
+        else:
+            message += "\nBot is not running; nothing to restart"
+        return message
+
+    async def upgrade_ytdlp(self, deferred: bool = False) -> str:
+        """`upgrade` entry point. Deferred mode still installs immediately - only
+        the restart waits, so a fix is on disk the moment playback ends."""
+        if not deferred:
+            return await self.run_ytdlp_upgrade()
+
+        before = self.get_ytdlp_version()
+        try:
+            result = subprocess.run(
+                ["python", "-m", "pip", "install", "--upgrade", "yt-dlp"],
+                capture_output=True, text=True, timeout=600)
+        except Exception as ex:
+            return f"yt-dlp upgrade failed to run: {ex}"
+        if result.returncode != 0:
+            tail = (result.stderr or result.stdout or "").strip().splitlines()[-5:]
+            return "yt-dlp upgrade failed:\n" + "\n".join(tail)
+
+        after = self.get_ytdlp_version()
+        if before == after:
+            return f"yt-dlp already current ({after}); nothing queued"
+        return (f"yt-dlp upgraded {before} -> {after}\n"
+                + self.queue_action("reboot"))
 
     async def handle_client(self, client, addr):
         try:
@@ -251,6 +427,8 @@ class Host:
         if run:
             await self.run()
 
+        asyncio.create_task(self.deferred_watcher())
+
         while self.state != BotState.SHUTDOWN:
             client, addr = await asyncio.get_running_loop().sock_accept(self.listener_socket)
             asyncio.create_task(self.handle_client(client, addr))
@@ -285,6 +463,10 @@ class Host:
         self.errors = None
         self.state = BotState.STOPPED
         self.process = None
+        # The stopped process can no longer refresh run/status.json; removing it
+        # stops a leftover "playing" snapshot from blocking the next deferred
+        # action until it goes stale.
+        status_module.clear_status(STATUS_PATH)
         return ans
 
     async def clear_errors(self):
@@ -304,6 +486,16 @@ class Host:
         else:
             time_passed = "\nLast launch: " + time_passed
         ans = f"Current state: {self.state.name}\nCurrent branch: {active_branch}\nCurrent commit: {current_commit}{time_passed}"
+
+        ytdlp_version = self.get_ytdlp_version()
+        if ytdlp_version:
+            ans += f"\nyt-dlp: {ytdlp_version}"
+
+        idle, reason = status_module.is_idle(STATUS_PATH)
+        ans += f"\nPlayback: {reason}"
+        if self.pending:
+            ans += f"\nQueued action: {self.pending.describe()}"
+
         if self.state == BotState.RUNNING:
             if len(self.errors) == 0:
                 ans += "\nError status: No errors"

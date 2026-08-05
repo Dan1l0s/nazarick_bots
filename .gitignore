@@ -9,3 +9,5 @@ bots/clear_bot_commands.py
 htmlcov/
 .coverage
 .coverage.*
+run/
+COMMIT_MSG.txt

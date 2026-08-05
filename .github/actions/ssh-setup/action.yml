@@ -1,0 +1,91 @@
+name: "SSH setup"
+description: "Writes the deploy key and known_hosts, then validates the key parses."
+
+# Shared by deploy.yml and ytdlp-update.yml. Both used to carry an identical
+# copy of this block; keeping it in one place stops the two drifting apart.
+
+inputs:
+  ssh-key:
+    description: "Private deploy key (secrets.DEPLOY_SSH_KEY)"
+    required: true
+  known-hosts:
+    description: "Pinned host key line(s) (secrets.DEPLOY_KNOWN_HOSTS)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write key and known_hosts
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.ssh-key }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        set -euo pipefail
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        # `tr -d '\r'` is essential, not cosmetic.
+        #
+        # An HTML textarea normalizes newlines to CRLF when submitted, so a
+        # private key pasted into the GitHub secrets UI usually arrives with
+        # CRLF line endings. OpenSSH then refuses it with the singularly
+        # unhelpful:
+        #
+        #     Load key "/home/runner/.ssh/deploy_key": error in libcrypto
+        #
+        # The same error appears if the key lacks a trailing newline, which
+        # `printf '%s\n'` guarantees. Both were reproduced directly:
+        # a CRLF key and a newline-less key each fail, and stripping CR fixes it.
+        printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+
+        printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts
+
+    - name: Validate the key before connecting
+      shell: bash
+      run: |
+        set -uo pipefail
+        # Deriving the public key from the private one proves it parses. Doing
+        # this before ssh runs turns "error in libcrypto / Permission denied"
+        # into an actionable message.
+        if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
+          echo "::error title=DEPLOY_SSH_KEY is malformed::The secret is not a valid private key."
+          echo ""
+          echo "The key was written but OpenSSH cannot parse it. Almost always one of:"
+          echo ""
+          echo "  1. Partial paste - the secret must include BOTH the"
+          echo "     '-----BEGIN OPENSSH PRIVATE KEY-----' and '-----END ...-----' lines."
+          echo "  2. Line breaks lost - it must be multi-line, not one long line."
+          echo "  3. Wrong key - DEPLOY_SSH_KEY needs the PRIVATE half"
+          echo "     (the file with NO .pub extension)."
+          echo ""
+          echo "Re-copy it on Windows with:"
+          echo "    Get-Content \$env:USERPROFILE\\.ssh\\nazarick_ci -Raw | Set-Clipboard"
+          echo ""
+          echo "Diagnostics (no key material is printed):"
+          echo "  bytes written : $(wc -c < ~/.ssh/deploy_key)"
+          echo "  line count    : $(wc -l < ~/.ssh/deploy_key)"
+          echo "  first line    : $(head -1 ~/.ssh/deploy_key | cut -c1-40)"
+          echo "  last line     : $(tail -1 ~/.ssh/deploy_key | cut -c1-40)"
+          echo "  contains CR   : $(grep -qc $'\r' ~/.ssh/deploy_key && echo yes || echo no)"
+          exit 1
+        fi
+        echo "Deploy key parsed successfully; fingerprint:"
+        ssh-keygen -lf ~/.ssh/deploy_key
+
+        # Count non-blank lines rather than testing with `-s`: an unset secret
+        # still produces a one-byte file (just the newline that printf adds),
+        # which `-s` would happily accept as non-empty.
+        host_entries="$(grep -cv '^[[:space:]]*$' ~/.ssh/known_hosts || true)"
+        if [ "${host_entries:-0}" -lt 1 ]; then
+          echo "::error title=DEPLOY_KNOWN_HOSTS is empty::Set it to the output of 'ssh-keyscan <vps-ip>'."
+          echo ""
+          echo "Without it ssh cannot verify the VPS and will refuse to connect"
+          echo "in BatchMode. Run this on your PC and paste the whole output:"
+          echo "    ssh-keyscan <vps-ip>"
+          echo "Or copy the ready-made line from section 6 of hosting/setup_cicd.sh."
+          exit 1
+        fi
+        echo "known_hosts entries: ${host_entries}"

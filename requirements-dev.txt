@@ -1,5 +1,17 @@
 # Development / test dependencies. Installs the runtime set too.
+#
+# Keep this in sync with pyproject.toml: the `addopts` there passes --cov
+# flags unconditionally, so pytest-cov is REQUIRED, not optional. Omitting it
+# makes pytest abort with "unrecognized arguments: --cov=..." rather than
+# quietly skipping coverage.
 -r requirements.txt
 
 pytest>=8.0
+
+# Required by the --cov flags in pyproject.toml [tool.pytest.ini_options].
+pytest-cov>=5.0
+
+# Not currently used - every async test drives its own loop with asyncio.run()
+# rather than @pytest.mark.asyncio. Kept because it is harmless and makes the
+# marker available if a future test wants it.
 pytest-asyncio>=0.24

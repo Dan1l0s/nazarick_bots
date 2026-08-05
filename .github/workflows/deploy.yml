@@ -1,0 +1,71 @@
+name: deploy
+
+# Runs ONLY after the `tests` workflow finishes successfully on master, so a
+# red build never reaches the VPS.
+#
+# SECURITY - why this is safe in a public repository:
+#   * `workflow_run` only fires for workflow runs in THIS repository. A pull
+#     request from a fork cannot trigger it.
+#   * Repository secrets are not exposed to fork pull requests at all, so
+#     nobody can open a PR that prints the host or the key.
+#   * The `production` environment below lets you add a required reviewer in
+#     Settings -> Environments if you ever want a manual gate.
+#   * The deploy key is restricted by a forced command on the VPS
+#     (hosting/deploy.sh), so it cannot open a shell.
+#   * Nothing here echoes a secret. GitHub also masks them in logs, but the
+#     workflow does not rely on that.
+on:
+  workflow_run:
+    workflows: ["tests"]
+    types: [completed]
+    branches: [master]
+  # Manual trigger for re-deploying without a new commit.
+  workflow_dispatch:
+
+# Never let two deploys race; a newer one supersedes a queued older one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # workflow_dispatch has no workflow_run context, hence the second clause.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      # actions/checkout is needed only so the composite action below is
+      # available; no repository code is executed on the runner.
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Trigger deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_USER:-}" ]; then
+            echo "::error title=Missing secrets::DEPLOY_HOST and DEPLOY_USER must both be set."
+            exit 1
+          fi
+          # The remote command is ignored by the forced command on the VPS;
+          # `deploy` arrives as $SSH_ORIGINAL_COMMAND for deploy.sh to allowlist.
+          ssh -i ~/.ssh/deploy_key \
+              -p "${DEPLOY_PORT:-22}" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=20 \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" deploy
+
+      - name: Clean up key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

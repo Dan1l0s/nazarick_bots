@@ -1,0 +1,35 @@
+# Line-ending policy.
+#
+# The repo is edited on Windows and runs on Linux. Without this file, git's
+# autocrlf can hand the VPS a shell script with CRLF line endings, and the
+# kernel then fails to find the interpreter:
+#
+#     /usr/bin/env: 'bash\r': No such file or directory
+#
+# That error names the interpreter, not the file, so it is genuinely confusing
+# to debug. Forcing LF on everything that runs server-side prevents it.
+
+# Normalize line endings in the repository for anything git detects as text.
+* text=auto
+
+# Must be LF in the working tree, not just in the repo - these execute on Linux.
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Windows-only helpers keep CRLF so Notepad and cmd behave.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Never touch these.
+*.db binary
+*.png binary
+*.jpg binary
+*.7z binary
+*.zip binary

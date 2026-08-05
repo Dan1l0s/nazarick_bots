@@ -10,8 +10,11 @@ Wiring performed here (this is the object graph the whole project depends on):
     blocking work (yt-dlp extraction, youtube search, radio widget fetch)
 
 All bots share one process and one event loop by design - the cross-bot
-references above are direct Python object references, not IPC. See CHANGES.md
-for what that means for multiprocessing.
+references above are direct Python object references, not IPC.
+
+A background task also publishes playback status to run/status.json, which is
+how hosting/server_manager.py decides whether a deferred restart may proceed
+(see hosting/status.py).
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from bots.admin_bot import AdminBot
 from bots.log_bot import LogBot
 from bots.music_instance import MusicBotInstance
 from bots.music_leader import MusicBotLeader
+from hosting import status
 
 # Worker count for the shared blocking-work pool. None keeps Python's default
 # (min(32, cpu_count + 4)), which is what the original used. Raise it if
@@ -161,7 +165,23 @@ async def main():
         tasks.append(admin.run())
     for logger in loggers:
         tasks.append(logger.run())
-    await asyncio.gather(*tasks)
+
+    # Publishes run/status.json so the supervisor can tell whether a deferred
+    # restart is safe. Written even with no music bots configured, so the
+    # supervisor can still distinguish "running and idle" from "not running".
+    #
+    # Deliberately a side task rather than a member of `tasks`: it loops
+    # forever, so gathering it would stop main() from ever returning once the
+    # bots themselves exit.
+    status_task = asyncio.create_task(status.status_writer(instances))
+
+    try:
+        await asyncio.gather(*tasks)
+    finally:
+        status_task.cancel()
+        # Leaving a "playing" snapshot behind would make the supervisor defer
+        # the next restart until the file went stale.
+        status.clear_status()
 
 
 if __name__ == '__main__':

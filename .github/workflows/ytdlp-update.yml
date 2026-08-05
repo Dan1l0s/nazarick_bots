@@ -1,0 +1,58 @@
+name: yt-dlp update
+
+# Keeps yt-dlp current on the VPS. YouTube changes its player regularly and
+# playback breaks until yt-dlp ships a fix, so this is the single most
+# effective piece of maintenance automation for this project.
+#
+# The VPS decides whether anything actually happens: `upgrade when-idle`
+# installs the new version immediately, compares it to the old one, and only
+# queues a restart if it genuinely changed - and that restart waits until no
+# bot is playing music. Most runs will report "already current".
+#
+# Same security properties as deploy.yml: scheduled and manual triggers only,
+# never reachable from a fork pull request.
+on:
+  schedule:
+    # 05:17 UTC daily. Off the hour on purpose - GitHub's scheduler is busiest
+    # exactly on the hour and delays those runs.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ytdlp-update
+  cancel-in-progress: false
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          known-hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Upgrade yt-dlp on the VPS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_USER:-}" ]; then
+            echo "::error title=Missing secrets::DEPLOY_HOST and DEPLOY_USER must both be set."
+            exit 1
+          fi
+          ssh -i ~/.ssh/deploy_key \
+              -p "${DEPLOY_PORT:-22}" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=20 \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" upgrade-ytdlp
+
+      - name: Clean up key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

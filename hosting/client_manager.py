@@ -31,7 +31,13 @@ HELP_TEXT = """List of possible commands:
     reboot - restart the bot
     backup - create a manual backup
     update {branch} - checkout to selected branch, master by default
+    upgrade - update yt-dlp, restart only if the version changed
+    cancel - cancel a queued (when-idle) action
     clear - clears current list of errors
+
+Append `when-idle` to reboot / update / upgrade to queue the action until no
+bot is playing music, e.g.:
+    update master when-idle
 """
 
 
@@ -102,6 +108,54 @@ def main():
         print(f'{response}\n')
 
 
+def send_command(command: str, host: str = "127.0.0.1", port: int = None,
+                 timeout: int = 30) -> str:
+    """Sends one password-prefixed command and returns the reply.
+
+    Non-interactive counterpart to main(), used by hosting/deploy.sh (and
+    therefore by CI). Defaults to 127.0.0.1 so the deploy path never sends the
+    manager password over the network - the SSH tunnel is the only thing that
+    crosses the internet.
+
+    Raises RuntimeError on connection failure so callers get a non-zero exit.
+    """
+    if port is None:
+        port = hosting_port
+
+    sock = socket.socket(socket.AF_INET)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((socket.gethostbyname(host), int(port)))
+        sock.sendall(f"{server_manager_password} {command}".encode("utf8"))
+        return receive_all(sock)
+    except OSError as exc:
+        raise RuntimeError(f"could not reach the manager at {host}:{port}: {exc}") from exc
+    finally:
+        sock.close()
+
+
+def cli() -> int:
+    """`python hosting/client_manager.py --command "update master when-idle"`"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Send one command to the bot supervisor.")
+    parser.add_argument("--command", required=True,
+                        help='e.g. "status", "update master when-idle", "upgrade when-idle"')
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="default 127.0.0.1 - keeps the password off the network")
+    parser.add_argument("--port", type=int, default=None,
+                        help="defaults to hosting_port from private_config")
+    parser.add_argument("--timeout", type=int, default=30)
+    args = parser.parse_args()
+
+    try:
+        print(send_command(args.command, args.host, args.port, args.timeout))
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def send():
     """One-shot mode: python client_manager.py ADDRESS PORT COMMAND [args...]
 
@@ -132,4 +186,7 @@ def send():
 
 
 if __name__ == "__main__":
+    # --command runs the scriptable one-shot path; no arguments starts the REPL.
+    if "--command" in sys.argv:
+        sys.exit(cli())
     main()
