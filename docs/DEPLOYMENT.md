@@ -174,13 +174,47 @@ cd /nazarick_bots/hosting
 python3 server_manager.py <your-port> -r & disown
 ```
 
-Re-run the setup script to confirm — section 8 does a live end-to-end check:
+Re-run the setup script to confirm — its final section does a live end-to-end check:
 
 ```bash
 bash hosting/setup_cicd.sh
 ```
 
 You want to see `supervisor is running the NEW code`.
+
+## Step 3b — Autostart on boot
+
+Without this the bots stay down after a reboot. On the VPS:
+
+```bash
+bash hosting/setup_cicd.sh --install-service
+sudo systemctl start nazarick
+```
+
+It installs a systemd unit with your real user, paths and port substituted in,
+and enables it at boot. From then on:
+
+```bash
+sudo systemctl status nazarick     # is it up?
+sudo systemctl restart nazarick    # restart supervisor + bots
+sudo journalctl -u nazarick -f     # why did a start fail?
+```
+
+The unit supervises `server_manager.py`, not `main.py` — the manager owns
+starting and stopping the bots, so pointing systemd at `main.py` too would give
+you two competing supervisors. `KillMode=control-group` means a stop takes the
+bots down with it rather than orphaning them holding voice connections and
+sqlite files open.
+
+If a manually-started supervisor is already running it holds the port, and the
+service will crash-loop. Hand over cleanly:
+
+```bash
+pkill -f server_manager.py && sudo systemctl start nazarick
+```
+
+Re-running `setup_cicd.sh` with no arguments reports whether autostart is
+configured, enabled and active.
 
 ## Step 4 — On your PC: verify the key, then give it to GitHub
 

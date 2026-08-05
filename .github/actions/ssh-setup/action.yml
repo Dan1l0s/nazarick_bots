@@ -51,25 +51,49 @@ runs:
         # this before ssh runs turns "error in libcrypto / Permission denied"
         # into an actionable message.
         if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
-          echo "::error title=DEPLOY_SSH_KEY is malformed::The secret is not a valid private key."
+          # Classify the failure rather than reporting a generic "malformed".
+          # Only structural facts are examined - no key material is printed.
+          lines=$(wc -l < ~/.ssh/deploy_key)
+          bytes=$(wc -c < ~/.ssh/deploy_key)
+          first=$(head -1 ~/.ssh/deploy_key)
+          last=$(grep -v '^[[:space:]]*$' ~/.ssh/deploy_key | tail -1)
+
+          if [ "$bytes" -le 1 ]; then
+            diagnosis="The secret is EMPTY or unset."
+            remedy="Add DEPLOY_SSH_KEY under Settings -> Secrets and variables -> Actions."
+          elif printf '%s' "$first" | grep -qE '^(ssh-ed25519|ssh-rsa|ecdsa-)'; then
+            diagnosis="That is the PUBLIC key, not the private one."
+            remedy="DEPLOY_SSH_KEY needs the file with NO .pub extension. The .pub half belongs on the VPS instead."
+          elif ! printf '%s' "$first" | grep -q 'BEGIN.*PRIVATE KEY'; then
+            diagnosis="The first line is not a PEM header, so the paste is truncated or shifted."
+            remedy="The secret must start with the -----BEGIN OPENSSH PRIVATE KEY----- line."
+          elif ! printf '%s' "$last" | grep -q 'END.*PRIVATE KEY'; then
+            diagnosis="The -----END OPENSSH PRIVATE KEY----- line is missing, so the paste was cut short."
+            remedy="Re-copy the whole file; the END line is required."
+          elif [ "$lines" -le 2 ]; then
+            diagnosis="The key is on a single line - the newlines were lost in the paste."
+            remedy="It must stay multi-line. Copy with -Raw (see below) rather than retyping."
+          else
+            diagnosis="Header and footer look right, so the base64 body is corrupt or incomplete."
+            remedy="Re-copy the file verbatim; do not edit, re-wrap, or retype any of it."
+          fi
+
+          echo "::error title=DEPLOY_SSH_KEY is malformed::${diagnosis}"
           echo ""
-          echo "The key was written but OpenSSH cannot parse it. Almost always one of:"
+          echo "Diagnosis: ${diagnosis}"
+          echo "Fix:       ${remedy}"
           echo ""
-          echo "  1. Partial paste - the secret must include BOTH the"
-          echo "     '-----BEGIN OPENSSH PRIVATE KEY-----' and '-----END ...-----' lines."
-          echo "  2. Line breaks lost - it must be multi-line, not one long line."
-          echo "  3. Wrong key - DEPLOY_SSH_KEY needs the PRIVATE half"
-          echo "     (the file with NO .pub extension)."
+          echo "Structure seen (no key material shown):"
+          echo "  bytes            : ${bytes}"
+          echo "  lines            : ${lines}      (a valid ed25519 key is 7)"
+          echo "  starts with BEGIN: $(printf '%s' "$first" | grep -q 'BEGIN.*PRIVATE KEY' && echo yes || echo NO)"
+          echo "  ends with END    : $(printf '%s' "$last" | grep -q 'END.*PRIVATE KEY' && echo yes || echo NO)"
           echo ""
-          echo "Re-copy it on Windows with:"
+          echo "To re-copy on Windows (PowerShell) - -Raw preserves the line breaks:"
           echo "    Get-Content \$env:USERPROFILE\\.ssh\\nazarick_ci -Raw | Set-Clipboard"
           echo ""
-          echo "Diagnostics (no key material is printed):"
-          echo "  bytes written : $(wc -c < ~/.ssh/deploy_key)"
-          echo "  line count    : $(wc -l < ~/.ssh/deploy_key)"
-          echo "  first line    : $(head -1 ~/.ssh/deploy_key | cut -c1-40)"
-          echo "  last line     : $(tail -1 ~/.ssh/deploy_key | cut -c1-40)"
-          echo "  contains CR   : $(grep -qc $'\r' ~/.ssh/deploy_key && echo yes || echo no)"
+          echo "Then verify locally BEFORE pasting, so you know the file itself is sound:"
+          echo "    ssh-keygen -y -f \$env:USERPROFILE\\.ssh\\nazarick_ci"
           exit 1
         fi
         echo "Deploy key parsed successfully; fingerprint:"

@@ -1,0 +1,63 @@
+# systemd unit for the bot supervisor - starts the bots on boot and restarts
+# them if the supervisor itself ever dies.
+#
+# Install with:   bash hosting/setup_cicd.sh --install-service
+# or by hand:
+#   sudo cp hosting/nazarick.service /etc/systemd/system/
+#   sudo nano /etc/systemd/system/nazarick.service   # fix User/paths
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nazarick
+#
+# The unit supervises hosting/server_manager.py, NOT main.py directly. The
+# manager owns starting and stopping the bots, so systemd starting main.py too
+# would give you two competing supervisors. `-r` tells the manager to launch the
+# bots as soon as it comes up.
+
+[Unit]
+Description=Nazarick Discord bots supervisor
+Documentation=https://github.com/Dan1l0s/nazarick_bots
+# Wants network rather than Requires: the bots retry their Discord connection
+# on their own, so a slow network at boot should not fail the unit.
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+
+# --- edit these three for your machine -------------------------------------
+User=root
+WorkingDirectory=/nazarick_bots/hosting
+ExecStart=/usr/bin/python3 /nazarick_bots/hosting/server_manager.py 10000 -r
+# ---------------------------------------------------------------------------
+
+# The supervisor spawns main.py as a child. KillMode=control-group (the default)
+# ensures a stop or restart takes the bots down with it, rather than orphaning
+# them to hold the voice connections and the sqlite files open.
+KillMode=control-group
+TimeoutStopSec=30
+
+# Restart on any unclean exit, including the `update` path where the manager
+# deliberately re-execs itself.
+Restart=always
+RestartSec=10
+
+# Don't let a crash-loop hammer Discord's API: more than 5 restarts in 5
+# minutes and systemd gives up until someone intervenes.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# server_manager.py redirects its own stdout/stderr into logs/<date>.txt, so
+# journald would otherwise only capture startup failures. Keeping it connected
+# means `systemctl status` shows why a failed start failed.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nazarick
+
+# Unbuffered, so anything that does reach journald appears immediately rather
+# than sitting in a pipe buffer during a crash.
+Environment=PYTHONUNBUFFERED=1
+# Uncomment for verbose logging (also shows routine try_function failures):
+#Environment=NAZARICK_LOG_LEVEL=DEBUG
+
+[Install]
+WantedBy=multi-user.target

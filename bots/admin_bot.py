@@ -32,22 +32,18 @@ import configs.public_config as public_config
 import helpers.database_logger as database_logger
 import helpers.embedder as embedder
 import helpers.helpers as helpers
+import helpers.log_filter as log_filter
 from helpers.helpers import GuildOption, Rank
 from helpers.view_panels import MessageForm, TopXP
 
 logger = logging.getLogger("nazarick.admin")
 
-# Substrings identifying ffmpeg/network chatter that should NOT be reported to
-# the owners as errors. Extracted from the inline condition in monitor_errors()
-# so the list is editable without touching control flow - and so the bug that
-# made the original filter match every line can't silently come back. See
-# CHANGES.md "Stage 3".
-IGNORED_ERROR_FRAGMENTS = (
-    "[tls @",
-    "[https @",
-    "[hls @",
-    "retrying with new connection",
-)
+# The noise list and the report-worthiness decision live in helpers/log_filter.py
+# so this module and hosting/server_manager.py cannot drift apart. Re-exported
+# here because the existing tests and any external callers refer to
+# admin_bot.IGNORED_ERROR_FRAGMENTS / admin_bot.is_ignorable_error_line.
+IGNORED_ERROR_FRAGMENTS = log_filter.IGNORED_ERROR_FRAGMENTS
+is_ignorable_error_line = log_filter.is_ignorable_error_line
 
 # How long a user may go without activity before their rank roles are stripped
 # by scan_activity(). 60 days, matching the original's literal 5_184_000.
@@ -58,21 +54,6 @@ XP_SCAN_INTERVAL = 60
 
 # Interval between inactivity sweeps.
 ACTIVITY_SCAN_INTERVAL = 86400
-
-
-def is_ignorable_error_line(line: str) -> bool:
-    """True if `line` is routine ffmpeg/network noise rather than a real error.
-
-    BUGFIX: the original condition was
-
-        if "[tls @" in line or "[https @" in line or "[hls @" or "retrying..." in line:
-
-    Note the third clause: `"[hls @"` with no `in line`. A non-empty string
-    literal is always truthy, so the whole condition was always True, every
-    line was skipped, and the error-reporting feature never reported anything
-    at all. Restored to the evidently-intended `"[hls @" in line`.
-    """
-    return any(fragment in line for fragment in IGNORED_ERROR_FRAGMENTS)
 
 
 class AdminBot:
@@ -1078,27 +1059,37 @@ class AdminBot:
     async def monitor_errors(self) -> None:
         """Reads the bot process's own stdin (fed by hosting/server_manager.py,
         which pipes the child's stderr back in) and DMs the owners about
-        anything that isn't routine ffmpeg noise."""
+        anything that isn't routine noise.
+
+        Line assembly and the noise/dedupe decisions are delegated to
+        helpers/log_filter.ErrorReporter. That matters for two reasons:
+
+          * ffmpeg emits very long HLS URLs and uses bare carriage returns for
+            progress, so a 1024-byte read regularly cuts a message in half. The
+            original judged each fragment as if it were a whole line, and a
+            fragment can easily be missing the very substring that identifies
+            it as noise - which made the filter look leaky.
+          * repeats are collapsed, so a stuck stream produces one DM rather
+            than a flood.
+        """
         try:
             os.set_blocking(sys.stdin.fileno(), False)
         except Exception:
             # No usable stdin (e.g. launched without the server manager).
             return
 
+        reporter = log_filter.ErrorReporter()
+
         while True:
             await asyncio.sleep(0.1)
-            errors = ""
             while True:
                 data = sys.stdin.read(1024)
                 if not data:
                     break
-                lines = data.split("\n")
-                for line in lines:
-                    if is_ignorable_error_line(line):
-                        continue
-                    if len(line) > 0:
-                        errors += line + "\n"
-            if len(errors) != 0:
+                reporter.feed(data)
+
+            errors = reporter.drain()
+            if errors:
                 await self.supreme_dm(f'Greetings, Supreme Being.\nI apologize, but the pleiades have had some difficulties during the course of your assignment, viz:\n\n```{errors}```\nPlease take actions, and I apologize for the inconvenience.')
 
     async def supreme_dm(self, msg: str, author_id: int = None) -> None:

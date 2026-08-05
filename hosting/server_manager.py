@@ -30,6 +30,7 @@ sys.path.append("..")
 # putting it inside the try below would leave it undefined whenever
 # private_config is missing.
 from hosting import status as status_module  # noqa: E402
+from helpers import log_filter  # noqa: E402
 
 try:
     from configs.private_config import hosting_port, backup_login, backup_password, backup_url, server_manager_password
@@ -51,30 +52,12 @@ DEFERRED_POLL_INTERVAL = 20
 # bot stuck reporting "playing" can never block a deploy indefinitely.
 DEFERRED_FORCE_AFTER = 6 * 3600
 
-# Substrings identifying routine ffmpeg/network chatter that should not be
-# treated as an error. Kept in sync with bots/admin_bot.py's copy - see the
-# BUGFIX note in is_ignorable_error_line() below.
-IGNORED_ERROR_FRAGMENTS = (
-    "[tls @",
-    "[https @",
-    "[hls @",
-    "retrying with new connection",
-)
-
-
-def is_ignorable_error_line(line: str) -> bool:
-    """True if `line` is routine ffmpeg/network noise rather than a real error.
-
-    BUGFIX: the original condition was
-
-        if "[tls @" in line or "[https @" in line or "[hls @" or "retrying..." in line:
-
-    The third clause is a bare truthy string literal (missing `in line`), so the
-    whole condition was always True and every line was skipped - meaning
-    `self.errors` was never populated and `status` always reported "No errors".
-    Identical bug to the one in bots/admin_bot.py; see CHANGES.md "Stage 5".
-    """
-    return any(fragment in line for fragment in IGNORED_ERROR_FRAGMENTS)
+# The noise list and the report-worthiness decision live in
+# helpers/log_filter.py, shared with bots/admin_bot.py so the two readers of
+# this stream cannot drift apart. Re-exported under the original names because
+# the tests refer to server_manager.IGNORED_ERROR_FRAGMENTS.
+IGNORED_ERROR_FRAGMENTS = log_filter.IGNORED_ERROR_FRAGMENTS
+is_ignorable_error_line = log_filter.is_ignorable_error_line
 
 
 class FileWithDates:
@@ -187,7 +170,12 @@ class Host:
 
     async def pull_errors(self):
         """Tails the child's stderr, echoes it back into the child's stdin (so
-        AdminBot.monitor_errors can DM it), and accumulates it for `status`."""
+        AdminBot.monitor_errors can DM it), and accumulates it for `status`.
+
+        Uses the same ErrorReporter as the admin bot, so `status` and the owner
+        DMs agree on what counts as a problem - and so a message split across
+        two reads is assembled before being judged."""
+        reporter = log_filter.ErrorReporter()
         while self.process:
             await asyncio.sleep(0.1)
             while True:
@@ -195,17 +183,18 @@ class Host:
                 if not data:
                     break
                 try:
+                    # Echo verbatim: the bot's own monitor_errors does its own
+                    # filtering, so it must receive the unmodified stream.
                     self.process.stdin.write(data)
                     self.process.stdin.flush()
-                    lines = data.decode('utf-8', errors='replace').split('\n')
-                    for line in lines:
-                        if is_ignorable_error_line(line):
-                            continue
-                        if len(line) > 0:
-                            self.errors += "\n" + line
-                        print(f"ERROR IN BOT: {line}")
+                    reporter.feed(data.decode('utf-8', errors='replace'))
                 except Exception as e:
                     self.errors += f"\nNON UTF-8 ERROR: {e}\n"
+
+            report = reporter.drain()
+            if report:
+                self.errors += "\n" + report
+                print(f"ERROR IN BOT: {report}")
 
     async def process_command(self, command):
         args = command.split()
@@ -442,8 +431,12 @@ class Host:
             return "Bot is already running"
         self.last_start = datetime.now(timezone.utc)
         self.errors = ""
+        # sys.executable rather than a bare "python": Debian ships python3 with
+        # no `python` alias, so the literal name works only where someone has
+        # installed python-is-python3. This also guarantees the bots run under
+        # the same interpreter as the supervisor, including inside a venv.
         self.process = subprocess.Popen(
-            ["python", "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+            [sys.executable, "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
         if not self.process:
             return "Failed to create bot process"
@@ -512,8 +505,9 @@ class Host:
         return ans
 
     async def update(self, branch):
-        """Pulls the selected branch, reinstalls dependencies, then re-execs
-        this supervisor (the running copy can't update its own code in place)."""
+        """Pulls the selected branch, reinstalls dependencies, then hands over to
+        a fresh copy of this supervisor (a running process can't swap out its own
+        code in place)."""
         was_running = False
         if self.state == BotState.RUNNING:
             await self.stop()
@@ -526,14 +520,40 @@ class Host:
         os.system(f"git -C .. branch -f -D {branch}")
         os.system(f"git -C .. checkout {branch}")
         os.system(f"git -C .. stash clear")
-        os.system(f"bash setup.sh")
+
+        # BUGFIX: this ran `bash setup.sh`, but the working directory is
+        # hosting/ while setup.sh lives at the repo root - so every update
+        # printed "bash: setup.sh: No such file or directory" and silently
+        # skipped the dependency install.
+        setup_script = os.path.join("..", "setup.sh")
+        if os.path.exists(setup_script):
+            os.system(f"bash {setup_script}")
+        else:
+            print(f"Skipping dependency install: {setup_script} not found")
 
         self.state = BotState.SHUTDOWN
         self.listener_socket.close()
-        arg = ""
-        if was_running:
-            arg = "-r"
-        cmd = f"python server_manager.py {self.port} {arg} & disown"
+
+        # Under systemd there is nothing to re-exec: exiting is enough, because
+        # Restart=always brings the supervisor back running the new code. This
+        # is both simpler and more reliable than spawning our own replacement.
+        if os.environ.get("INVOCATION_ID"):
+            print("Running under systemd; exiting so the service restarts with the new code")
+            return (f"Updated to branch {branch}\n"
+                    "systemd is restarting the supervisor")
+
+        arg = "-r" if was_running else ""
+        # BUGFIX: the old command ended in `& disown`. os.system() runs through
+        # /bin/sh, which on Debian is dash, and `disown` is a bash builtin - so
+        # this failed with "sh: 1: disown: not found" and the replacement
+        # supervisor was never detached properly.
+        #
+        # `setsid` detaches from the controlling terminal and process group,
+        # which is what disown was reaching for, and works in any POSIX shell.
+        # sys.executable is used rather than a bare `python` because Debian does
+        # not ship a `python` alias - only `python3`.
+        cmd = (f"setsid nohup {sys.executable} server_manager.py "
+               f"{self.port} {arg} >/dev/null 2>&1 &")
         print(f"Executing: {cmd}\n")
         os.system(cmd)
         return f"Updated to branch {branch}"

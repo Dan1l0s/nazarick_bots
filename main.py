@@ -41,21 +41,43 @@ from hosting import status
 THREAD_POOL_MAX_WORKERS = None
 
 
+#: Third-party loggers held at WARNING. disnake logs gateway reconnects,
+#: RESUMEs and HTTP calls at INFO, all of which are normal operation - and
+#: because the supervisor pipes this process's stderr back in as the admin
+#: bot's error feed, anything reaching stderr gets reported to the owner as a
+#: problem. Letting these through produced DMs about healthy reconnects.
+NOISY_LOGGERS = ("disnake", "websockets", "asyncio", "urllib3", "yt_dlp")
+
+
 def configure_logging() -> None:
     """Routes the `nazarick.*` loggers introduced during the refactor to stderr.
 
-    The hosting layer (hosting/server_manager.py) captures the child process's
-    stderr, so anything logged here reaches the log files and the admin bot's
-    error monitor. Level is INFO by default; set NAZARICK_LOG_LEVEL=DEBUG to
-    see the routine try_function failures too.
+    Deliberately attaches the handler to the `nazarick` logger rather than the
+    root logger. Configuring root would capture every third-party library too,
+    and since hosting/server_manager.py feeds this process's stderr back to
+    `AdminBot.monitor_errors`, that turns library INFO chatter into owner DMs.
+
+    Level is INFO by default; NAZARICK_LOG_LEVEL=DEBUG also shows the routine
+    try_function failures.
     """
     level_name = os.environ.get("NAZARICK_LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(
-        level=level,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s"))
+
+    own = logging.getLogger("nazarick")
+    own.setLevel(level)
+    own.propagate = False          # don't also hand records to root
+    for existing in list(own.handlers):
+        own.removeHandler(existing)
+    own.addHandler(handler)
+
+    # Real problems from third-party libraries still surface, but their
+    # informational running commentary does not.
+    for name in NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 async def validate_bots(leaders, instances, admins, loggers):

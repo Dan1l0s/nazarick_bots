@@ -39,7 +39,7 @@ jobs:
     steps:
       # actions/checkout is needed only so the composite action below is
       # available; no repository code is executed on the runner.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure SSH
         uses: ./.github/actions/ssh-setup

@@ -9,6 +9,7 @@ missing/stale status file and a force deadline release the queued action.
 import asyncio
 import json
 import os
+import sys
 import time
 import types
 
@@ -572,3 +573,153 @@ def test_deferred_upgrade_queues_nothing_when_current(fake_pip):
     message = asyncio.run(server_manager.Host.upgrade_ytdlp(host, deferred=True))
     assert "nothing queued" in message
     assert host.pending is None
+
+
+# --------------------------------------------------------------------------- #
+# update() - four bugs that broke the first real deploy
+# --------------------------------------------------------------------------- #
+
+class UpdateHost:
+    """Captures the shell commands update() issues, without running any."""
+
+    def __init__(self, state=None, port=10000):
+        self.state = state or server_manager.BotState.STOPPED
+        self.pending = None
+        self.commands = []
+        self.listener_socket = types.SimpleNamespace(close=lambda: None)
+        self.port = port
+
+    async def stop(self):
+        self.state = server_manager.BotState.STOPPED
+        return "stopped"
+
+
+@pytest.fixture
+def captured_shell(monkeypatch):
+    """Intercepts os.system so update() can be exercised safely."""
+    calls = []
+
+    def fake_system(cmd):
+        calls.append(cmd)
+        return 0
+
+    monkeypatch.setattr(server_manager.os, "system", fake_system)
+    monkeypatch.setattr(server_manager.os.path, "exists", lambda p: True)
+    return calls
+
+
+def test_update_looks_for_setup_sh_at_the_repo_root(captured_shell, monkeypatch):
+    """Regression: it ran `bash setup.sh` from hosting/, so every update printed
+    'bash: setup.sh: No such file or directory' and skipped the dependency
+    install entirely."""
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+    host = UpdateHost()
+    asyncio.run(server_manager.Host.update(host, "master"))
+
+    setup_calls = [c for c in captured_shell if "setup.sh" in c]
+    assert setup_calls, "setup.sh was never invoked"
+    assert all(os.path.join("..", "setup.sh") in c for c in setup_calls), setup_calls
+
+
+def test_update_skips_setup_sh_when_absent(monkeypatch):
+    calls = []
+    monkeypatch.setattr(server_manager.os, "system", lambda c: calls.append(c) or 0)
+    monkeypatch.setattr(server_manager.os.path, "exists", lambda p: False)
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+
+    asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
+    assert not [c for c in calls if "setup.sh" in c]
+
+
+def test_update_does_not_use_the_dash_incompatible_disown(captured_shell, monkeypatch):
+    """Regression: the relaunch ended in `& disown`, but os.system runs through
+    /bin/sh (dash on Debian) where disown is not a builtin - 'sh: 1: disown: not
+    found'. setsid achieves the same detachment in any POSIX shell."""
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+    asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
+
+    relaunch = [c for c in captured_shell if "server_manager.py" in c]
+    assert relaunch, "supervisor was never relaunched"
+    assert not any("disown" in c for c in relaunch), relaunch
+    assert all("setsid" in c for c in relaunch), relaunch
+
+
+def test_update_relaunches_with_the_current_interpreter(captured_shell, monkeypatch):
+    """Debian has no bare `python`, only `python3`; sys.executable also keeps a
+    venv interpreter in play."""
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+    asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
+
+    relaunch = [c for c in captured_shell if "server_manager.py" in c]
+    assert all(sys.executable in c for c in relaunch), relaunch
+
+
+def test_update_passes_dash_r_only_if_the_bots_were_running(captured_shell, monkeypatch):
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+
+    running = UpdateHost(state=server_manager.BotState.RUNNING)
+    asyncio.run(server_manager.Host.update(running, "master"))
+    assert any(" -r" in c for c in captured_shell if "server_manager.py" in c)
+
+    captured_shell.clear()
+    stopped = UpdateHost(state=server_manager.BotState.STOPPED)
+    asyncio.run(server_manager.Host.update(stopped, "master"))
+    relaunch = [c for c in captured_shell if "server_manager.py" in c]
+    assert relaunch and not any(" -r" in c for c in relaunch)
+
+
+def test_update_under_systemd_exits_instead_of_respawning(captured_shell, monkeypatch):
+    """With Restart=always, exiting is enough - and spawning our own replacement
+    alongside systemd's would give two supervisors competing for the port."""
+    monkeypatch.setenv("INVOCATION_ID", "deadbeef")   # systemd sets this
+    host = UpdateHost()
+    result = asyncio.run(server_manager.Host.update(host, "master"))
+
+    assert not [c for c in captured_shell if "server_manager.py" in c]
+    assert "systemd" in result
+    assert host.state == server_manager.BotState.SHUTDOWN
+
+
+def test_update_aborts_and_restores_on_fetch_failure(monkeypatch):
+    calls = []
+
+    def fake_system(cmd):
+        calls.append(cmd)
+        return 1 if "fetch" in cmd else 0
+
+    monkeypatch.setattr(server_manager.os, "system", fake_system)
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+
+    result = asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
+    assert "Failed to fetch" in result
+    assert any("stash pop" in c for c in calls), "local changes were not restored"
+    assert not any("checkout" in c for c in calls), "checked out despite fetch failing"
+
+
+def test_update_never_runs_git_clean(captured_shell, monkeypatch):
+    """git clean -fdx would delete private_config.py and db/, both gitignored."""
+    monkeypatch.delenv("INVOCATION_ID", raising=False)
+    asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
+    assert not any("clean" in c for c in captured_shell), captured_shell
+
+
+# --------------------------------------------------------------------------- #
+# Executable bits must survive a Windows-authored commit
+# --------------------------------------------------------------------------- #
+
+def test_shell_scripts_are_executable_in_git():
+    """The first real deploy failed with exit 126 because deploy.sh was stored
+    as mode 100644: committed from Windows, which has no exec bit. SSH surfaces
+    that only as 'Permission denied', which is a confusing way to learn it."""
+    import subprocess as sp
+
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = sp.run(["git", "ls-files", "-s", "hosting/deploy.sh",
+                  "hosting/setup_cicd.sh", "setup.sh"],
+                 cwd=repo, capture_output=True, text=True)
+    if out.returncode != 0:
+        pytest.skip("not a git checkout")
+
+    for line in out.stdout.strip().splitlines():
+        mode, _, _, path = line.replace("\t", " ").split(maxsplit=3)
+        assert mode == "100755", f"{path} is mode {mode}, needs 100755 to run on the VPS"
