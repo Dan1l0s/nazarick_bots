@@ -1,0 +1,54 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# Coverage is on by default. Use `pytest --no-cov` for a fast iteration loop.
+#
+# --cov-fail-under is a RATCHET, not a target: it sits just below the current
+# measured figure (54%) so that any change which *reduces* coverage fails the
+# build, while leaving a little headroom for incidental churn. Raise it as
+# coverage improves; never lower it to make a build pass.
+#
+# Why not higher? Roughly a third of the codebase is disnake event handlers
+# (on_message, on_voice_state_update, on_audit_log_entry_create...) whose bodies
+# only run in response to live gateway events. Covering those means either a
+# mocked gateway or an integration bot against a real test guild - see
+# "Raising coverage further" in CHANGES.md.
+addopts = """
+    --cov=helpers
+    --cov=bots
+    --cov=main
+    --cov=hosting
+    --cov-report=term-missing:skip-covered
+    --cov-report=html:htmlcov
+    --cov-fail-under=52
+"""
+filterwarnings = [
+    # disnake 2.12 deprecates dm_permission= in favour of contexts=; changing it
+    # alters how commands register, so it's a deliberate follow-up, not a
+    # refactor change. Silenced here so it doesn't drown the test output.
+    "ignore:dm_permission is deprecated:DeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["helpers", "bots", "main", "hosting"]
+omit = [
+    "tests/*",
+    "tools/*",
+    "configs/private_config.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_also = [
+    # Defensive branches that only fire on a broken environment
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    # The blocking network call in helpers is exercised via its wrapper only
+    "except ImportError:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"

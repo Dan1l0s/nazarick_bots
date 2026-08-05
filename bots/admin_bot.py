@@ -1,28 +1,81 @@
+"""Moderation, temporary voice channels, the leveling system, and owner-only
+server management commands.
+
+Holds live references to the music instances and the logger bot (injected by
+main.py via `add_music_instance()` / `set_log_bot()`) so the owner-only
+commands can inspect and act across every bot in the process.
+
+Background tasks started in on_ready:
+  - `scan_timer`    -> every 60s, awards voice XP and applies rank roles
+  - `scan_activity` -> every 24h, strips rank roles from users inactive 60+ days
+  - `monitor_errors`-> reads the child process's stderr and DMs the owners
+
+Behavior preserved from the original, with one bug fix that changes runtime
+behavior (the always-true error filter - see CHANGES.md "Stage 3", and read
+that entry before deploying, since it re-enables DMs that have been silently
+suppressed).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import sys
+import time
+
 import disnake
 from disnake.ext import commands
-import asyncio
-import sys
-import os
-import time
 
 import configs.private_config as private_config
 import configs.public_config as public_config
-
-import helpers.helpers as helpers
 import helpers.database_logger as database_logger
 import helpers.embedder as embedder
-
+import helpers.helpers as helpers
 from helpers.helpers import GuildOption, Rank
 from helpers.view_panels import MessageForm, TopXP
 
+logger = logging.getLogger("nazarick.admin")
 
-class AdminBot():
-    music_instances = None
-    on_ready_flag = None
-    log_bot = None
-    bot = None
-    name = None
-    token = None
+# Substrings identifying ffmpeg/network chatter that should NOT be reported to
+# the owners as errors. Extracted from the inline condition in monitor_errors()
+# so the list is editable without touching control flow - and so the bug that
+# made the original filter match every line can't silently come back. See
+# CHANGES.md "Stage 3".
+IGNORED_ERROR_FRAGMENTS = (
+    "[tls @",
+    "[https @",
+    "[hls @",
+    "retrying with new connection",
+)
+
+# How long a user may go without activity before their rank roles are stripped
+# by scan_activity(). 60 days, matching the original's literal 5_184_000.
+INACTIVITY_ROLE_STRIP_SECONDS = 5_184_000
+
+# Interval between voice-XP award sweeps.
+XP_SCAN_INTERVAL = 60
+
+# Interval between inactivity sweeps.
+ACTIVITY_SCAN_INTERVAL = 86400
+
+
+def is_ignorable_error_line(line: str) -> bool:
+    """True if `line` is routine ffmpeg/network noise rather than a real error.
+
+    BUGFIX: the original condition was
+
+        if "[tls @" in line or "[https @" in line or "[hls @" or "retrying..." in line:
+
+    Note the third clause: `"[hls @"` with no `in line`. A non-empty string
+    literal is always truthy, so the whole condition was always True, every
+    line was skipped, and the error-reporting feature never reported anything
+    at all. Restored to the evidently-intended `"[hls @" in line`.
+    """
+    return any(fragment in line for fragment in IGNORED_ERROR_FRAGMENTS)
+
+
+class AdminBot:
 
     def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
@@ -31,6 +84,7 @@ class AdminBot():
         self.token = token
         self.music_instances = []
         self.on_ready_flag = False
+        self.log_bot = None
 
         @self.bot.event
         async def on_guild_join(guild):
@@ -95,17 +149,19 @@ class AdminBot():
             guild_message_id = await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_MESSAGE)
             if payload.message_id != guild_message_id:
                 return
-            
+
             guild = self.bot.get_guild(payload.guild_id)
 
             channel = guild.get_channel_or_thread(payload.channel_id)
             if not channel:
                 return
-            
+
             message = await channel.fetch_message(payload.message_id)
             if not message:
                 return
-            
+
+            # More than one distinct reaction on the giveaway message means
+            # someone added an off-list emoji; strip it instead of granting.
             if len(message.reactions) > 1:
                 await helpers.try_function(message.remove_reaction, True, payload.emoji, payload.member)
                 return
@@ -114,9 +170,8 @@ class AdminBot():
             if not role:
                 await helpers.remove_guild_option(payload.guild_id, GuildOption.GIVEAWAY_ROLE)
                 return
-            
-            await helpers.try_function(payload.member.add_roles, True, role, reason="Subscribed to notifications")
 
+            await helpers.try_function(payload.member.add_roles, True, role, reason="Subscribed to notifications")
 
         @self.bot.event
         async def on_raw_reaction_remove(payload: disnake.RawReactionActionEvent):
@@ -126,17 +181,18 @@ class AdminBot():
             guild_message_id = await helpers.get_guild_option(payload.guild_id, GuildOption.GIVEAWAY_MESSAGE)
             if payload.message_id != guild_message_id:
                 return
-            
+
             guild = self.bot.get_guild(payload.guild_id)
 
             channel = guild.get_channel_or_thread(payload.channel_id)
             if not channel:
                 return
-            
+
             message = await channel.fetch_message(payload.message_id)
             if not message:
                 return
 
+            # Still reacting with another emoji: keep the role.
             if len(message.reactions) > 0:
                 user = self.bot.get_user(payload.user_id)
                 if user in await message.reactions[0].users().flatten():
@@ -197,7 +253,7 @@ class AdminBot():
 
         @giveaway.sub_command(description="Allows admins to set a message to react on for giveaway roles")
         async def message(inter: disnake.AppCmdInter,
-                           message_id: (str | None) = commands.Param(default=None, description='Provide message ID to track reactions on')):
+                          message_id: (str | None) = commands.Param(default=None, description='Provide message ID to track reactions on')):
             await inter.response.defer()
 
             if not await helpers.is_admin(inter.author):
@@ -215,7 +271,7 @@ class AdminBot():
 
         @giveaway.sub_command(description="Allows admins to set a role for giveaway messages subscriptions")
         async def role(inter: disnake.AppCmdInter,
-                          role: (disnake.Role | None) = commands.Param(default=None, description='Select a role to be given for reactions on a message')):
+                       role: (disnake.Role | None) = commands.Param(default=None, description='Select a role to be given for reactions on a message')):
             await inter.response.defer()
 
             if not await helpers.is_admin(inter.author):
@@ -227,7 +283,6 @@ class AdminBot():
             else:
                 await helpers.set_guild_option(inter.guild.id, GuildOption.GIVEAWAY_ROLE, None)
                 await inter.edit_original_response(f'The giveaway notification role was removed')
-
 
         @self.bot.slash_command(dm_permission=False)
         async def admin(inter: disnake.AppCmdInter):
@@ -323,6 +378,7 @@ class AdminBot():
                 return
             ranks = helpers.sort_ranks(ranks, reverse=True)
 
+            # Prunes ranks whose role has since been deleted from the guild.
             for rank in ranks:
                 role = inter.guild.get_role(rank.role_id)
                 if not role:
@@ -408,7 +464,7 @@ class AdminBot():
             v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, member.id)
             await inter.edit_original_response(f"{member.mention} now has {v_xp} voice xp and {t_xp} text xp")
 
-        @ self.bot.slash_command(dm_permission=False, description="Allows admins to fix voice channels' bitrate")
+        @self.bot.slash_command(dm_permission=False, description="Allows admins to fix voice channels' bitrate")
         async def bitrate(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -426,7 +482,7 @@ class AdminBot():
             await asyncio.sleep(5)
             await inter.delete_original_response()
 
-        @ self.bot.slash_command(dm_permission=False, description="Clears voice channel (authorized use only)")
+        @self.bot.slash_command(dm_permission=False, description="Clears voice channel (authorized use only)")
         async def purge(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -443,7 +499,7 @@ class AdminBot():
             await asyncio.sleep(5)
             await inter.delete_original_response()
 
-        @ self.bot.slash_command(dm_permission=False, description="Clears custom amount of messages")
+        @self.bot.slash_command(dm_permission=False, description="Clears custom amount of messages")
         async def clear(inter: disnake.AppCmdInter,
                         amount: int = commands.Param(description="The number of messages to clear")):
             await inter.response.defer()
@@ -451,6 +507,7 @@ class AdminBot():
             if not await helpers.is_admin(inter.author):
                 return await inter.send(f"Unathorized attempt to clear messages!")
 
+            # +1 to also remove the deferred interaction response itself.
             ff, _ = await helpers.try_function(inter.channel.purge, True, limit=amount + 1)
 
             if not ff:
@@ -458,7 +515,7 @@ class AdminBot():
             else:
                 await helpers.try_function(inter.send, True, f"Cleared {amount} messages", delete_after=5)
 
-        @ self.bot.slash_command(dm_permission=False, description="Reveals guild list where this bot currently belongs to", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Reveals guild list where this bot currently belongs to", guild_ids=[778558780111060992])
         async def guilds_list(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -484,7 +541,7 @@ class AdminBot():
                 msg += '```'
                 await helpers.try_function(inter.channel.send, True, msg)
 
-        @ self.bot.slash_command(dm_permission=False, description="Desintegrates provided server. Irrevocably.", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Desintegrates provided server. Irrevocably.", guild_ids=[778558780111060992])
         async def black_hole(inter: disnake.AppCmdInter,
                              guild_id: str = commands.Param(description="ID of the guild to be eliminated")):
             await inter.response.defer()
@@ -503,20 +560,22 @@ class AdminBot():
             else:
                 return await inter.send("Incorrect guild!")
 
+            # Hard guard: never let this run against the project's own servers.
             try:
                 if guild.id in private_config.test_guilds:
                     await helpers.try_function(inter.send, True, "How dare you try to betray Nazarick? Ainz-sama was notified about your actions, trash. Beware.")
                     await helpers.try_function(self.bot.get_user(private_config.supreme_beings[0]).send, True, f"My apologies, Ainz-sama. User {self.bot.get_user(inter.author.id).mention} tried to eliminate Nazarick discord server. Please, take measures.")
                     return
-            except:
-                pass
+            except Exception:
+                logger.debug("black_hole: test-guild guard check failed", exc_info=True)
+
             channel_cnt = 0
             total_channels = len(guild.channels)
             for channel in guild.channels:
                 try:
                     await channel.delete(reason="Supreme Being's will")
                     channel_cnt += 1
-                except:
+                except Exception:
                     continue
 
             members_cnt = 0
@@ -526,7 +585,7 @@ class AdminBot():
                 try:
                     await member.kick(reason="Supreme Being's will")
                     members_cnt += 1
-                except:
+                except Exception:
                     continue
 
             roles_cnt = 0
@@ -535,7 +594,7 @@ class AdminBot():
                 try:
                     await role.delete(reason="Supreme Being's will")
                     roles_cnt += 1
-                except:
+                except Exception:
                     continue
 
             emojis_cnt = 0
@@ -544,7 +603,7 @@ class AdminBot():
                 try:
                     await emoji.delete(reason="Supreme Being's will")
                     emojis_cnt += 1
-                except:
+                except Exception:
                     continue
             await guild.leave()
 
@@ -558,7 +617,7 @@ class AdminBot():
                 msg += f"**Emojis:** {emojis_cnt}/{total_emojis} = {round(emojis_cnt * 100 / total_emojis, 3)}%\n"
             await inter.send(msg)
 
-        @ self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
         async def get_guild_info(inter: disnake.AppCmdInter,
                                  guild_id: str = commands.Param(description="ID of the required guild")):
             await inter.response.defer()
@@ -578,7 +637,7 @@ class AdminBot():
 
             await inter.send(embed=embed)
 
-        @ self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
         async def find_user(inter: disnake.AppCmdInter, user_id: str = commands.Param(description="ID of the user")):
             await inter.response.defer()
 
@@ -586,33 +645,21 @@ class AdminBot():
             for music_instance in self.music_instances:
                 bots.append(music_instance.bot)
 
-            desired_guild = None
+            # BUGFIX: this used to be a `for...else` whose `else` fired whenever
+            # the loop finished without `break`. Since the only `break` was the
+            # `if desired_guild` check at the *start* of an iteration, finding
+            # the user while scanning the final bot let the loop end naturally,
+            # firing the `else` and replying "not found" despite having found
+            # them. Replaced with an explicit check on the result.
             user_id = int(user_id)
-            for bot in bots:
-                if desired_guild:
-                    break
-
-                for guild in bot.guilds:
-                    if desired_guild:
-                        break
-
-                    for channel in guild.voice_channels:
-                        if desired_guild:
-                            break
-                        if len(channel.members) == 0:
-                            continue
-
-                        for member in channel.members:
-                            if member.id == user_id:
-                                desired_guild = guild
-                                break
-            else:
+            desired_guild = self.find_user_guild(bots, user_id)
+            if not desired_guild:
                 return await inter.send("Provided user was not found!")
 
             embed = await self.get_guild_info(desired_guild, bots)
             await inter.send(embed=embed)
 
-        @ self.bot.slash_command(dm_permission=False, description="Moves provided user to provided channel", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Moves provided user to provided channel", guild_ids=[778558780111060992])
         async def move_user(inter: disnake.AppCmdInter, guild_id: str = commands.Param(description="Target guild ID"), channel_id: str = commands.Param(default="None", description="Target voice channel ID"), user_id: str = commands.Param(default=None, description="ID of the user")):
             await inter.response.defer()
 
@@ -663,7 +710,7 @@ class AdminBot():
 
             await inter.send("The user has been moved successfully, my master.", delete_after=5)
 
-        @ self.bot.slash_command(description="Sends message to other Supreme Beings")
+        @self.bot.slash_command(description="Sends message to other Supreme Beings")
         async def message(inter: disnake.AppCmdInter):
             # await inter.response.defer()
 
@@ -679,13 +726,13 @@ class AdminBot():
             msg = f"Greetings, Supreme Being.\nYou have a new message from {inter.author}:\n" + message
             await self.supreme_dm(msg, inter.author.id)
 
-        @ self.bot.slash_command(dm_permission=False, description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])
         async def music_usage_info(inter: disnake.AppCmdInter):
             await inter.response.defer()
             message = await self.check_music_bots()
             return await inter.send(message)
 
-        @ self.bot.slash_command(dm_permission=False, description="Sends DM to provided user", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Sends DM to provided user", guild_ids=[778558780111060992])
         async def dm_user(inter: disnake.AppCmdInter,
                           user_id: str = commands.Param(description="User's id")):
             await inter.response.send_modal(MessageForm(title="Message to a user", response="Your message was sent to the provided user, my master."))
@@ -699,7 +746,7 @@ class AdminBot():
             msg = f"Greetings.\nYou have a new message from Supreme Being {inter.author}:\n" + message
             await helpers.dm_user(msg, int(user_id), self.bot)
 
-        @ self.bot.slash_command(dm_permission=False, description="Summons user to provided channel (check provided url twice)", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Summons user to provided channel (check provided url twice)", guild_ids=[778558780111060992])
         async def summon_user(inter: disnake.AppCmdInter,
                               channel_link: str = commands.Param(description="Link to the target channel"),
                               user_id: str = commands.Param(description="User's id"),
@@ -724,7 +771,7 @@ class AdminBot():
             else:
                 await inter.send(f"Couldn't send message to `{errors}`, my master.")
 
-        @ self.bot.slash_command(dm_permission=False, description="Manages user in the untouchables list", guild_ids=[778558780111060992])
+        @self.bot.slash_command(dm_permission=False, description="Manages user in the untouchables list", guild_ids=[778558780111060992])
         async def manage_untouchable(inter: disnake.AppCmdInter,
                                      user_id: str = commands.Param(description="User's id"),
                                      guild_id: str = commands.Param(description="Guild's id"),
@@ -748,7 +795,7 @@ class AdminBot():
                 else:
                     await inter.edit_original_response(f'{user_id} wasn\'t an untouchable user in guild {guild_id}')
 
-        @ self.bot.slash_command(description="Reviews list of commands")
+        @self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):
             await inter.response.defer()
             await inter.send(embed=disnake.Embed(color=0, description=self.help()))
@@ -765,6 +812,12 @@ class AdminBot():
 # *_______LevelingSystem____________________________________________________________________________________________________________________________________________________________________________________________
 
     def get_roles_from_xp(self, voice_xp, ranks, guild):
+        """Given a user's voice XP, returns (roles_to_remove, roles_to_add).
+
+        Ranks flagged `remove_on_promotion` are mutually exclusive - only the
+        highest earned one is kept, the rest are removed. Ranks without that
+        flag are cumulative and stack.
+        """
         remove_list = []
         add_list = []
         max_rank = None
@@ -778,7 +831,14 @@ class AdminBot():
         for rank in ranks:
             if rank.voice_xp <= voice_xp:
                 if rank.remove_on_promotion:
-                    if rank.voice_xp == max_rank.voice_xp:
+                    # BUGFIX: `max_rank` stays None when every earned exclusive
+                    # rank's role is missing from the guild, or sits above the
+                    # bot's own top role (the first loop skips those). The
+                    # original dereferenced it unconditionally here and raised
+                    # AttributeError. With no grantable max rank, the correct
+                    # outcome is to grant nothing and strip the rest, which is
+                    # what falling through to remove_list does.
+                    if max_rank and rank.voice_xp == max_rank.voice_xp:
                         add_list.append(rank.role_id)
                     else:
                         remove_list.append(rank.role_id)
@@ -787,6 +847,8 @@ class AdminBot():
         return remove_list, add_list
 
     async def scan_activity(self) -> None:
+        """Daily sweep: strips rank roles from members who have been inactive
+        for longer than INACTIVITY_ROLE_STRIP_SECONDS."""
         while True:
             timestamp = int(time.time())
             guilds_ranks = {}
@@ -800,10 +862,10 @@ class AdminBot():
                     continue
 
                 if guild.id not in guilds_ranks.keys():
-                    guilds_ranks[guild.id] = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)                    
+                    guilds_ranks[guild.id] = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)
 
                 last_activity = row['last_activity']
-                if timestamp - last_activity >= 5_184_000:
+                if timestamp - last_activity >= INACTIVITY_ROLE_STRIP_SECONDS:
                     roles_to_remove = []
                     for role in member.roles:
                         if any(rank.role_id == role.id for rank in guilds_ranks[guild.id]):
@@ -811,14 +873,20 @@ class AdminBot():
                     if roles_to_remove:
                         asyncio.create_task(helpers.try_function(member.remove_roles, True, *roles_to_remove))
 
-            await asyncio.sleep(86400)
+            await asyncio.sleep(ACTIVITY_SCAN_INTERVAL)
 
     async def scan_timer(self) -> None:
         while True:
             asyncio.create_task(self.scan_channels())
-            await asyncio.sleep(60)
+            await asyncio.sleep(XP_SCAN_INTERVAL)
 
     async def scan_channels(self) -> None:
+        """Awards 1 voice XP per scan to every eligible member in a voice
+        channel, then applies any rank roles they've newly qualified for.
+
+        Eligibility deliberately excludes bots, self-muted/deafened and
+        server-muted/deafened members, the AFK channel, and channels with fewer
+        than two eligible members (no XP for sitting alone)."""
         for guild in self.bot.guilds:
             ranks = await helpers.get_guild_option(guild.id, GuildOption.RANK_LIST)
             ranks = helpers.sort_ranks(ranks)
@@ -841,6 +909,8 @@ class AdminBot():
 # *_______OnVoiceStateUpdate_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def temp_channels(self, member, before: disnake.VoiceState, after: disnake.VoiceState) -> bool:
+        """Creates a personal voice channel when a member joins the configured
+        trigger channel, and deletes emptied personal channels."""
         vc_id = await helpers.get_guild_option(member.guild.id, GuildOption.PRIVATE_CHANNEL)
         if not vc_id:
             return
@@ -867,11 +937,24 @@ class AdminBot():
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message) -> bool:
+        """Two-signal spam filter. One signal (either a suspicious keyword *or*
+        an invite link) times the author out; both signals together is treated
+        as a raid/advert bot and bans.
+
+        Returns True if the message was handled, so `on_message` stops and does
+        not award the author XP.
+        """
+        # BUGFIX: the original lowercased message.content for the discord.gg
+        # check but compared discordapp.com/invite against the raw content, so
+        # any uppercase in that URL slipped past the filter. Lowercased once
+        # here and used for every comparison.
+        content = message.content.lower()
+
         cnt = 0
-        if "leaks" in message.content.lower() or ":underage:" in message.content.lower():
-            cnt+=1
-        if "discord.gg" in message.content.lower():
-            cnt+=1
+        if "leaks" in content or ":underage:" in content:
+            cnt += 1
+        if "discord.gg" in content or "discordapp.com/invite" in content:
+            cnt += 1
 
         if cnt == 2:
             if hasattr(message.author, "guild"):
@@ -879,6 +962,11 @@ class AdminBot():
                     await helpers.try_function(message.delete, True)
                     await helpers.try_function(message.author.send, True, f"You've been banned for suspicious activity. [⠀](https://tenor.com/view/one-punch-man-gif-23643267)")
                     await helpers.try_function(message.author.ban, True, reason="Suspicious activity")
+                    # BUGFIX: the ban branch used to fall through to
+                    # `return False`, so on_message carried on and awarded text
+                    # XP to the user it had just banned. The timeout branch
+                    # already returned True; both now do.
+                    return True
 
         elif cnt == 1:
             if hasattr(message.author, "guild"):
@@ -893,8 +981,33 @@ class AdminBot():
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________
 
 
+    def find_user_guild(self, bots: list, user_id: int):
+        """Returns the guild in which `user_id` is currently sitting in a voice
+        channel, searching across every bot's cache, or None.
+
+        Extracted from the `/find_user` command so the search can be tested and
+        so the "not found" case is an explicit `None` rather than a `for...else`
+        (see the BUGFIX note at the call site).
+        """
+        for bot in bots:
+            for guild in bot.guilds:
+                for channel in guild.voice_channels:
+                    if len(channel.members) == 0:
+                        continue
+                    for member in channel.members:
+                        if member.id == user_id:
+                            return guild
+        return None
+
     async def get_guild_info(self, guild: disnake.Guild, bots: list) -> disnake.Embed:
+        """Builds the guild-info embed using whichever bot can actually read the
+        guild's invites (permissions differ per bot)."""
         invites = None
+        # BUGFIX: these two were only assigned inside the loop, so if no bot in
+        # `bots` could see the guild, the return statement below raised
+        # UnboundLocalError instead of rendering an embed.
+        required_bot = None
+        vanity_invite = None
         for bot in bots:
             tmp_guild = bot.get_guild(guild.id)
             if not tmp_guild:
@@ -910,7 +1023,7 @@ class AdminBot():
 
     async def add_admin(self, guild_id: int, user_id: int) -> bool:
         admin_list = await helpers.get_guild_option(guild_id, GuildOption.ADMIN_LIST)
-        if not user_id in admin_list:
+        if user_id not in admin_list:
             admin_list.append(user_id)
             await helpers.set_guild_option(guild_id, GuildOption.ADMIN_LIST, admin_list)
             return True
@@ -926,7 +1039,7 @@ class AdminBot():
 
     async def add_untouchable(self, guild_id: int, user_id: int) -> bool:
         untouchables_list = await helpers.get_guild_option(guild_id, GuildOption.UNTOUCHABLES_LIST)
-        if not user_id in untouchables_list:
+        if user_id not in untouchables_list:
             untouchables_list.append(user_id)
             await helpers.set_guild_option(guild_id, GuildOption.UNTOUCHABLES_LIST, untouchables_list)
             return True
@@ -963,9 +1076,13 @@ class AdminBot():
 # *______ServerManager______________________________________________________________________________________________________________________________________________________________________________________
 
     async def monitor_errors(self) -> None:
+        """Reads the bot process's own stdin (fed by hosting/server_manager.py,
+        which pipes the child's stderr back in) and DMs the owners about
+        anything that isn't routine ffmpeg noise."""
         try:
             os.set_blocking(sys.stdin.fileno(), False)
-        except:
+        except Exception:
+            # No usable stdin (e.g. launched without the server manager).
             return
 
         while True:
@@ -977,7 +1094,7 @@ class AdminBot():
                     break
                 lines = data.split("\n")
                 for line in lines:
-                    if "[tls @" in line or "[https @" in line or "[hls @" or "retrying with new connection" in line:
+                    if is_ignorable_error_line(line):
                         continue
                     if len(line) > 0:
                         errors += line + "\n"
@@ -992,10 +1109,12 @@ class AdminBot():
                 ff = await helpers.dm_user(msg, admin_id, self.bot)
                 if not ff:
                     print(f"Couldn't send to admin with id {admin_id}")
-        except:
-            pass
+        except Exception:
+            logger.debug("supreme_dm failed", exc_info=True)
 
     async def check_music_bots(self):
+        """Renders a BUSY/IDLE report across every music instance, with the
+        remaining duration of whatever each one is playing."""
         message = "```"
         for bot in self.music_instances:
             message += f"\n\n{bot.name}:"
@@ -1015,6 +1134,8 @@ class AdminBot():
                         ans = "Processing track"
 
                     if queue_duration:
+                        # Strips the "**Queue duration: **" prefix, keeping just
+                        # the value, since it's being appended mid-sentence.
                         ans += " and queue duration: " + queue_duration[20:]
                     message += ans
             if ff:

@@ -1,6 +1,20 @@
 #!/bin/bash
+#
+# Installs Python (Windows/Git Bash only), the project's Python dependencies,
+# and FFmpeg (Linux only).
+#
+# Change from the original: dependencies now come from requirements.txt rather
+# than a hardcoded list of `pip install --upgrade <pkg>` calls, so the runtime
+# set has a single source of truth and version floors are respected. Pass
+# --dev to also install the test dependencies.
 
 platform="None"
+requirements="requirements.txt"
+
+if [ "$1" = "--dev" ]
+then
+    requirements="requirements-dev.txt"
+fi
 
 function detect_platform  {
     echo "Cheking platform..."
@@ -10,7 +24,7 @@ function detect_platform  {
         python=python
         platform="Windows"
         return 0
-    fi 
+    fi
     if [ $OSTYPE = "linux-gnu" ] || [ $OSTYPE = "linux" ]
     then
         echo "Platform: Linux"
@@ -36,18 +50,18 @@ function install_python {
         echo "Openning python installer..."
         eval "./setup_cache/python_installer.exe"
         check_python
-    fi  
-    
+    fi
+
 }
 function check_python {
     echo "Checking python..."
-    eval "command -v $python" 
+    eval "command -v $python"
     status=$?
     if [ $status = 0 ]
     then
         eval "rm -rf ./setup_cache"
         echo "Python is installed"
-    else 
+    else
         echo "Python is not installed"
         install_python
     fi
@@ -56,7 +70,7 @@ function check_pip {
     echo "Checking pip..."
     eval "$python -m pip --version"
     if [ $? = 0 ]
-    then   
+    then
         eval "$python -m pip install --upgrade pip"
         if [ $? != 0 ]
         then
@@ -73,17 +87,23 @@ function check_pip {
     fi
     echo "Pip checked"
 }
-function install_package {
-    eval "$python -m pip install --upgrade $1"
+function install_requirements {
+    echo "Installing dependencies from $requirements..."
+    eval "$python -m pip install --upgrade -r $requirements"
+    if [ $? != 0 ]
+    then
+        echo "Failed to install dependencies from $requirements"
+        exit 1
+    fi
 }
 function check_ffmpeg {
     echo "Checking FFmpeg..."
-    eval "command -v ffmpeg" 
+    eval "command -v ffmpeg"
     status=$?
     if [ $status = 0 ]
     then
         echo "FFmpeg is installed"
-    else 
+    else
         echo "FFmpeg is not installed"
         install_ffmpeg
     fi
@@ -94,19 +114,15 @@ function install_ffmpeg {
         echo "Installing FFmpeg..."
         eval "sudo apt install ffmpeg"
         check_ffmpeg
-    fi 
+    fi
     if [ $platform = "Windows" ]
     then
         echo "Please install FFmpeg from: https://www.gyan.dev/ffmpeg/builds/ and add it to path, to enable voice related bot functionality"
-    fi 
+    fi
 }
 
 detect_platform
 check_python
-check_pip
-install_package yt_dlp
-install_package youtube_search
-install_package disnake[voice]
-install_package openai
-install_package aiosqlite
+# check_pip
+install_requirements
 check_ffmpeg

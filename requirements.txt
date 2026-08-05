@@ -1,0 +1,32 @@
+# Runtime dependencies.
+#
+# Versions are floored (>=) rather than hard-pinned so security fixes land
+# automatically, but with an upper bound on the majors that could break the
+# API surface this project uses. Regenerate an exact lock for a deployment
+# with:  pip freeze > requirements.lock.txt
+#
+# Verified working set as of the refactor: disnake 2.12.1, aiosqlite 0.22.1,
+# yt-dlp 2026.7.4, youtube-search 2.2.0.
+
+# Discord API wrapper. [voice] pulls in PyNaCl, required for voice channels.
+disnake[voice]>=2.9,<3
+
+# Async sqlite driver for db/bot_database.db and db/logs.db.
+aiosqlite>=0.19,<1
+
+# --- Music bots only -------------------------------------------------------
+# yt-dlp is DELIBERATELY unpinned upward. YouTube changes its player
+# frequently and yt-dlp ships fixes within days; pinning it is what causes the
+# "bot stopped playing music" outages. Update it on a schedule:
+#     pip install -U yt-dlp
+# (see README "Keeping yt-dlp current").
+yt-dlp>=2024.1.1
+
+# Text-query search used by /play when the input isn't a URL.
+youtube-search>=2.1.2,<3
+
+# --- Optional --------------------------------------------------------------
+# ChatGPT integration is currently disabled (the /gpt commands in
+# bots/music_leader.py are commented out). The code there targets the openai
+# v1+ client API; uncomment this line as well if you re-enable it.
+# openai>=1.0,<3

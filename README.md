@@ -123,7 +123,67 @@ This is the list of required dependencies:
   - openai 0.27.9 or higher
   - aiosqlite 0.19.0 or higher
 
-You can execute [setup file](setup.sh), which will install python, all required libraries in python via pip. Also, for linux users it will install FFmpeg
+Exact versions live in [requirements.txt](requirements.txt) (runtime) and
+[requirements-dev.txt](requirements-dev.txt) (adds the test suite).
+
+You can execute the [setup file](setup.sh), which will install python and all required
+libraries via pip from `requirements.txt`. Also, for linux users it will install FFmpeg.
+Pass `--dev` (`bash setup.sh --dev`) to include the test dependencies.
+
+### Keeping yt-dlp current
+
+**This is the single most common cause of "the music bot stopped working".**
+YouTube changes its player regularly and playback breaks until yt-dlp ships a fix -
+usually within a day or two. `yt-dlp` is deliberately left unpinned in
+`requirements.txt` for this reason.
+
+Update and restart:
+
+```bash
+pip install -U yt-dlp
+# then, via hosting/client_manager.py:
+reboot
+```
+
+Worth automating - e.g. a weekly cron entry:
+
+```
+0 5 * * 1 pip install -U yt-dlp && <restart command>
+```
+
+### Before the first run
+
+This checkout deliberately does **not** contain `configs/private_config.py`
+(gitignored, holds your bot tokens) or `db/` (gitignored, holds every guild's
+settings and all user XP). Copy both from your existing checkout before
+starting, then verify:
+
+```bash
+cp ../configs/private_config.py configs/
+cp -r ../db .
+python tools/preflight.py
+```
+
+`preflight.py` checks the Python version, dependencies, ffmpeg, that
+private_config has every field the bots read and a valid bot list, and that
+`db/bot_database.db` actually carries your settings and XP over. It exits
+non-zero if anything blocking is wrong and contacts Discord at no point.
+
+**Starting without `db/` is the mistake to avoid**: the bots create the schema
+on demand, so they'd come up against an empty database and every guild's log
+channel, admin list and ranks - plus all user XP - would appear wiped.
+
+### Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+The suite covers the helper layer, the music playback state machine, the leveling
+system, the moderation filters, and the startup wiring. See
+[CHANGES.md](CHANGES.md) for what changed in the refactor and why, including an
+audit table of every behavioral difference from the original.
 
 ### FFmpeg installation
 

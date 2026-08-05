@@ -1,27 +1,76 @@
+"""Supervisor that runs on the VPS and controls the bot process.
+
+Listens on a TCP port for password-prefixed commands from
+hosting/client_manager.py (run/stop/status/reboot/backup/update/clear), spawns
+`main.py` as a child process, tails the child's stderr, and uploads the sqlite
+databases to WebDAV twice a day.
+
+Stdout/stderr of this supervisor are redirected into dated files under logs/.
+
+Note on the error pipeline: `pull_errors()` reads the child's stderr and writes
+it back into the child's *stdin*, which is how `AdminBot.monitor_errors()`
+receives it and DMs the owners. That's an unusual loop, but it's deliberate -
+it lets the bot report its own crashes over Discord.
+"""
+
+from __future__ import annotations
+
 import asyncio
+import os
 import socket
 import subprocess
 import sys
-import os
-
-from enum import Enum
 from datetime import datetime, timezone
-
+from enum import Enum
 
 try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
     from configs.private_config import hosting_port, backup_login, backup_password, backup_url, server_manager_password
     from configs.public_config import auto_backup_files, manual_backup_files
-except:
+except Exception:
+    # Matches the original's tolerance for a missing/partial private_config:
+    # the port can still be supplied via argv, and backup/auth commands will
+    # fail at call time instead of at import time.
     pass
 
+# Substrings identifying routine ffmpeg/network chatter that should not be
+# treated as an error. Kept in sync with bots/admin_bot.py's copy - see the
+# BUGFIX note in is_ignorable_error_line() below.
+IGNORED_ERROR_FRAGMENTS = (
+    "[tls @",
+    "[https @",
+    "[hls @",
+    "retrying with new connection",
+)
 
-class FileWithDates():
-    file = None
-    buffer = None
+
+def is_ignorable_error_line(line: str) -> bool:
+    """True if `line` is routine ffmpeg/network noise rather than a real error.
+
+    BUGFIX: the original condition was
+
+        if "[tls @" in line or "[https @" in line or "[hls @" or "retrying..." in line:
+
+    The third clause is a bare truthy string literal (missing `in line`), so the
+    whole condition was always True and every line was skipped - meaning
+    `self.errors` was never populated and `status` always reported "No errors".
+    Identical bug to the one in bots/admin_bot.py; see CHANGES.md "Stage 5".
+    """
+    return any(fragment in line for fragment in IGNORED_ERROR_FRAGMENTS)
+
+
+class FileWithDates:
+    """A stdout/stderr replacement that timestamps every line and writes it to
+    a per-day file under logs/.
+
+    Reopens and closes the file on each write so the log is always flushed to
+    disk (the supervisor is expected to be killed abruptly), and so the
+    filename rolls over at midnight without any scheduling.
+    """
 
     def __init__(self):
+        self.file = None
         self.buffer = ""
 
     def check_filename(self) -> None:
@@ -40,6 +89,8 @@ class FileWithDates():
         if len(lines) == 0:
             return
         remaining = None
+        # A trailing fragment without a newline is held back until the rest of
+        # the line arrives, so timestamps land at real line boundaries.
         if value[-1] != '\n':
             remaining = lines[-1]
             lines = lines[:-1]
@@ -80,25 +131,25 @@ def force_exit():
 
 
 class Host:
-    state = BotState.STOPPED
-    errors = None
-    errors_cnt = 0
-    last_start = None
-    process = None
-    listener_socket = None
-    port = None
 
     def __init__(self, port):
+        self.state = BotState.STOPPED
+        self.errors = None
+        self.errors_cnt = 0
+        self.last_start = None
+        self.process = None
+        self.port = port
         self.listener_socket = socket.socket(family=socket.AF_INET)
         self.listener_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listener_socket.bind(('', port))
         self.listener_socket.listen(1600)
         self.listener_socket.setblocking(False)
-        self.port = port
         print("Host started")
 
     async def pull_errors(self):
+        """Tails the child's stderr, echoes it back into the child's stdin (so
+        AdminBot.monitor_errors can DM it), and accumulates it for `status`."""
         while self.process:
             await asyncio.sleep(0.1)
             while True:
@@ -110,7 +161,7 @@ class Host:
                     self.process.stdin.flush()
                     lines = data.decode('utf-8', errors='replace').split('\n')
                     for line in lines:
-                        if "[tls @" in line or "[https @" in line or "[hls @" or "retrying with new connection" in line:
+                        if is_ignorable_error_line(line):
                             continue
                         if len(line) > 0:
                             self.errors += "\n" + line
@@ -155,6 +206,7 @@ class Host:
             return
 
         print(f"Recieved command from {addr}")
+        respond = None
         try:
             respond = await self.process_command(command)
         except Exception as ex:
@@ -173,6 +225,8 @@ class Host:
             force_exit()
 
     async def backup_create(self):
+        """Fires a backup at 00:00 and 12:00, then sleeps ~12h to avoid
+        re-triggering within the same minute."""
         while self.state == BotState.RUNNING:
             hours = datetime.now().hour
             minutes = datetime.now().minute
@@ -184,6 +238,8 @@ class Host:
     async def commit_backup(self, manual=False):
         ans = ""
         for file in (auto_backup_files, manual_backup_files)[manual]:
+            # file[:-3] / file[-3:] split the ".db" extension off so the label
+            # lands before it (e.g. bot_database_12pm.db).
             cmd = f'curl -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
             if os.system(cmd) != 0:
                 ans += f"\nFailed to commit {file}"
@@ -240,7 +296,7 @@ class Host:
         current_commit = self.get_current_commit()
         try:
             time_passed = self.get_passed_time(self.last_start)
-        except:
+        except Exception:
             time_passed = None
 
         if not time_passed:
@@ -264,6 +320,8 @@ class Host:
         return ans
 
     async def update(self, branch):
+        """Pulls the selected branch, reinstalls dependencies, then re-execs
+        this supervisor (the running copy can't update its own code in place)."""
         was_running = False
         if self.state == BotState.RUNNING:
             await self.stop()
@@ -276,13 +334,14 @@ class Host:
         os.system(f"git -C .. branch -f -D {branch}")
         os.system(f"git -C .. checkout {branch}")
         os.system(f"git -C .. stash clear")
+        os.system(f"bash setup.sh")
 
         self.state = BotState.SHUTDOWN
         self.listener_socket.close()
         arg = ""
         if was_running:
             arg = "-r"
-        cmd = f"python server_manager.py {self.port} {arg} &"
+        cmd = f"python server_manager.py {self.port} {arg} & disown"
         print(f"Executing: {cmd}\n")
         os.system(cmd)
         return f"Updated to branch {branch}"
@@ -296,6 +355,7 @@ class Host:
         return current_commit.replace('\n', '')
 
     def get_passed_time(self, date) -> str:
+        """Coarse "x ago" formatting, largest applicable unit only."""
         if not date:
             return None
         delta = datetime.now(timezone.utc) - date
@@ -343,7 +403,7 @@ class Host:
 async def main():
     try:
         port = hosting_port
-    except:
+    except Exception:
         port = int(sys.argv[1])
 
     h = Host(port)
@@ -352,6 +412,7 @@ async def main():
     if start:
         print("Starting bots...")
     await h.start(start)
+
 
 if __name__ == "__main__":
     f = FileWithDates()

@@ -1,18 +1,34 @@
+"""Builds every disnake.Embed the bots send: music now-playing cards, audit-log
+event cards for the logger bot, the leveling-system displays, welcome messages,
+etc. Pure functions - no I/O, no bot state - so they take plain data in and
+return an Embed.
+
+Behavior unchanged from the original *except* one bug fix (see CHANGES.md):
+`entry_sticker_create` was defined twice in the original file. The second
+definition silently overwrote the first (same function name), so every actual
+sticker-create audit event rendered the second definition's text -
+"has deleted a sticker from the Guild" - instead of "has added a sticker",
+and there was no `entry_sticker_delete` function at all, so sticker-delete
+events produced no log embed (log_bot.py looks the function up by name via
+`hasattr`/`getattr` and just skips silently if it's missing). The second
+definition is renamed to `entry_sticker_delete` below, which is what its body
+already described. `database_logger.entry_sticker_delete` (in
+database_logger.py) already existed and was simply never being paired with an
+embed before this fix.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
 import disnake
-from datetime import datetime, timezone
 
-import configs.private_config as private_config
 import configs.public_config as public_config
-
 import helpers.helpers as helpers
 
 
-class EmbedField():
-    name = None
-    value = None
-    inline = None
-
-    def __init__(self, name="", value="", inline=False):
+class EmbedField:
+    def __init__(self, name: str = "", value: str = "", inline: bool = False):
         self.name = name
         self.value = value
         self.inline = inline
@@ -25,7 +41,14 @@ def create_embed(title=None, url=None, description=None, color_tag: str = None, 
     if footer_text:
         embed.set_footer(text=footer_text, icon_url=footer_icon_url)
     elif footer_icon_url:
-        embed.set_footer(icon_url=footer_icon_url)
+        # BUGFIX: `set_footer(icon_url=...)` alone raises
+        # `TypeError: missing 1 required keyword-only argument: 'text'` -
+        # disnake requires `text`, and Discord itself rejects a footer without
+        # it. Currently unreachable (the only caller passing footer_icon_url,
+        # song_selections(), also passes footer_text), so this never fired in
+        # production - but it would have the moment anyone added an icon-only
+        # footer. Passes an empty string so the call is at least valid.
+        embed.set_footer(text="", icon_url=footer_icon_url)
     embed.set_thumbnail(url=thumbnail_url)
     if fields:
         for field in fields:
@@ -326,7 +349,12 @@ def entry_sticker_update(entry):
                         author_icon_url=entry.user.display_avatar.url, footer_text=entry.user.guild.name, fields=fields)
 
 
-def entry_sticker_create(entry):
+def entry_sticker_delete(entry):
+    # BUGFIX (see module docstring): this used to be a second, duplicate
+    # `entry_sticker_create` definition that silently shadowed the real one
+    # above. Renamed to match what it actually describes and what
+    # database_logger.entry_sticker_delete / log_bot.py's dynamic dispatch
+    # (`entry_{action_name}`) expects to find.
     fields = []
     for attr in dir(entry.before):
         if attr in public_config.sticker_ent:
@@ -581,7 +609,7 @@ def queue(guild, queue, start_index, curr_song):
     fields = []
     if "entries" in curr_song:
         curr_song = curr_song["entries"][0]
-    if (isinstance(curr_song, str)):
+    if isinstance(curr_song, str):
         curr_title = "Radio"
         curr_url = curr_song
         curr_duration = "Live"
@@ -590,7 +618,7 @@ def queue(guild, queue, start_index, curr_song):
         curr_url = curr_song['webpage_url']
         curr_duration = helpers.get_duration(curr_song)
     ff = False
-    if len(queue) > 0 and not 'artificial' in curr_song:
+    if len(queue) > 0 and 'artificial' not in curr_song:
         ff = True
         cnt = 0
         for num in (range(10), range(len(queue) - start_index))[start_index + 10 > len(queue)]:
@@ -598,10 +626,10 @@ def queue(guild, queue, start_index, curr_song):
                 if not queue[num + start_index].track_info.done():
                     num -= 1
                     continue
-            except:
+            except Exception:
                 break
             song = queue[num + start_index].track_info.result()
-            if (isinstance(song, str)):
+            if isinstance(song, str):
                 title = "Radio"
                 url = song
                 duration = "Live"

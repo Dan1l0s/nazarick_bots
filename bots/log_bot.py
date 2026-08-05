@@ -1,22 +1,59 @@
+"""Audit-trail bot: mirrors server events (messages, moderation actions, voice
+state, member joins/leaves, presence changes) into configured log channels as
+embeds, and writes the same events to db/logs.db.
+
+Most handlers follow the same shape: look up the guild's configured log
+channel, bail out (clearing the setting) if the channel no longer exists, then
+send an embed built by helpers/embedder.py.
+
+Two of the handlers dispatch dynamically by name - `on_audit_log_entry_create`
+builds `entry_<action>` and looks it up on both `database_logger` and
+`embedder`, and the voice-state handler looks up `<attr>` for each changed
+voice property. That's why adding a new logged event is usually just a matter
+of adding matching functions to those two modules (and why the duplicated
+`entry_sticker_create` fixed in Stage 1 silently produced no sticker-delete
+logs).
+
+Behavior preserved from the original, plus one loop fix and one performance
+knob in `status_check` - see CHANGES.md "Stage 4".
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import sys
+import time
+from typing import Dict
+
 import disnake
 from disnake.ext import commands
-import asyncio
-import sys
-from typing import Dict
 
 import configs.private_config as private_config
 import configs.public_config as public_config
-
-import helpers.helpers as helpers
 import helpers.database_logger as database_logger
 import helpers.embedder as embedder
-
+import helpers.helpers as helpers
 from helpers.helpers import GuildOption
 
+logger = logging.getLogger("nazarick.logger")
 
-class Activity():
-    acttype = None
-    actname = None
+# How often status_check() re-reads every member's presence. 0.5s matches the
+# original exactly. See CHANGES.md "Stage 4" for why this loop is the most
+# expensive thing in the process and what the cost of raising it is.
+STATUS_POLL_INTERVAL = 0.5
+
+# Seconds to cache each guild's status-log-channel setting inside
+# status_check(). The original re-queried sqlite for every guild on every pass
+# (i.e. guild_count x 2 queries/second, each opening its own connection).
+# 0 disables the cache and restores the original query-every-pass behavior.
+# Any positive value means a change to /set logs status takes up to that many
+# seconds to take effect.
+STATUS_CHANNEL_CACHE_SECONDS = 0
+
+
+class Activity:
+    """One presence activity (game, Spotify track, custom status...)."""
 
     def __init__(self, acttype=None, actname=None):
         self.acttype = acttype
@@ -26,10 +63,9 @@ class Activity():
         return self.acttype == other.acttype and self.actname == other.actname
 
 
-class UserStatus():
-    status = None
-    activities = None
-    updated = None
+class UserStatus:
+    """A member's online status plus their current activities, used to diff
+    presence between polls."""
 
     def __init__(self, status):
         self.status = status
@@ -37,17 +73,14 @@ class UserStatus():
         self.updated = False
 
     def __eq__(self, other):
+        # Compared as sets: activity ordering from Discord isn't stable, and
+        # a reorder alone shouldn't count as a change.
         a = set((x.acttype, x.actname) for x in self.activities)
         b = set((x.acttype, x.actname) for x in other.activities)
         return self.status == other.status and a == b
 
 
-class LogBot():
-    token = None
-    name = None
-    bot = None
-    kicks_bans = None
-    on_ready_flag = None
+class LogBot:
 
     def __init__(self, name: str, token: str):
         self.bot = commands.InteractionBot(intents=disnake.Intents.all(
@@ -116,6 +149,10 @@ class LogBot():
                 await helpers.set_guild_option(entry.user.guild.id, GuildOption.LOG_CHANNEL, None)
                 return
 
+            # Dynamic dispatch: disnake's action repr looks like
+            # "AuditLogAction.channel_create"; [15:] strips the enum prefix,
+            # giving "entry_channel_create" to look up in both modules. A
+            # missing function on either side is silently skipped.
             s = f"entry_{str(entry.action)[15:]}"
             entry_name = s
             if hasattr(database_logger, s):
@@ -125,6 +162,9 @@ class LogBot():
                 s = getattr(embedder, s)
                 await helpers.try_function(channel.send, True, embed=s(entry))
             try:
+                # Anti-nuke tripwire: on the project's own guilds, a moderator
+                # exceeding the kick/ban budget within one bot uptime gets
+                # timed out and the owner notified.
                 if (entry_name == "entry_kick" or entry_name == "entry_ban") and entry.user.guild.id in private_config.test_guilds:
                     if entry.user.id not in self.kick_bans:
                         self.kick_bans[entry.user.id] = 0
@@ -132,8 +172,8 @@ class LogBot():
                     if self.kick_bans[entry.user.id] >= public_config.kick_ban_limit:
                         await helpers.try_function(entry.user.timeout, True, reason="Exceeded kick/ban limit", duration=1000000)
                         await helpers.try_function(self.bot.get_user(private_config.supreme_beings[0]).send, True, f"My apologies, Ainz-sama. User {self.bot.get_user(entry.user.id).mention} has exceeded kick/ban limit. Please, take measures.")
-            except:
-                pass
+            except Exception:
+                logger.debug("on_audit_log_entry_create: kick/ban tripwire failed", exc_info=True)
 
         @self.bot.event
         async def on_member_update(before, after):
@@ -171,6 +211,8 @@ class LogBot():
                 else:
                     user = self.bot.get_user(member.id)
                     await helpers.try_function(welcome_channel.send, True, embed=embedder.welcome_message(member, user))
+                    # Ping-and-delete: fires the member's notification without
+                    # leaving a bare mention in the channel.
                     message = await welcome_channel.send(f"{member.mention}")
                     await message.delete()
 
@@ -182,7 +224,7 @@ class LogBot():
                     await database_logger.member_join(member)
                     await helpers.try_function(log_channel.send, True, embed=embedder.member_join(member))
 
-        @ self.bot.event
+        @self.bot.event
         async def on_member_ban(guild, user):
             channel_id = await helpers.get_guild_option(guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
@@ -193,7 +235,7 @@ class LogBot():
                 return
             await helpers.try_function(channel.send, True, embed=embedder.ban(guild, user))
 
-        @ self.bot.event
+        @self.bot.event
         async def on_member_unban(guild, user):
             channel_id = await helpers.get_guild_option(guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
@@ -205,7 +247,7 @@ class LogBot():
             await helpers.try_function(channel.send, True, embed=embedder.unban(guild, user))
 
     # --------------------- VOICE STATES --------------------------------
-        @ self.bot.event
+        @self.bot.event
         async def on_voice_state_update(member, before: disnake.VoiceState, after: disnake.VoiceState):
             channel_id = await helpers.get_guild_option(member.guild.id, GuildOption.LOG_CHANNEL)
             if not channel_id:
@@ -223,17 +265,30 @@ class LogBot():
                     else:
                         await helpers.try_function(channel.send, True, embed=embedder.afk(member, after))
                 else:
+                    # Same channel: diff the individual voice properties listed
+                    # in public_config.on_v_s_update and log each change.
                     for attr in dir(after):
                         if attr in public_config.on_v_s_update:
                             if getattr(after, attr) != getattr(before, attr) and hasattr(embedder, attr):
-                                log = getattr(database_logger, attr)
-                                await log(member, after)
+                                # BUGFIX: the embedder side was guarded by
+                                # hasattr but database_logger was not, so a
+                                # property with an embed function and no
+                                # matching logger function would raise
+                                # AttributeError and abort the whole handler
+                                # (losing the remaining voice-state logs for
+                                # this event). Now guarded symmetrically.
+                                if hasattr(database_logger, attr):
+                                    log = getattr(database_logger, attr)
+                                    await log(member, after)
                                 s = getattr(embedder, attr)
                                 if attr == "self_mute":
                                     embed = s(member, before, after)
                                 else:
                                     embed = s(member, after)
                                 await helpers.try_function(channel.send, True, embed=embed)
+                    # Deafening yourself also mutes you client-side, so a
+                    # deafen-only change wouldn't be caught by the loop above
+                    # (self_mute is unchanged); this covers that case.
                     if before.self_mute == after.self_mute and before.self_deaf != after.self_deaf:
                         embed = embedder.self_mute(member, before, after)
                         await helpers.try_function(channel.send, True, embed=embed)
@@ -245,7 +300,7 @@ class LogBot():
                 await helpers.try_function(channel.send, True, embed=embedder.connected(member, after))
 
     # --------------------- RANDOM --------------------------------
-        @ self.bot.event
+        @self.bot.event
         async def on_ready():
             if not self.on_ready_flag:
                 self.on_ready_flag = True
@@ -253,7 +308,7 @@ class LogBot():
                 print(f"{self.name} is logged as {self.bot.user}")
                 await self.status_check()
 
-        @ self.bot.event
+        @self.bot.event
         async def on_disconnect():
             print(f"{self.name} has disconnected from Discord")
 
@@ -273,15 +328,15 @@ class LogBot():
             await inter.channel.send(embed=embed)
             await inter.channel.send(f"{member.mention}", delete_after=0.001)
 
-        @ self.bot.slash_command(dm_permission=False)
+        @self.bot.slash_command(dm_permission=False)
         async def set(inter: disnake.AppCmdInter):
             pass
 
-        @ set.sub_command_group()
+        @set.sub_command_group()
         async def logs(inter: disnake.AppCmdInter):
             pass
 
-        @ logs.sub_command(description="Allows admins to set a channel for common logs")
+        @logs.sub_command(description="Allows admins to set a channel for common logs")
         async def common(inter: disnake.AppCmdInter,
                          channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for common logs')):
             await inter.response.defer()
@@ -296,7 +351,7 @@ class LogBot():
                 await helpers.set_guild_option(inter.guild.id, GuildOption.LOG_CHANNEL, None)
                 await inter.edit_original_response('Common logs are disabled.')
 
-        @ logs.sub_command(description="Allows admins to set a channel for status logs")
+        @logs.sub_command(description="Allows admins to set a channel for status logs")
         async def status(inter: disnake.AppCmdInter,
                          channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for status logs')):
             await inter.response.defer()
@@ -311,7 +366,7 @@ class LogBot():
                 await helpers.set_guild_option(inter.guild.id, GuildOption.STATUS_LOG_CHANNEL, None)
                 await inter.edit_original_response('Status logs are disabled.')
 
-        @ logs.sub_command(description="Allows admins to set a channel for welcome logs")
+        @logs.sub_command(description="Allows admins to set a channel for welcome logs")
         async def welcome(inter: disnake.AppCmdInter,
                           channel: (disnake.TextChannel | None) = commands.Param(default=None, description='Select a text channel for welcome logs')):
             await inter.response.defer()
@@ -326,7 +381,7 @@ class LogBot():
                 await helpers.set_guild_option(inter.guild.id, GuildOption.WELCOME_CHANNEL, None)
                 await inter.edit_original_response('Welcome logs are disabled.')
 
-        @ self.bot.slash_command(description="Reviews list of commands")
+        @self.bot.slash_command(description="Reviews list of commands")
         async def help(inter: disnake.AppCmdInter):
             await inter.response.defer()
             await inter.send(embed=disnake.Embed(color=0, description=self.help()))
@@ -336,26 +391,60 @@ class LogBot():
     async def run(self):
         await self.bot.start(self.token)
 
+    async def _get_status_channels(self, guild_list, cache):
+        """Returns {guild_id: status_log_channel_id} for guilds that have one.
+
+        Optionally memoized for STATUS_CHANNEL_CACHE_SECONDS - see the constant
+        at the top of this module. With the cache disabled (the default, and
+        the original behavior) this issues one sqlite query per guild per poll.
+        """
+        status_channels = {}
+        now = time.monotonic()
+        for guild in guild_list:
+            if STATUS_CHANNEL_CACHE_SECONDS > 0:
+                cached = cache.get(guild.id)
+                if cached and now - cached[0] < STATUS_CHANNEL_CACHE_SECONDS:
+                    channel_id = cached[1]
+                else:
+                    channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
+                    cache[guild.id] = (now, channel_id)
+            else:
+                channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
+            if channel_id:
+                status_channels[guild.id] = channel_id
+        return status_channels
+
     async def status_check(self):
+        """Polling loop that diffs every member's presence and posts changes to
+        each guild's status-log channel.
+
+        This is by far the most expensive thing in the process: it walks every
+        member of every guild that has status logging enabled, twice a second.
+        See CHANGES.md "Stage 4" before tuning STATUS_POLL_INTERVAL or enabling
+        STATUS_CHANNEL_CACHE_SECONDS.
+        """
         prev_status = {}
+        channel_cache = {}
         while True:
             try:
                 delayed_tasks = []
                 new_status = {}
-                status_channels = {}
                 guild_list = self.bot.guilds
+                status_channels = await self._get_status_channels(guild_list, channel_cache)
                 for guild in guild_list:
-                    status_log_channel_id = await helpers.get_guild_option(guild.id, GuildOption.STATUS_LOG_CHANNEL)
-                    if status_log_channel_id:
-                        status_channels[guild.id] = status_log_channel_id
-                        for member in guild.members:
-                            if member.bot:
-                                continue
-                            new_status[member] = UserStatus(None)
+                    if guild.id not in status_channels:
+                        continue
+                    for member in guild.members:
+                        if member.bot:
+                            continue
+                        new_status[member] = UserStatus(None)
                 self.gen_status_and_activity(new_status)
 
                 for member, status in new_status.items():
-                    if not member in prev_status or status == prev_status[member]:
+                    # Members absent from the previous pass are skipped rather
+                    # than reported, so a restart doesn't dump every member's
+                    # current status into the log channel.
+                    if member not in prev_status or status == prev_status[member]:
                         continue
                     status.updated = True
                     if status.status != prev_status[member].status:
@@ -363,7 +452,7 @@ class LogBot():
                     if status.activities != prev_status[member].activities:
                         delayed_tasks.append(database_logger.activity_upd(member, prev_status[member], status))
                 for guild in guild_list:
-                    if not guild.id in status_channels.keys():
+                    if guild.id not in status_channels.keys():
                         continue
                     for member in guild.members:
                         if not member.bot and new_status[member].updated:
@@ -374,10 +463,15 @@ class LogBot():
                             delayed_tasks.append(helpers.try_function(channel.send, True, embed=embedder.activity_update(member, prev_status[member], new_status[member])))
                 asyncio.create_task(helpers.run_delayed_tasks(delayed_tasks))
                 prev_status = new_status
-                await asyncio.sleep(0.5)
             except Exception as ex:
                 print(f"Exception in status log: {ex}", file=sys.stderr)
-                pass
+            finally:
+                # BUGFIX: the sleep used to live at the end of the `try` block,
+                # so any exception skipped it and the loop respun immediately
+                # with no delay - a hot loop that pegged a core for as long as
+                # the error condition persisted. Moving it to `finally`
+                # guarantees the interval is always honored.
+                await asyncio.sleep(STATUS_POLL_INTERVAL)
 
     def gen_status_and_activity(self, status_dict: Dict[disnake.Member, UserStatus]):
         for member, status in status_dict.items():

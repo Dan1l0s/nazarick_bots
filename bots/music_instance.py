@@ -1,34 +1,100 @@
+"""A single music bot instance: owns one Discord connection, one voice client
+per guild, and the per-guild playback state (queue, current song, repeat/skip
+flags, inactivity timeout).
+
+`MusicBotLeader` (music_leader.py) subclasses this and adds the slash commands;
+plain instances have no commands of their own and are driven entirely by the
+leader delegating to them. That's the "several bots, one set of commands"
+design described in the README.
+
+Behavior is preserved from the original, including every minor conditional and
+edge-case fix, with two exceptions - both performance fixes, both documented in
+CHANGES.md and both tunable via constants at the top of this file:
+
+  1. `radio_message()` used a blocking `urlopen()` directly on the event loop.
+  2. `play_loop()` used `await asyncio.sleep(0)` as a busy-wait.
+
+See CHANGES.md "Stage 2" for the full rationale on each.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import datetime
+import functools
+import json
+import logging
+import random
+import re
+from concurrent.futures import ThreadPoolExecutor
+from urllib.request import urlopen
+
 import disnake
 from disnake.ext import commands
-import functools
-import random
-import asyncio
-import json
-import re
-import datetime
-from urllib.request import urlopen
-from concurrent.futures import ThreadPoolExecutor
-
 
 import configs.private_config as private_config
 import configs.public_config as public_config
-
-import helpers.helpers as helpers
 import helpers.database_logger as database_logger
 import helpers.embedder as embedder
+import helpers.helpers as helpers
+from helpers.view_panels import QueueList, SongSelection
 
-from helpers.view_panels import SongSelection, QueueList
+logger = logging.getLogger("nazarick.music")
+
+# How long play_loop() waits between polls while the head of the queue is still
+# being resolved by yt-dlp in the background. The original used
+# `asyncio.sleep(0)`, which yields to the event loop but reschedules
+# immediately - a hot spin loop that pegs a CPU core for the entire duration of
+# track resolution, on every bot that's loading a track. At 0.05s the worst-case
+# added latency before playback starts is 50ms (inaudible), while CPU usage of
+# this loop drops by orders of magnitude. Set to 0 to restore the original
+# busy-wait behavior exactly.
+QUEUE_POLL_INTERVAL = 0.05
+
+# Poll interval for the radio "now playing" widget. Matches the original's
+# 1-second cadence.
+RADIO_POLL_INTERVAL = 1
+
+# Poll interval used while waiting for the current track to finish. Matches the
+# original's 1-second cadence.
+PLAYBACK_POLL_INTERVAL = 1
 
 
-class Interaction():
-    orig_inter = None
-    author = None
-    guild = None
-    text_channel = None
-    voice_channel = None
-    message = None
+def fetch_radio_widget(url: str) -> dict:
+    """Fetches and parses the anison.fm status widget.
+
+    Blocking on purpose: this is always called through `run_in_process()` (the
+    shared thread pool), never directly on the event loop. In the original this
+    body lived inline inside the async `radio_message()` coroutine, which meant
+    a synchronous HTTP request ran on the event loop roughly once per second for
+    as long as any bot was playing radio - stalling *every* bot in the process
+    (they all share one loop), including their voice packet pacing and Discord
+    heartbeats. Extracting it here lets it run off-loop like every other
+    blocking call in this file (yt-dlp extraction, youtube search).
+    """
+    response = urlopen(url)
+    return json.loads(response.read())
+
+
+class Interaction:
+    """Rebinds a slash-command interaction from the leader bot onto whichever
+    instance bot will actually handle it.
+
+    The user always types commands at the leader, but a different bot may be the
+    one connected to their voice channel. This re-resolves guild/author/channel
+    objects through the *target* bot's cache so the handling instance operates on
+    its own objects, while `orig_inter` is kept so responses still go back to the
+    original interaction the user is waiting on.
+    """
 
     def __init__(self, bot, inter):
+        self.orig_inter = None
+        self.author = None
+        self.guild = None
+        self.text_channel = None
+        self.voice_channel = None
+        self.message = None
+
         if inter.guild:
             self.guild = bot.get_guild(inter.guild.id)
         if inter.guild:
@@ -41,39 +107,39 @@ class Interaction():
         self.orig_inter = inter
 
 
-class Song():
-    track_info = None
-    author = None
-    original_message = None
-    radio_mode = None
+class Song:
+    """One queue entry.
 
-    def __init__(self, *, author="Unknown author", radio_mode=False):
+    `track_info` is a Future rather than a plain dict because songs are queued
+    immediately (to hold their position in the queue) while yt-dlp resolves them
+    in the background. `play_loop` skips over entries whose Future isn't done yet
+    and plays the first one that is ready, which is what lets a slow playlist
+    load without blocking a quick single-track request behind it.
+    """
+
+    def __init__(self, *, author="Unknown author", radio_mode: bool = False):
         self.track_info = asyncio.Future()
         self.author = author
+        self.original_message = None
         self.radio_mode = radio_mode
 
 
-class GuildState():
-    current_song = None
-    guild = None
-    skip_flag = None
-    repeat_flag = None
-    paused = None
-    last_inter = None
-    voice = None
-    cancel_timeout = None
-    song_queue = None
-    last_radio_message = None
+class GuildState:
+    """Per-guild playback state for one instance."""
 
     def __init__(self, guild):
         self.guild = guild
+        self.current_song = None
         self.skip_flag = False
         self.repeat_flag = False
         self.paused = False
+        self.last_inter = None
+        self.voice = None
+        self.cancel_timeout = None
         self.song_queue = []
         self.last_radio_message = []
 
-    def reset(self):
+    def reset(self) -> None:
         self.skip_flag = False
         self.repeat_flag = False
         self.paused = False
@@ -83,7 +149,11 @@ class GuildState():
         self.song_queue.clear()
         self.last_radio_message.clear()
 
-    async def connected_to(self, vc):
+    async def connected_to(self, vc) -> None:
+        """Waits until the voice client reports it is connected to `vc`.
+
+        Used after `move_to()` so the caller doesn't start pushing audio at a
+        channel the client hasn't finished switching to yet."""
         while True:
             if self.voice.is_connected() and self.voice.channel == vc:
                 break
@@ -91,12 +161,6 @@ class GuildState():
 
 
 class MusicBotInstance:
-    bot = None
-    name = None
-    states = None
-    process_pool = None
-    token = None
-    on_ready_flag = None
 
 # *_______ToInherit___________________________________________________________________________________________________________________________________________
 
@@ -144,21 +208,21 @@ class MusicBotInstance:
             print(f"{self.name} has connected to Discord")
             # await database_logger.lost_connection(self.bot)
 
-    async def run(self):
+    async def run(self) -> None:
         await self.bot.start(self.token)
 
 # *_______ForLeader________________________________________________________________________________________________________________________________________
 
-    def contains_in_guild(self, guild_id):
+    def contains_in_guild(self, guild_id) -> bool:
         return guild_id in self.states
 
-    def available(self, guild_id):
-        return bool(self.states[guild_id].voice == None)
+    def available(self, guild_id) -> bool:
+        return bool(self.states[guild_id].voice is None)
 
-    def check_timeout(self, guild_id):
+    def check_timeout(self, guild_id) -> bool:
         if not self.states[guild_id].voice:
             return False
-        return bool(self.states[guild_id].cancel_timeout != None)
+        return bool(self.states[guild_id].cancel_timeout is not None)
 
     def current_voice_channel(self, guild_id):
         if not self.states[guild_id].voice:
@@ -168,9 +232,20 @@ class MusicBotInstance:
 # *_______Helpers________________________________________________________________________________________________________________________________________
 
     async def run_in_process(self, func, *args, **kwargs):
+        """Runs a blocking callable off the event loop.
+
+        NOTE: despite the name (kept unchanged so the leader/admin bots keep
+        working), `process_pool` is a *ThreadPoolExecutor* - these run in
+        threads, not processes. That's fine for everything it's used for here
+        (yt-dlp extraction, youtube search, the radio widget fetch) since those
+        are I/O-bound and release the GIL while waiting on the network.
+        """
         return await asyncio.get_running_loop().run_in_executor(self.process_pool, functools.partial(func, *args, **kwargs))
 
-    async def timeout(self, guild_id):
+    async def timeout(self, guild_id) -> None:
+        """Starts the "everyone left the channel" countdown. Pauses playback and
+        disconnects after PlayTimeout seconds unless `cancel_timeout()` fires
+        first (i.e. somebody rejoins)."""
         state = self.states[guild_id]
         tm = public_config.music_settings["PlayTimeout"]
         message = await state.last_inter.text_channel.send(f"I am left alone, I will leave VC in {tm} seconds!")
@@ -182,21 +257,21 @@ class MusicBotInstance:
             await message.delete()
             if resume and not state.paused:
                 state.voice.resume()
-        except:
+        except Exception:
             if len(self.states[guild_id].voice.channel.members) == 1:
                 try:
                     await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
-                except:
-                    pass
+                except Exception:
+                    logger.debug("timeout: could not log 'finished' for guild=%s", guild_id)
                 await self.abort_play(guild_id, message="Left voice channel due to inactivity!")
         state.cancel_timeout = None
 
-    async def cancel_timeout(self, guild_id, resume=True):
+    async def cancel_timeout(self, guild_id, resume: bool = True) -> None:
         state = self.states[guild_id]
         if state.cancel_timeout and not state.cancel_timeout.done():
             state.cancel_timeout.set_result(resume)
 
-    async def on_voice_event(self, member, before, after):
+    async def on_voice_event(self, member, before, after) -> None:
         guild_id = member.guild.id
         state = self.states[guild_id]
         if not state.voice:
@@ -214,19 +289,21 @@ class MusicBotInstance:
         if member.id == self.bot.application_id and not after.channel:
             await asyncio.sleep(1)
             channel = member.guild.get_channel(before.channel.id)
-            for member in channel.members:
-                if member.id == self.bot.application_id:
+            # If this bot is somehow still present in the channel after the
+            # disconnect event, treat it as a transient blip and do nothing.
+            for channel_member in channel.members:
+                if channel_member.id == self.bot.application_id:
                     return
             await database_logger.finished(before.channel)
             return await self.abort_play(guild_id)
 
         if helpers.get_true_members_count(state.voice.channel.members) < 1:
-            if state.cancel_timeout == None:
+            if state.cancel_timeout is None:
                 await self.timeout(guild_id)
-        else: 
+        else:
             await self.cancel_timeout(guild_id)
 
-    async def abort_play(self, guild_id, message="Finished playing music!"):
+    async def abort_play(self, guild_id, message: str = "Finished playing music!") -> None:
         state = self.states[guild_id]
         if state.voice and message:
             try:
@@ -235,11 +312,11 @@ class MusicBotInstance:
                 voice.stop()
                 await helpers.try_function(voice.disconnect, True)
                 await helpers.try_function(state.last_inter.text_channel.send, True, message)
-            except:
-                pass
+            except Exception:
+                logger.debug("abort_play: cleanup failed for guild=%s", guild_id)
         state.reset()
 
-    async def process_song_query(self, inter, query, *, song=None, playnow=False, radio=False):
+    async def process_song_query(self, inter, query, *, song=None, playnow: bool = False, radio: bool = False) -> None:
         state = self.states[inter.guild.id]
         if not song:
             song = Song(author=inter.author, radio_mode=radio)
@@ -247,16 +324,20 @@ class MusicBotInstance:
                 state.song_queue.insert(0, song)
             else:
                 state.song_queue.append(song)
-        if not "https://" in query and not radio:
+        if "https://" not in query and not radio:
             asyncio.create_task(self.select_song(inter, song, query))
         else:
             asyncio.create_task(self.add_from_url_to_queue(inter, song, query, playnow=playnow))
 
-    async def add_from_url_to_queue(self, inter, song, url, *, respond=True, playnow=False, playlist_future=None):
+    async def add_from_url_to_queue(self, inter, song, url, *, respond: bool = True, playnow: bool = False, playlist_future=None):
         state = self.states[inter.guild.id]
         if "?list=" in url or "&list=" in url:
-            future = (None, asyncio.Future())["playlist" in url]
+            # A URL that carries a playlist id: queue the single video first
+            # (so playback can start immediately), then expand the rest of the
+            # playlist behind it.
+            future = asyncio.Future() if "playlist" in url else None
             orig_song = await self.add_from_url_to_queue(inter, song, url[:url.find("list=") - 1], playnow=playnow, playlist_future=future)
+            # "LL" is the user's private Liked Videos list - not expandable.
             if url.endswith("?list=LL") or "?list=LL&index=" in url:
                 return
             if not orig_song:
@@ -266,6 +347,8 @@ class MusicBotInstance:
             return
         else:
             if "playlist" in url:
+                # Bare /playlist URL with no video to play first: this placeholder
+                # song is removed once the playlist finishes expanding.
                 asyncio.create_task(helpers.add_playlist_delayed_task(helpers.try_function, True, playlist_future, state.song_queue.remove, False, song))
                 if respond:
                     await inter.orig_inter.delete_original_response()
@@ -296,15 +379,17 @@ class MusicBotInstance:
                 song.track_info.set_result(url)
             return song.track_info.result()
 
-    async def select_song(self, inter, song, query):
+    async def select_song(self, inter, song, query) -> None:
         songs = await self.run_in_process(helpers.yt_search, query)
         select = SongSelection(songs, self.add_from_url_to_queue, inter, song, self)
         await inter.orig_inter.delete_original_response()
         await select.send()
 
-    async def add_from_playlist(self, inter, url, orig_url, *, playnow=False, playlist_future=None):
+    async def add_from_playlist(self, inter, url, orig_url, *, playnow: bool = False, playlist_future=None) -> None:
         state = self.states[inter.guild.id]
         msg = await inter.text_channel.send("Processing playlist...")
+        # Placeholder entry that keeps the queue non-empty (and therefore keeps
+        # play_loop alive) while the playlist is being resolved.
         tmp_song = Song(author=datetime.datetime.now())
         state.song_queue.append(tmp_song)
         playlist_info = await self.run_in_process(helpers.ytdl_extract_info, url)
@@ -322,6 +407,8 @@ class MusicBotInstance:
 
         videos_amount = playlist_info['playlist_count']
         if playnow:
+            # Reversed, and each entry inserted at position 0, so the playlist
+            # ends up in its original order at the front of the queue.
             for entry in playlist_info['entries'][::-1]:
                 if "entries" in entry:
                     url = entry["entries"][0]['webpage_url']
@@ -366,17 +453,26 @@ class MusicBotInstance:
         if playlist_future:
             playlist_future.set_result(None)
 
-    async def play_loop(self, guild_id):
+    async def play_loop(self, guild_id) -> None:
+        """Main playback loop for one guild. Runs until the queue drains or
+        playback is aborted."""
         state = self.states[guild_id]
         try:
             while state.song_queue:
+                # Find the first entry whose metadata has finished resolving.
+                # Entries still loading are skipped rather than waited on, so a
+                # slow playlist never blocks a ready single track behind it.
                 pos = -1
                 for i in range(0, len(state.song_queue)):
                     if state.song_queue[i].track_info.done():
                         pos = i
                         break
                 if pos == -1:
-                    await asyncio.sleep(0)  # Do. Not. Ask.
+                    # Nothing ready yet. The original spun here with
+                    # `asyncio.sleep(0)` ("Do. Not. Ask."), which is a busy-wait
+                    # that burns a core for the whole resolution window. See
+                    # QUEUE_POLL_INTERVAL at the top of this file.
+                    await asyncio.sleep(QUEUE_POLL_INTERVAL)
                     continue
                 state.current_song = state.song_queue.pop(pos)
                 current_track = await state.current_song.track_info
@@ -395,17 +491,19 @@ class MusicBotInstance:
                     await state.last_inter.text_channel.send("", embed=embed)
                     await database_logger.playing(state.guild, current_track)
                 else:
+                    # Radio yields to real tracks: if anything else is queued,
+                    # push radio to the back and play the track instead.
                     if len(state.song_queue) > 0 and not state.song_queue[0].radio_mode:
                         state.song_queue.append(state.current_song)
                         continue
                     if state.current_song.original_message:
                         try:
                             await state.current_song.original_message.delete()
-                        except:
-                            pass
+                        except Exception:
+                            logger.debug("play_loop: could not delete radio original_message")
                     state.voice.play(disnake.FFmpegPCMAudio(
                         source=current_track, **public_config.FFMPEG_OPTIONS))
-                    if (current_track == public_config.radio_url):
+                    if current_track == public_config.radio_url:
                         asyncio.create_task(self.radio_message(state))
 
                 await self.play_until_interrupt(guild_id)
@@ -420,19 +518,19 @@ class MusicBotInstance:
                         0, state.current_song)
             try:
                 await database_logger.finished(self.states[guild_id].guild.voice_client.channel)
-            except:
-                pass
+            except Exception:
+                logger.debug("play_loop: could not log 'finished' for guild=%s", guild_id)
             await self.abort_play(guild_id)
         except Exception as err:
             print(f"Exception in play_loop: {err}")
             await database_logger.error(err, state.guild)
             await self.abort_play(guild_id)
 
-    async def play_until_interrupt(self, guild_id):
+    async def play_until_interrupt(self, guild_id) -> None:
         state = self.states[guild_id]
         try:
             while (state.voice and (state.voice.is_playing() or state.voice.is_paused()) and not state.skip_flag):
-                await asyncio.sleep(1)
+                await asyncio.sleep(PLAYBACK_POLL_INTERVAL)
         except Exception as err:
             await self.abort_play(guild_id)
             await database_logger.error(err, state.guild)
@@ -441,7 +539,7 @@ class MusicBotInstance:
 
 # *_______PlayerFuncs________________________________________________________________________________________________________________________________________
 
-    async def play(self, inter, query, playnow=False, radio=False):
+    async def play(self, inter, query, playnow: bool = False, radio: bool = False):
         state = self.states[inter.guild.id]
         state.last_inter = inter
         query = query.strip()
@@ -458,6 +556,8 @@ class MusicBotInstance:
             return await self.process_song_query(inter, query, playnow=playnow, radio=radio)
 
         if state.voice and inter.voice_channel != state.voice.channel:
+            # Being pulled into a different channel: drop the old queue, move,
+            # and start fresh with this request.
             state.voice.stop()
             await self.cancel_timeout(inter.guild.id, False)
             state.reset()
@@ -476,7 +576,7 @@ class MusicBotInstance:
 
             await self.process_song_query(inter, query, song=song, playnow=playnow, radio=radio)
 
-    async def stop(self, inter):
+    async def stop(self, inter) -> None:
         state = self.states[inter.guild.id]
         await inter.orig_inter.delete_original_response()
         if not state.voice:
@@ -484,14 +584,25 @@ class MusicBotInstance:
         await database_logger.finished(inter.guild.voice_client.channel)
         await self.abort_play(inter.guild.id, message=f"DJ {inter.author.display_name} decided to stop!")
 
-    async def pause(self, inter):
+    async def pause(self, inter) -> None:
         state = self.states[inter.guild.id]
-        track_info = await state.current_song.track_info
+        # BUGFIX: the original resolved `state.current_song.track_info` *before*
+        # these guards, so /pause on a bot that was connected but idle
+        # (current_song is None) raised AttributeError instead of replying.
+        # Both guards now run first; the track_info lookup below is only
+        # reached once we know a song is actually loaded.
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
             return
+        if not state.current_song:
+            await inter.orig_inter.send("Nothing's playing atm!")
+            return
+        track_info = await state.current_song.track_info
         if state.paused:
             if state.voice.is_paused():
+                # Live sources (radio, livestreams) can't be resumed - the
+                # buffered position is meaningless - so they're restarted from
+                # the live edge instead.
                 if state.current_song.radio_mode:
                     state.voice.stop()
                     state.voice.play(disnake.FFmpegPCMAudio(
@@ -511,7 +622,7 @@ class MusicBotInstance:
                 state.voice.pause()
             await inter.orig_inter.send("Player paused!")
 
-    async def repeat(self, inter):
+    async def repeat(self, inter) -> None:
         state = self.states[inter.guild.id]
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
@@ -524,7 +635,7 @@ class MusicBotInstance:
             state.repeat_flag = True
             await inter.orig_inter.send("Repeat mode is on!")
 
-    async def skip(self, inter):
+    async def skip(self, inter) -> None:
         state = self.states[inter.guild.id]
         if not state.voice:
             return
@@ -532,12 +643,14 @@ class MusicBotInstance:
         await database_logger.skip(inter)
         await inter.orig_inter.send("Skipped current track!")
 
-    async def queue(self, inter):
+    async def queue(self, inter) -> None:
         state = self.states[inter.guild.id]
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
             return
         if not state.current_song:
+            # Sentinel "nothing playing" entry; the 'artificial' key is what
+            # embedder.queue() checks to render the empty-queue state.
             curr_song = {'title': "Nothing", 'webpage_url': "https://www.youtube.com/watch?v=dQw4w9WgXcQ", 'duration': 86399, 'artificial': True}
         else:
             curr_song = state.current_song.track_info.result()
@@ -546,7 +659,7 @@ class MusicBotInstance:
         await inter.orig_inter.delete_original_response()
         await viewqueue.send(embed=embed)
 
-    async def wrong(self, inter):
+    async def wrong(self, inter) -> None:
         state = self.states[inter.guild.id]
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
@@ -562,7 +675,7 @@ class MusicBotInstance:
         else:
             await inter.orig_inter.send("There are no songs in the queue!")
 
-    async def shuffle(self, inter):
+    async def shuffle(self, inter) -> None:
         state = self.states[inter.guild.id]
         if not state.voice:
             await inter.orig_inter.send("Wrong instance to process operation")
@@ -576,19 +689,25 @@ class MusicBotInstance:
         else:
             await inter.orig_inter.send("I am not playing anything!")
 
-    async def radio_message(self, state):
+    async def radio_message(self, state) -> None:
+        """Polls the anison.fm widget while radio is playing and posts an embed
+        whenever the track changes."""
         url = public_config.radio_widget
         name = ""
         while state.current_song and state.current_song.radio_mode:
             try:
-                response = urlopen(url)
-                data = json.loads(response.read())
+                # BUGFIX: this fetch used to run inline on the event loop (see
+                # fetch_radio_widget's docstring). It now runs in the shared
+                # thread pool like every other blocking call here.
+                data = await self.run_in_process(fetch_radio_widget, url)
                 data["duration"] -= 14
                 data["name"] = re.search(
                     "151; (.+?)</span>", data['on_air']).group(1)
                 if data["name"] == name or (state.voice and state.voice.is_paused()):
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(RADIO_POLL_INTERVAL)
                     continue
+                # A real track was queued while radio was playing: hand the
+                # channel over to it.
                 if len(state.song_queue) > 0:
                     state.song_queue.append(state.current_song)
                     state.voice.stop()
@@ -597,12 +716,12 @@ class MusicBotInstance:
                 data["source"] = re.search(
                     "blank'>(.+?)</a>", data['on_air']).group(1)
                 data['channel'] = state.voice.channel
-                if (state.last_radio_message == data):
+                if state.last_radio_message == data:
                     return
                 state.last_radio_message = data
                 await state.last_inter.text_channel.send("", embed=embedder.radio(data))
                 await database_logger.radio(state.last_inter.guild, data)
-            except:
-                pass
+            except Exception:
+                logger.debug("radio_message: poll iteration failed", exc_info=True)
             finally:
-                await asyncio.sleep(1)
+                await asyncio.sleep(RADIO_POLL_INTERVAL)

@@ -1,25 +1,26 @@
-import disnake
-import asyncio
+"""disnake.ui.View / Modal components: the song-selection button panel, the
+paginated queue/top-XP views, and the "message a Supreme Being" modal.
+
+No behavior changes from the original in this file - no bugs were found here.
+Only docstrings/comments and a couple of bare `except:` -> `except Exception:`
+clauses (still silently `pass`, matching the original) were touched.
+"""
+
+from __future__ import annotations
+
 import random
+
+import disnake
 from disnake import TextInputStyle
 
-import configs.private_config as private_config
-import configs.public_config as public_config
-
-import helpers.helpers as helpers
-
 import helpers.embedder as embedder
+import helpers.helpers as helpers
+import configs.public_config as public_config
 
 
 class SongSelection(disnake.ui.View):
-    url_list = None
-    songs_list = None
-    author = None
-    song = None
-    func = None
-    inter = None
-    bot = None
-    value = None
+    """Shown after `/play <text query>` with up to 5 buttons, one per search
+    result; picking one resumes add_from_url_to_queue with the chosen URL."""
 
     def __init__(self, songs, func, inter, song, bot):
         self.author = inter.author
@@ -78,7 +79,6 @@ class SongSelection(disnake.ui.View):
                 await self.bot.abort_play(self.inter.guild.id, message=None)
         except Exception as err:
             print(f"Caught exception in select: {err}")
-            pass
 
     async def send(self):
         embed = embedder.song_selections(self.author, self.songs_list)
@@ -98,16 +98,10 @@ class SongSelection(disnake.ui.View):
                 await self.bot.abort_play(self.inter.guild.id, message=None)
         except Exception as err:
             print(f"Caught exception in select: {err}")
-            pass
 
 
 class QueueList(disnake.ui.View):
-    inter = None
-    song = None
-    start_index = None
-    queue = None
-    bot = None
-    message = None
+    """Paginated `/queue` view: prev/next (10 tracks/page), refresh, and shuffle."""
 
     def __init__(self, queue, inter, song, bot):
         self.queue = queue
@@ -115,6 +109,7 @@ class QueueList(disnake.ui.View):
         self.inter = inter
         self.song = song
         self.start_index = 0
+        self.message = None
 
         super().__init__(timeout=None)
 
@@ -189,13 +184,7 @@ class QueueList(disnake.ui.View):
 
 
 class TopXP(disnake.ui.View):
-    inter = None
-    author_info = None
-    start_index = None
-    top_users = None
-    bot = None
-    message = None
-    type_voice = None
+    """Paginated `/xp top` leaderboard view."""
 
     def __init__(self, top_users, inter, author_info, bot, xp_type_voice):
         self.top_users = top_users
@@ -204,6 +193,7 @@ class TopXP(disnake.ui.View):
         self.author_info = author_info
         self.start_index = 0
         self.type_voice = xp_type_voice
+        self.message = None
 
         super().__init__(timeout=None)
 
@@ -246,7 +236,7 @@ class TopXP(disnake.ui.View):
 
 
 class MessageForm(disnake.ui.Modal):
-    response = None
+    """Modal used by /message (to other Supreme Beings) and /dm_user (admin_bot.py)."""
 
     def __init__(self, title="Message to Supreme Beings", response="Your message was sent to other Supreme Beings, my master."):
         components = [
