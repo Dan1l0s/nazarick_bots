@@ -9,6 +9,8 @@ Background tasks started in on_ready:
   - `scan_timer`    -> every 60s, awards voice XP and applies rank roles
   - `scan_activity` -> every 24h, strips rank roles from users inactive 60+ days
   - `monitor_errors`-> reads the child process's stderr and DMs the owners
+                       about lines explicitly marked as errors (see
+                       helpers/logging_setup.py)
 
 Behavior preserved from the original, with one bug fix that changes runtime
 behavior (the always-true error filter - see CHANGES.md "Stage 3", and read
@@ -29,6 +31,7 @@ from disnake.ext import commands
 
 import configs.private_config as private_config
 import configs.public_config as public_config
+import helpers.antispam as antispam
 import helpers.database_logger as database_logger
 import helpers.embedder as embedder
 import helpers.helpers as helpers
@@ -38,12 +41,13 @@ from helpers.view_panels import MessageForm, TopXP
 
 logger = logging.getLogger("nazarick.admin")
 
-# The noise list and the report-worthiness decision live in helpers/log_filter.py
-# so this module and hosting/server_manager.py cannot drift apart. Re-exported
-# here because the existing tests and any external callers refer to
-# admin_bot.IGNORED_ERROR_FRAGMENTS / admin_bot.is_ignorable_error_line.
+# Reporting decisions live in helpers/log_filter.py, shared with
+# hosting/server_manager.py so the two readers of this stream cannot drift apart.
+# `is_reportable` is the one that gates notifications now; the noise list and
+# `is_ignorable_error_line` remain only for `status`'s diagnostic output.
 IGNORED_ERROR_FRAGMENTS = log_filter.IGNORED_ERROR_FRAGMENTS
 is_ignorable_error_line = log_filter.is_ignorable_error_line
+is_reportable = log_filter.is_reportable
 
 # How long a user may go without activity before their rank roles are stripped
 # by scan_activity(). 60 days, matching the original's literal 5_184_000.
@@ -66,6 +70,10 @@ class AdminBot:
         self.music_instances = []
         self.on_ready_flag = False
         self.log_bot = None
+        # Anti-spam state. The config is read once at startup; the history is
+        # per-process and bounded (see antispam.MessageHistory).
+        self.spam_config = antispam.config_from_public(public_config)
+        self.message_history = antispam.MessageHistory()
 
         @self.bot.event
         async def on_guild_join(guild):
@@ -190,7 +198,7 @@ class AdminBot:
 
             await helpers.try_function(member.remove_roles, True, role, reason="Unubscribed from notifications")
 
-        @self.bot.slash_command(dm_permission=False)
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY)
         async def set(inter: disnake.AppCmdInter):
             pass
 
@@ -265,7 +273,7 @@ class AdminBot:
                 await helpers.set_guild_option(inter.guild.id, GuildOption.GIVEAWAY_ROLE, None)
                 await inter.edit_original_response(f'The giveaway notification role was removed')
 
-        @self.bot.slash_command(dm_permission=False)
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY)
         async def admin(inter: disnake.AppCmdInter):
             pass
 
@@ -308,7 +316,7 @@ class AdminBot:
             await helpers.try_function(inter.delete_original_response, True)
             await helpers.try_function(inter.channel.send, True, embed=embed)
 
-        @self.bot.slash_command(dm_permission=False)
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY)
         async def rank(inter: disnake.AppCmdInter):
             pass
 
@@ -380,7 +388,7 @@ class AdminBot:
             await helpers.reset_ranks(inter.guild.id)
             await inter.edit_original_response(f'All ranks have been reset')
 
-        @self.bot.slash_command(dm_permission=False)
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY)
         async def xp(inter: disnake.AppCmdInter):
             pass
 
@@ -445,7 +453,7 @@ class AdminBot:
             v_xp, t_xp = await helpers.get_user_xp(inter.guild.id, member.id)
             await inter.edit_original_response(f"{member.mention} now has {v_xp} voice xp and {t_xp} text xp")
 
-        @self.bot.slash_command(dm_permission=False, description="Allows admins to fix voice channels' bitrate")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Allows admins to fix voice channels' bitrate")
         async def bitrate(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -463,7 +471,7 @@ class AdminBot:
             await asyncio.sleep(5)
             await inter.delete_original_response()
 
-        @self.bot.slash_command(dm_permission=False, description="Clears voice channel (authorized use only)")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Clears voice channel (authorized use only)")
         async def purge(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -480,7 +488,7 @@ class AdminBot:
             await asyncio.sleep(5)
             await inter.delete_original_response()
 
-        @self.bot.slash_command(dm_permission=False, description="Clears custom amount of messages")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Clears custom amount of messages")
         async def clear(inter: disnake.AppCmdInter,
                         amount: int = commands.Param(description="The number of messages to clear")):
             await inter.response.defer()
@@ -496,7 +504,7 @@ class AdminBot:
             else:
                 await helpers.try_function(inter.send, True, f"Cleared {amount} messages", delete_after=5)
 
-        @self.bot.slash_command(dm_permission=False, description="Reveals guild list where this bot currently belongs to", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Reveals guild list where this bot currently belongs to", guild_ids=[778558780111060992])
         async def guilds_list(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -522,7 +530,7 @@ class AdminBot:
                 msg += '```'
                 await helpers.try_function(inter.channel.send, True, msg)
 
-        @self.bot.slash_command(dm_permission=False, description="Desintegrates provided server. Irrevocably.", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Desintegrates provided server. Irrevocably.", guild_ids=[778558780111060992])
         async def black_hole(inter: disnake.AppCmdInter,
                              guild_id: str = commands.Param(description="ID of the guild to be eliminated")):
             await inter.response.defer()
@@ -598,7 +606,7 @@ class AdminBot:
                 msg += f"**Emojis:** {emojis_cnt}/{total_emojis} = {round(emojis_cnt * 100 / total_emojis, 3)}%\n"
             await inter.send(msg)
 
-        @self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Returns guild info", guild_ids=[778558780111060992])
         async def get_guild_info(inter: disnake.AppCmdInter,
                                  guild_id: str = commands.Param(description="ID of the required guild")):
             await inter.response.defer()
@@ -618,7 +626,7 @@ class AdminBot:
 
             await inter.send(embed=embed)
 
-        @self.bot.slash_command(dm_permission=False, description="Returns guild info", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Returns guild info", guild_ids=[778558780111060992])
         async def find_user(inter: disnake.AppCmdInter, user_id: str = commands.Param(description="ID of the user")):
             await inter.response.defer()
 
@@ -640,7 +648,7 @@ class AdminBot:
             embed = await self.get_guild_info(desired_guild, bots)
             await inter.send(embed=embed)
 
-        @self.bot.slash_command(dm_permission=False, description="Moves provided user to provided channel", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Moves provided user to provided channel", guild_ids=[778558780111060992])
         async def move_user(inter: disnake.AppCmdInter, guild_id: str = commands.Param(description="Target guild ID"), channel_id: str = commands.Param(default="None", description="Target voice channel ID"), user_id: str = commands.Param(default=None, description="ID of the user")):
             await inter.response.defer()
 
@@ -707,13 +715,13 @@ class AdminBot:
             msg = f"Greetings, Supreme Being.\nYou have a new message from {inter.author}:\n" + message
             await self.supreme_dm(msg, inter.author.id)
 
-        @self.bot.slash_command(dm_permission=False, description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Checks if music bots are playing something in another guilds", guild_ids=[778558780111060992])
         async def music_usage_info(inter: disnake.AppCmdInter):
             await inter.response.defer()
             message = await self.check_music_bots()
             return await inter.send(message)
 
-        @self.bot.slash_command(dm_permission=False, description="Sends DM to provided user", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Sends DM to provided user", guild_ids=[778558780111060992])
         async def dm_user(inter: disnake.AppCmdInter,
                           user_id: str = commands.Param(description="User's id")):
             await inter.response.send_modal(MessageForm(title="Message to a user", response="Your message was sent to the provided user, my master."))
@@ -727,7 +735,7 @@ class AdminBot:
             msg = f"Greetings.\nYou have a new message from Supreme Being {inter.author}:\n" + message
             await helpers.dm_user(msg, int(user_id), self.bot)
 
-        @self.bot.slash_command(dm_permission=False, description="Summons user to provided channel (check provided url twice)", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Summons user to provided channel (check provided url twice)", guild_ids=[778558780111060992])
         async def summon_user(inter: disnake.AppCmdInter,
                               channel_link: str = commands.Param(description="Link to the target channel"),
                               user_id: str = commands.Param(description="User's id"),
@@ -752,7 +760,7 @@ class AdminBot:
             else:
                 await inter.send(f"Couldn't send message to `{errors}`, my master.")
 
-        @self.bot.slash_command(dm_permission=False, description="Manages user in the untouchables list", guild_ids=[778558780111060992])
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Manages user in the untouchables list", guild_ids=[778558780111060992])
         async def manage_untouchable(inter: disnake.AppCmdInter,
                                      user_id: str = commands.Param(description="User's id"),
                                      guild_id: str = commands.Param(description="Guild's id"),
@@ -918,45 +926,70 @@ class AdminBot:
 # *_______OnMessage_________________________________________________________________________________________________________________________________________________________________________________________
 
     async def check_message_content(self, message) -> bool:
-        """Two-signal spam filter. One signal (either a suspicious keyword *or*
-        an invite link) times the author out; both signals together is treated
-        as a raid/advert bot and bans.
+        """Scores the message with helpers/antispam and acts on the total.
 
         Returns True if the message was handled, so `on_message` stops and does
-        not award the author XP.
+        not award XP to someone it just punished.
+
+        Replaces a two-signal check that was both evadable and over-eager: an
+        uppercased `DISCORDAPP.COM/INVITE` slipped straight through, while
+        linking your own server was punished exactly like advertising someone
+        else's. See helpers/antispam.py for the scoring model.
         """
-        # BUGFIX: the original lowercased message.content for the discord.gg
-        # check but compared discordapp.com/invite against the raw content, so
-        # any uppercase in that URL slipped past the filter. Lowercased once
-        # here and used for every comparison.
-        content = message.content.lower()
+        if not hasattr(message.author, "guild"):
+            return False
+        if await helpers.is_admin(message.author):
+            return False
+        if helpers.is_pleiades(message.author):
+            return False
 
-        cnt = 0
-        if "leaks" in content or ":underage:" in content:
-            cnt += 1
-        if "discord.gg" in content or "discordapp.com/invite" in content:
-            cnt += 1
+        author_id = getattr(message.author, "id", None)
+        mention_count = len(getattr(message, "mentions", []) or []) \
+            + len(getattr(message, "role_mentions", []) or [])
 
-        if cnt == 2:
-            if hasattr(message.author, "guild"):
-                if not await helpers.is_admin(message.author):
-                    await helpers.try_function(message.delete, True)
-                    await helpers.try_function(message.author.send, True, f"You've been banned for suspicious activity. [⠀](https://tenor.com/view/one-punch-man-gif-23643267)")
-                    await helpers.try_function(message.author.ban, True, reason="Suspicious activity")
-                    # BUGFIX: the ban branch used to fall through to
-                    # `return False`, so on_message carried on and awarded text
-                    # XP to the user it had just banned. The timeout branch
-                    # already returned True; both now do.
-                    return True
+        verdict = antispam.analyse(
+            message.content,
+            config=self.spam_config,
+            mention_count=mention_count,
+            user_id=author_id,
+            history=self.message_history,
+        )
 
-        elif cnt == 1:
-            if hasattr(message.author, "guild"):
-                if not await helpers.is_admin(message.author):
-                    await helpers.try_function(message.delete, True)
-                    await helpers.try_function(message.author.send, True, f"You've been timed out for suspicious activity. If you think that this is a mistake, try appealling by DMing one of the admins. Get good ;)")
-                    await helpers.try_function(message.author.timeout, True, duration=2_332_800, reason="Suspicious activity")
-                    return True
-        return False
+        # Recorded after scoring so the current message is not counted as one of
+        # its own duplicates.
+        if author_id is not None:
+            self.message_history.record(author_id, message.content)
+
+        action = verdict.action(self.spam_config)
+        if action == "none":
+            return False
+
+        # Attribute access kept defensive: a logging statement must never be the
+        # thing that stops a spam message being removed.
+        guild_id = getattr(getattr(message, "guild", None), "id", "?")
+        logger.warning("antispam %s for user %s in guild %s - %s",
+                       action, author_id, guild_id, verdict.summary())
+
+        await helpers.try_function(message.delete, True)
+
+        if action == "ban":
+            await helpers.try_function(
+                message.author.send, True,
+                "You've been banned for suspicious activity. "
+                "[⠀](https://tenor.com/view/one-punch-man-gif-23643267)")
+            await helpers.try_function(message.author.ban, True,
+                                       reason=f"Anti-spam: {verdict.summary()}"[:500])
+        elif action == "timeout":
+            await helpers.try_function(
+                message.author.send, True,
+                "You've been timed out for suspicious activity. If you think "
+                "that this is a mistake, try appealling by DMing one of the "
+                "admins. Get good ;)")
+            await helpers.try_function(message.author.timeout, True,
+                                       duration=self.spam_config.timeout_seconds,
+                                       reason=f"Anti-spam: {verdict.summary()}"[:500])
+
+        return True
 
 
 # *______SlashCommands______________________________________________________________________________________________________________________________________________________________________________________

@@ -58,6 +58,7 @@ DEFERRED_FORCE_AFTER = 6 * 3600
 # the tests refer to server_manager.IGNORED_ERROR_FRAGMENTS.
 IGNORED_ERROR_FRAGMENTS = log_filter.IGNORED_ERROR_FRAGMENTS
 is_ignorable_error_line = log_filter.is_ignorable_error_line
+is_reportable = log_filter.is_reportable
 
 
 class FileWithDates:

@@ -260,9 +260,24 @@ def non_admin(monkeypatch):
     monkeypatch.setattr(helpers, "is_admin", fake_is_admin)
 
 
+class SpamHost:
+    """Minimal stand-in for `self`: check_message_content reads only the
+    anti-spam config and history off it."""
+
+    def __init__(self, **overrides):
+        from helpers import antispam
+        self.spam_config = antispam.SpamConfig(**overrides)
+        self.message_history = antispam.MessageHistory()
+
+
+def check(msg, host=None):
+    return asyncio.run(admin_bot.AdminBot.check_message_content(
+        host or SpamHost(), msg))
+
+
 def test_clean_message_is_untouched(non_admin):
     msg = FakeMessage("hello everyone, nice server")
-    result = asyncio.run(admin_bot.AdminBot.check_message_content(None, msg))
+    result = check(msg)
     assert result is False
     assert msg.deleted is False
     assert msg.author.actions == []
@@ -270,7 +285,7 @@ def test_clean_message_is_untouched(non_admin):
 
 def test_single_signal_invite_link_times_out(non_admin):
     msg = FakeMessage("join discord.gg/something")
-    result = asyncio.run(admin_bot.AdminBot.check_message_content(None, msg))
+    result = check(msg)
     assert result is True
     assert msg.deleted is True
     assert "timeout" in msg.author.actions
@@ -279,15 +294,17 @@ def test_single_signal_invite_link_times_out(non_admin):
 
 def test_single_signal_keyword_times_out(non_admin):
     msg = FakeMessage("free leaks here")
-    result = asyncio.run(admin_bot.AdminBot.check_message_content(None, msg))
+    result = check(msg)
     assert result is True
     assert "timeout" in msg.author.actions
     assert "ban" not in msg.author.actions
 
 
 def test_both_signals_ban(non_admin):
+    """Two signals still bans, as before - now because 50 + 50 crosses
+    ban_score, rather than because a counter reached 2."""
     msg = FakeMessage("free leaks at discord.gg/spam")
-    result = asyncio.run(admin_bot.AdminBot.check_message_content(None, msg))
+    result = check(msg)
     assert msg.deleted is True
     assert "ban" in msg.author.actions
     assert "timeout" not in msg.author.actions
@@ -302,7 +319,7 @@ def test_admins_are_exempt(monkeypatch):
     monkeypatch.setattr(helpers, "is_admin", fake_is_admin)
 
     msg = FakeMessage("free leaks at discord.gg/spam")
-    result = asyncio.run(admin_bot.AdminBot.check_message_content(None, msg))
+    result = check(msg)
     assert msg.deleted is False
     assert msg.author.actions == []
     assert result is False
@@ -319,7 +336,7 @@ def test_invite_check_is_case_insensitive(non_admin, content):
     comparison but compared discordapp.com/invite against the raw string, so
     any uppercase in that URL bypassed the filter entirely."""
     msg = FakeMessage(content)
-    result = asyncio.run(admin_bot.AdminBot.check_message_content(None, msg))
+    result = check(msg)
     assert result is True
     assert msg.deleted is True
     assert "timeout" in msg.author.actions

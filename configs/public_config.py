@@ -330,3 +330,50 @@ manual_backup_files = ['db/bot_database.db', 'db/logs.db']
 # private_config.test_guilds. Exceeding it times the moderator out and notifies
 # the owner - an anti-nuke tripwire. Counter resets when the bot restarts.
 kick_ban_limit = 5
+
+
+# ---------------- ANTI-SPAM
+
+# Tuning for helpers/antispam.py. Every key is optional - anything omitted keeps
+# the default from antispam.SpamConfig, so this dict can stay small.
+#
+# How it works: each signal adds points, and the total picks an action. This is
+# deliberately not a set of independent rules - one weak signal should not ban
+# anyone, while several together usually should do something.
+#
+#   >= ban_score      -> delete, DM the user, ban
+#   >= timeout_score  -> delete, DM the user, time out
+#   >= delete_score   -> delete only
+#   below that        -> ignored
+#
+# With the defaults below: an invite alone (50) is a timeout; an invite plus a
+# banned term (50+50) is a ban, matching the previous two-signal behaviour.
+# Shouting alone (10) does nothing, but shouting a scam phrase with a shortened
+# link (10+30+15) crosses the delete threshold.
+antispam = {
+    "ban_score": 100,
+    "timeout_score": 50,
+    "delete_score": 25,
+
+    "invite_weight": 50,
+    "banned_term_weight": 50,
+    "scam_phrase_weight": 30,
+    "shortener_weight": 15,
+    "mass_mention_weight": 30,
+    "flood_weight": 40,
+    "duplicate_weight": 35,
+    "all_caps_weight": 10,
+
+    "mass_mention_limit": 5,
+    "flood_messages": 5,
+    "flood_window_seconds": 8,
+    "duplicate_messages": 3,
+    "duplicate_window_seconds": 60,
+
+    # Invite codes that are always fine - your own server's vanity URL and any
+    # partner servers. Without these the filter punishes members for sharing the
+    # server they are already in, which is the quickest way to get it disabled.
+    "allowed_invite_codes": (
+        "nazarick",
+    ),
+}

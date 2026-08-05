@@ -32,6 +32,7 @@ from bots.admin_bot import AdminBot
 from bots.log_bot import LogBot
 from bots.music_instance import MusicBotInstance
 from bots.music_leader import MusicBotLeader
+from helpers import logging_setup
 from hosting import status
 
 # Worker count for the shared blocking-work pool. None keeps Python's default
@@ -41,43 +42,15 @@ from hosting import status
 THREAD_POOL_MAX_WORKERS = None
 
 
-#: Third-party loggers held at WARNING. disnake logs gateway reconnects,
-#: RESUMEs and HTTP calls at INFO, all of which are normal operation - and
-#: because the supervisor pipes this process's stderr back in as the admin
-#: bot's error feed, anything reaching stderr gets reported to the owner as a
-#: problem. Letting these through produced DMs about healthy reconnects.
-NOISY_LOGGERS = ("disnake", "websockets", "asyncio", "urllib3", "yt_dlp")
-
-
 def configure_logging() -> None:
-    """Routes the `nazarick.*` loggers introduced during the refactor to stderr.
+    """Delegates to helpers/logging_setup.
 
-    Deliberately attaches the handler to the `nazarick` logger rather than the
-    root logger. Configuring root would capture every third-party library too,
-    and since hosting/server_manager.py feeds this process's stderr back to
-    `AdminBot.monitor_errors`, that turns library INFO chatter into owner DMs.
-
-    Level is INFO by default; NAZARICK_LOG_LEVEL=DEBUG also shows the routine
-    try_function failures.
+    See that module for the design: severity is decided at the point of logging,
+    only ERROR+ from our own code is marked for reporting, and everything -
+    including third-party output and warnings - goes to a rotating file under
+    logs/. NAZARICK_LOG_LEVEL controls our own verbosity only.
     """
-    level_name = os.environ.get("NAZARICK_LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s %(name)s: %(message)s"))
-
-    own = logging.getLogger("nazarick")
-    own.setLevel(level)
-    own.propagate = False          # don't also hand records to root
-    for existing in list(own.handlers):
-        own.removeHandler(existing)
-    own.addHandler(handler)
-
-    # Real problems from third-party libraries still surface, but their
-    # informational running commentary does not.
-    for name in NOISY_LOGGERS:
-        logging.getLogger(name).setLevel(logging.WARNING)
+    logging_setup.configure()
 
 
 async def validate_bots(leaders, instances, admins, loggers):
@@ -127,6 +100,10 @@ async def main():
     os.chdir(os.path.dirname(__file__))
     configure_logging()
     pool = ThreadPoolExecutor(max_workers=THREAD_POOL_MAX_WORKERS, initializer=worker_init)
+
+    # Unhandled task exceptions would otherwise go to stderr unmarked, and
+    # under an allowlist that means unreported.
+    logging_setup.install_asyncio_handler(asyncio.get_running_loop())
 
     try:
         loop = asyncio.get_running_loop()

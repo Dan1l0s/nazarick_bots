@@ -33,6 +33,18 @@ logger = logging.getLogger("nazarick.helpers")
 DB_PATH = "db/bot_database.db"
 LOGS_DB_PATH = "db/logs.db"
 
+#: Restricts a slash command to servers, i.e. not usable in DMs.
+#:
+#: Replaces `dm_permission=False`, which disnake deprecates in favour of
+#: `contexts` and which will be removed in disnake 3.x. On the wire the two are
+#: equivalent: `dm_permission=false` becomes `contexts=[0]`, where 0 is
+#: Discord's GUILD context type - verified by comparing the registered command
+#: payloads both ways.
+#:
+#: Safe to share one instance across every command: disnake reads the flags when
+#: building the payload and does not mutate the object.
+GUILD_ONLY = disnake.InteractionContextTypes(guild=True)
+
 # Database paths whose schema has already been created in this process.
 #
 # PERF: `ensure_tables()` / `ensure_tables_logger()` are called at the top of
@@ -70,6 +82,11 @@ def is_supreme_being(member) -> bool:
     except Exception:
         return False
 
+def is_pleiades(member) -> bool:
+    try:
+        return member.id in private_config.bot_ids.values()
+    except Exception:
+        return False
 
 async def is_untouchable(member) -> bool:
     return member.guild and member.id in await get_guild_option(member.guild.id, GuildOption.UNTOUCHABLES_LIST)

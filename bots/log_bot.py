@@ -318,7 +318,7 @@ class LogBot:
 
     # --------------------- SLASH COMMANDS --------------------------------
 
-        @self.bot.slash_command(dm_permission=False, description="Creates a welcome banner for a new member (manually)")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Creates a welcome banner for a new member (manually)")
         async def welcome(inter: disnake.AppCmdInter,
                           member: disnake.Member = commands.Param(description="Specify the member to create banner for")):
             await inter.response.defer()
@@ -328,7 +328,7 @@ class LogBot:
             await inter.channel.send(embed=embed)
             await inter.channel.send(f"{member.mention}", delete_after=0.001)
 
-        @self.bot.slash_command(dm_permission=False)
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY)
         async def set(inter: disnake.AppCmdInter):
             pass
 

@@ -25,6 +25,7 @@ from disnake.ext import commands
 
 import configs.private_config as private_config
 import configs.public_config as public_config
+import helpers.antispam as antispam
 import helpers.database_logger as database_logger
 import helpers.helpers as helpers
 from bots.music_instance import Interaction, MusicBotInstance
@@ -39,6 +40,7 @@ class MusicBotLeader(MusicBotInstance):
         self.instances = []
         self.instances.append(self)
         self.instance_count = 0
+        self.spam_config = antispam.config_from_public(public_config)
         # self.chatgpt_messages = {}
         # self.openai_client = openai.AsyncOpenAI(api_key=private_config.openai_api_key)
 
@@ -72,7 +74,7 @@ class MusicBotLeader(MusicBotInstance):
                 await self.check_message_content(message)
             await helpers.check_mentions(message, self.bot)
 
-        @self.bot.slash_command(dm_permission=False, description="Plays a song from youtube (paste URL or type a query)", aliases="p")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Plays a song from youtube (paste URL or type a query)", aliases="p")
         async def play(inter: disnake.AppCmdInter,
                        query: str = commands.Param(description='Type a query or paste youtube URL')):
             await inter.response.defer()
@@ -87,7 +89,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, query)
 
-        @self.bot.slash_command(dm_permission=False, description="Plays anime radio or custom online radio")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Plays anime radio or custom online radio")
         async def radio(inter: disnake.AppCmdInter,
                         url: str = commands.Param(default=public_config.radio_url, description="URL of online radio (mp3 player)")):
             await inter.response.defer()
@@ -102,7 +104,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, url, radio=True)
 
-        @self.bot.slash_command(dm_permission=False, description="Plays a song from youtube (paste URL or type a query) at position #1 in the queue", aliases="p")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Plays a song from youtube (paste URL or type a query) at position #1 in the queue", aliases="p")
         async def playnow(inter: disnake.AppCmdInter,
                           query: str = commands.Param(description='Type a query or paste youtube URL')):
             await inter.response.defer()
@@ -117,7 +119,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.play(new_inter, query, playnow=True)
 
-        @self.bot.slash_command(dm_permission=False, description="Pauses/resumes player")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Pauses/resumes player")
         async def pause(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -127,7 +129,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.pause(new_inter)
 
-        @self.bot.slash_command(dm_permission=False, description="Repeats current song")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Repeats current song")
         async def repeat(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -137,7 +139,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.repeat(new_inter)
 
-        @self.bot.slash_command(dm_permission=False, description="Clears queue and disconnects bot")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Clears queue and disconnects bot")
         async def stop(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -147,7 +149,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.stop(new_inter)
 
-        @self.bot.slash_command(dm_permission=False, description="Skips current song")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Skips current song")
         async def skip(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -157,7 +159,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.skip(new_inter)
 
-        @self.bot.slash_command(dm_permission=False, description="Shows current queue")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Shows current queue")
         async def queue(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -167,7 +169,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.queue(new_inter)
 
-        @self.bot.slash_command(dm_permission=False, description="Removes last added song from queue")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Removes last added song from queue")
         async def wrong(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -177,7 +179,7 @@ class MusicBotLeader(MusicBotInstance):
             new_inter = Interaction(assigned_instance.bot, inter)
             await assigned_instance.wrong(new_inter)
 
-        @self.bot.slash_command(dm_permission=False, description="Shuffles current queue")
+        @self.bot.slash_command(contexts=helpers.GUILD_ONLY, description="Shuffles current queue")
         async def shuffle(inter: disnake.AppCmdInter):
             await inter.response.defer()
 
@@ -239,8 +241,16 @@ class MusicBotLeader(MusicBotInstance):
 
     async def check_message_content(self, message) -> bool:
         """Deletes Discord invite links posted by non-admins (fallback for when
-        the admin bot isn't in the guild)."""
-        if "discord.gg" in message.content.lower() or "discordapp.com/invite" in message.content.lower():
+        the admin bot isn't in the guild).
+
+        Uses helpers/antispam.find_invites rather than a substring test, so the
+        obfuscations that defeated the old check - uppercase, `discord . gg`,
+        zero-width characters, Cyrillic homoglyphs - are caught here too.
+        Allow-listed codes (your own server) are ignored.
+        """
+        codes = antispam.find_invites(message.content)
+        allowed = {c.lower() for c in self.spam_config.allowed_invite_codes}
+        if codes and any(c.lower() not in allowed for c in codes):
             if hasattr(message.author, "guild"):
                 if not await helpers.is_admin(message.author):
                     await helpers.try_function(message.delete, True)
