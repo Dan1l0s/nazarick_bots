@@ -25,19 +25,32 @@ except Exception:
     pass
 
 HELP_TEXT = """List of possible commands:
-    status - reveal current bot status
-    run - run bot if its offline
-    stop - stop the bot if its running
-    reboot - restart the bot
-    backup - create a manual backup
-    update {branch} - checkout to selected branch, master by default
-    upgrade - update yt-dlp, restart only if the version changed
-    cancel - cancel a queued (when-idle) action
-    clear - clears current list of errors
 
-Append `when-idle` to reboot / update / upgrade to queue the action until no
-bot is playing music, e.g.:
-    update master when-idle
+  Immediate                     Deferred (waits for playback to finish)
+    reboot                        reboot-idle
+    update {branch}               update-idle {branch}
+    upgrade                       upgrade-idle
+
+    reboot  - restart the bots now, cutting off anything currently playing
+    update  - checkout the selected branch (master by default), reinstall
+              dependencies, then restart
+    upgrade - update yt-dlp, and restart only if the version actually changed
+
+  Other
+    status  - current state, branch, commit, yt-dlp version, playback,
+              queued action and recent errors
+    run     - start the bots if they are offline
+    stop    - stop the bots if they are running
+    backup  - create a manual backup
+    cancel  - drop a queued deferred action
+    clear   - clear the current list of errors
+
+A deferred action is queued until no bot is playing music, and runs anyway after
+6 hours so a bot stuck reporting "playing" cannot block it forever. Queueing a
+new one replaces any action already waiting. `status` shows what is queued.
+
+The `-idle` suffix is shorthand: `reboot-idle` and `reboot when-idle` are the
+same command, so either form works.
 """
 
 

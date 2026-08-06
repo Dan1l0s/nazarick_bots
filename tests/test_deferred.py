@@ -11,6 +11,9 @@ import json
 import os
 import sys
 import time
+import signal
+import socket
+import subprocess
 import types
 
 import pytest
@@ -792,3 +795,298 @@ def test_get_ytdlp_version_uses_the_running_interpreter(monkeypatch):
     host = object.__new__(server_manager.Host)
     assert server_manager.Host.get_ytdlp_version(host) == "2026.7.4"
     assert seen[0][0] == sys.executable
+
+
+# --------------------------------------------------------------------------- #
+# Regression: a deferred update must terminate the supervisor
+# --------------------------------------------------------------------------- #
+
+class ShutdownHost:
+    """Drives deferred_watcher far enough to run one queued action."""
+
+    def __init__(self, kind="update"):
+        self.state = server_manager.BotState.RUNNING
+        self.pending = server_manager.PendingAction(kind, "master")
+        self.updated = False
+
+    async def update(self, branch):
+        # What the real update() leaves behind: bots stopped, listener closed.
+        self.updated = True
+        self.state = server_manager.BotState.SHUTDOWN
+        return f"Updated to branch {branch}"
+
+    async def reboot(self):
+        return "rebooted"
+
+    async def run_ytdlp_upgrade(self):
+        return "upgraded"
+
+
+def test_deferred_update_exits_the_process(monkeypatch):
+    """CI's `deploy` queues `update ... when-idle` and returns instantly, so the
+    workflow goes green long before this runs. When it did run, update() stopped
+    the bots and closed the control port but nothing exited - leaving bots
+    offline, the manager unreachable, and systemd seeing the unit as active so
+    Restart=always never fired."""
+    monkeypatch.setattr(server_manager, "DEFERRED_POLL_INTERVAL", 0)
+    monkeypatch.setattr(server_manager.status_module, "is_idle",
+                        lambda *a, **k: (True, "idle"))
+
+    exited = []
+    monkeypatch.setattr(server_manager, "force_exit",
+                        lambda: exited.append(True))
+
+    host = ShutdownHost()
+    asyncio.run(asyncio.wait_for(
+        server_manager.Host.deferred_watcher(host), timeout=5))
+
+    assert host.updated is True
+    assert exited == [True], "the supervisor stayed alive with everything down"
+
+
+def test_deferred_reboot_does_not_exit(monkeypatch):
+    """Only a shutdown-marking action should terminate the process; a plain
+    deferred reboot must leave the supervisor serving its port."""
+    monkeypatch.setattr(server_manager, "DEFERRED_POLL_INTERVAL", 0)
+    monkeypatch.setattr(server_manager.status_module, "is_idle",
+                        lambda *a, **k: (True, "idle"))
+
+    exited = []
+    monkeypatch.setattr(server_manager, "force_exit",
+                        lambda: exited.append(True))
+
+    host = ShutdownHost("reboot")
+
+    async def scenario():
+        task = asyncio.create_task(
+            server_manager.Host.deferred_watcher(host))
+        await asyncio.sleep(0.05)
+        task.cancel()
+
+    asyncio.run(scenario())
+    assert exited == []
+
+
+def test_closing_the_listener_does_not_wake_the_accept_loop():
+    """Documents WHY the explicit force_exit() above is mandatory.
+
+    update() closes the listener socket, which looks like it should end the
+    accept loop. It does not: asyncio has the fd registered in its selector, and
+    closing it underneath a pending sock_accept() leaves the future pending
+    forever rather than raising. So the loop never notices, start() never
+    returns, and the process lives on with the bots stopped and the port shut -
+    which is precisely the state a deferred deploy used to leave behind.
+
+    If a future Python or asyncio version starts raising here, this test fails
+    and the `except OSError` guard in start() becomes the live path. Either way
+    the process must not survive; nothing should depend on which one happens.
+    """
+    host = object.__new__(server_manager.Host)
+    host.state = server_manager.BotState.RUNNING
+    host.listener_socket = socket.socket()
+    host.listener_socket.bind(("127.0.0.1", 0))
+    host.listener_socket.listen(1)
+    host.listener_socket.setblocking(False)
+
+    async def scenario():
+        task = asyncio.create_task(server_manager.Host.start(host, False))
+        await asyncio.sleep(0.05)
+        host.listener_socket.close()
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=0.5)
+            return "loop exited"
+        except asyncio.TimeoutError:
+            return "still hanging"
+        finally:
+            task.cancel()
+
+    assert asyncio.run(scenario()) == "still hanging"
+
+
+# --------------------------------------------------------------------------- #
+# Regression: stopped bots must be reaped, and pkill must not be used
+# --------------------------------------------------------------------------- #
+
+class FakeProc:
+    def __init__(self, pid=4242, stubborn=False):
+        self.pid = pid
+        self.stubborn = stubborn
+        self.waited = 0
+        self.signals = []
+        self.terminated = False
+        self.killed = False
+
+    def wait(self, timeout=None):
+        self.waited += 1
+        if self.stubborn and self.waited == 1:
+            raise subprocess.TimeoutExpired("main.py", timeout)
+        return 0
+
+    def terminate(self):
+        self.terminated = True
+
+    def kill(self):
+        self.killed = True
+
+
+def _stop_host(proc):
+    host = object.__new__(server_manager.Host)
+    host.state = server_manager.BotState.RUNNING
+    host.process = proc
+    host.errors = "some errors"
+    return host
+
+
+def test_stop_reaps_the_child(monkeypatch):
+    """Without a wait() the child lingers as <defunct> for the supervisor's whole
+    life. `ps -ax` on the VPS showed one zombie per stop."""
+    sent = []
+    monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(server_manager.os, "killpg",
+                        lambda pgid, sig: sent.append((pgid, sig)))
+    monkeypatch.setattr(server_manager.status_module, "clear_status",
+                        lambda *a, **k: None)
+
+    proc = FakeProc()
+    host = _stop_host(proc)
+    asyncio.run(server_manager.Host.stop(host))
+
+    assert proc.waited >= 1, "child was never reaped - it becomes a zombie"
+    assert sent == [(4242, signal.SIGTERM)]
+    assert host.state is server_manager.BotState.STOPPED
+
+
+def test_stop_escalates_to_sigkill(monkeypatch):
+    sent = []
+    monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(server_manager.os, "killpg",
+                        lambda pgid, sig: sent.append((pgid, sig)))
+    monkeypatch.setattr(server_manager.status_module, "clear_status",
+                        lambda *a, **k: None)
+
+    proc = FakeProc(stubborn=True)
+    asyncio.run(server_manager.Host.stop(_stop_host(proc)))
+
+    assert [s for _, s in sent] == [signal.SIGTERM, signal.SIGKILL]
+    assert proc.waited == 2
+
+
+def test_stop_never_shells_out_to_pkill(monkeypatch):
+    """`pkill -f <pid>` matched that number anywhere in any command line, so it
+    could kill unrelated processes."""
+    monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(server_manager.os, "killpg", lambda pgid, sig: None)
+    monkeypatch.setattr(server_manager.status_module, "clear_status",
+                        lambda *a, **k: None)
+    calls = []
+    monkeypatch.setattr(server_manager.os, "system",
+                        lambda cmd: calls.append(cmd) or 0)
+
+    asyncio.run(server_manager.Host.stop(_stop_host(FakeProc())))
+    assert not any("pkill" in c for c in calls), calls
+
+
+def test_second_supervisor_refuses_to_start():
+    """Two supervisors would start and stop main.py behind each other's backs."""
+    first = socket.socket()
+    first.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    first.bind(("127.0.0.1", 0))
+    first.listen(1)
+    port = first.getsockname()[1]
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            server_manager.Host(port)
+        assert "already running" in str(excinfo.value)
+        assert "grep server_manager" in str(excinfo.value)
+    finally:
+        first.close()
+
+
+# --------------------------------------------------------------------------- #
+# `<verb>-idle` aliases
+# --------------------------------------------------------------------------- #
+
+class CommandHost:
+    """Records which branch process_command() dispatched to."""
+
+    def __init__(self):
+        self.state = server_manager.BotState.RUNNING
+        self.pending = None
+        self.calls = []
+
+    async def reboot(self):
+        self.calls.append("reboot-now")
+        return "rebooted"
+
+    async def update(self, branch):
+        self.calls.append(f"update-now:{branch}")
+        return "updated"
+
+    async def upgrade_ytdlp(self, deferred=False):
+        self.calls.append(f"upgrade:deferred={deferred}")
+        return "upgraded"
+
+    def queue_action(self, kind, branch=None):
+        self.calls.append(f"queued:{kind}:{branch}")
+        return f"queued {kind}"
+
+    def get_current_branch(self):
+        return "master"
+
+
+def _run(host, command):
+    monkey = server_manager.server_manager_password
+    return asyncio.run(server_manager.Host.process_command(
+        host, f"{monkey} {command}"))
+
+
+@pytest.mark.parametrize("command", [
+    "reboot-idle", "reboot_idle", "reboot when-idle",
+    "REBOOT-IDLE", "restart-idle", "reload-idle",
+])
+def test_deferred_reboot_aliases_queue(command):
+    host = CommandHost()
+    _run(host, command)
+    assert host.calls == ["queued:reboot:None"], command
+
+
+@pytest.mark.parametrize("command", ["reboot", "restart", "reload"])
+def test_immediate_reboot_still_immediate(command):
+    host = CommandHost()
+    _run(host, command)
+    assert host.calls == ["reboot-now"], command
+
+
+def test_update_idle_keeps_its_branch_argument():
+    host = CommandHost()
+    _run(host, "update-idle develop")
+    assert host.calls == ["queued:update:develop"]
+
+
+def test_update_idle_defaults_to_the_current_branch():
+    host = CommandHost()
+    _run(host, "update-idle")
+    assert host.calls == ["queued:update:master"]
+
+
+def test_upgrade_idle_defers():
+    host = CommandHost()
+    _run(host, "upgrade-idle")
+    assert host.calls == ["upgrade:deferred=True"]
+
+    host = CommandHost()
+    _run(host, "upgrade")
+    assert host.calls == ["upgrade:deferred=False"]
+
+
+def test_a_bare_idle_verb_is_not_stripped_into_nothing():
+    """Guards the len() check: "-idle" alone must not become an empty verb."""
+    host = CommandHost()
+    assert _run(host, "-idle") is None
+    assert host.calls == []
+
+
+def test_help_lists_both_forms_side_by_side():
+    from hosting import client_manager
+    for verb in ("reboot-idle", "update-idle", "upgrade-idle"):
+        assert verb in client_manager.HELP_TEXT, verb

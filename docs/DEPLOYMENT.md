@@ -315,6 +315,14 @@ Everything you had still works. These are added:
 | `cancel`                    | drop whatever is queued                                |
 | `status`                    | now also shows yt-dlp version, playback, queued action |
 
+Each deferred form also has a one-word alias, which is what the REPL help lists
+next to the immediate command: `reboot-idle`, `update-idle <branch>`,
+`upgrade-idle`. They are exactly equivalent to appending `when-idle`.
+
+A queued action waits for playback to end, runs anyway after 6 hours so a bot
+stuck reporting "playing" cannot block it forever, and is replaced if you queue
+another. `status` shows what is waiting and why.
+
 `upgrade` is the manual version of what the daily workflow does — useful when
 YouTube breaks playback and you don't want to wait for the schedule.
 

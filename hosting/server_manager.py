@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -193,7 +194,20 @@ class Host:
         self.listener_socket = socket.socket(family=socket.AF_INET)
         self.listener_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listener_socket.bind(('', port))
+        try:
+            self.listener_socket.bind(('', port))
+        except OSError as ex:
+            # Two supervisors fighting over one bot process is the worst failure
+            # mode this program has: each starts and stops main.py behind the
+            # other's back. Refuse to be the second one, and say so clearly -
+            # this used to surface as a bare traceback in a dated log file.
+            raise SystemExit(
+                f"Cannot bind port {port}: {ex}\n"
+                f"Another server_manager.py is almost certainly already running.\n"
+                f"Check with:  ps -ax | grep server_manager\n"
+                f"If one is an orphan not managed by systemd, stop the service, "
+                f"kill the orphan, then start the service again."
+            ) from ex
         self.listener_socket.listen(1600)
         self.listener_socket.setblocking(False)
         print("Host started")
@@ -244,6 +258,17 @@ class Host:
         if rest and rest[-1].lower() in ("when-idle", "when_idle", "whenidle"):
             deferred = True
             rest = rest[:-1]
+
+        # `<verb>-idle` is an alias for `<verb> when-idle`. The suffix form was
+        # only documented as a footnote, so the deferred variants were easy to
+        # miss; as single words they can sit next to the immediate ones in the
+        # help. Handled here rather than as extra `case` arms so update-idle and
+        # upgrade-idle come along for free and cannot drift apart.
+        for suffix in ("-idle", "_idle"):
+            if args[1].endswith(suffix) and len(args[1]) > len(suffix):
+                deferred = True
+                args[1] = args[1][:-len(suffix)]
+                break
 
         match args[1]:
             case "run" | "start":
@@ -328,6 +353,26 @@ class Host:
                     print(await self.run_ytdlp_upgrade())
             except Exception as ex:
                 print(f"Deferred {action.kind} failed: {ex}")
+
+            # BUGFIX: a deferred `update` left the whole stack dead.
+            #
+            # update() stops the bots, closes the listener socket and sets
+            # SHUTDOWN, on the understanding that the process then exits so it
+            # comes back running the new code. handle_client() does exactly that
+            # after replying - but only for an `update` a client sent directly.
+            # Nothing did it here, so a deferred deploy ended with a live
+            # process, the bots stopped and the control port closed: bots
+            # offline, manager unreachable, and systemd still seeing the unit as
+            # active, so Restart=always never fired. It stayed down until
+            # someone restarted it by hand.
+            #
+            # This is the path CI uses: `deploy` sends `update <branch>
+            # when-idle`, which queues and returns immediately - so the workflow
+            # goes green well before any of this runs.
+            if self.state == BotState.SHUTDOWN:
+                print("Deferred action requested shutdown; exiting so the "
+                      "supervisor restarts on the new code")
+                force_exit()
 
 # *_______Dependencies_______________________________________________________________________________________
 
@@ -455,7 +500,17 @@ class Host:
         asyncio.create_task(self.deferred_watcher())
 
         while self.state != BotState.SHUTDOWN:
-            client, addr = await asyncio.get_running_loop().sock_accept(self.listener_socket)
+            try:
+                client, addr = await asyncio.get_running_loop().sock_accept(self.listener_socket)
+            except OSError as ex:
+                # Second line of defence for the same failure: update() closes
+                # this socket underneath us, and a blocked sock_accept on a
+                # closed fd is not guaranteed to raise - asyncio may simply leave
+                # the future pending forever. Where it does raise, leaving the
+                # loop lets the process exit so systemd restarts it, instead of
+                # dumping a traceback and hanging.
+                print(f"Listener closed ({ex}); shutting down")
+                break
             asyncio.create_task(self.handle_client(client, addr))
 
     async def backup(self):
@@ -471,8 +526,12 @@ class Host:
         # no `python` alias, so the literal name works only where someone has
         # installed python-is-python3. This also guarantees the bots run under
         # the same interpreter as the supervisor, including inside a venv.
+        # start_new_session puts the bots in their own process group, so stop()
+        # can signal the group and take their ffmpeg children with them. Without
+        # it, killpg would target the supervisor's own group - i.e. itself.
         self.process = subprocess.Popen(
-            [sys.executable, "../main.py"], close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+            [sys.executable, "../main.py"], close_fds=True, start_new_session=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
         if not self.process:
             return "Failed to create bot process"
@@ -486,9 +545,38 @@ class Host:
         if self.state == BotState.STOPPED:
             return f"Bot is already stopped"
 
-        ans = f"Stopped bot process with PID: {self.process.pid}"
-        os.system(f"pkill -f {self.process.pid}")
-        self.process.terminate()
+        proc = self.process
+        ans = f"Stopped bot process with PID: {proc.pid}"
+
+        # BUGFIX: this was `os.system(f"pkill -f {self.process.pid}")`, which is
+        # both wrong and dangerous. `pkill -f` matches the pattern anywhere in
+        # any process's full command line, so a bare PID like 12409 also kills
+        # unrelated processes that merely mention that number in their arguments.
+        # It also did not reliably reach the ffmpeg children it was aiming for.
+        #
+        # main.py is now started in its own session (start_new_session=True), so
+        # signalling the process group takes the bots and every ffmpeg they
+        # spawned down together, and nothing else.
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            proc.terminate()
+
+        # BUGFIX: nothing ever reaped the child. terminate() only asks it to
+        # exit; without a wait() it stays a <defunct> zombie for as long as the
+        # supervisor lives. `ps -ax` on the VPS showed these accumulating, one
+        # per stop, which is also why "the bots are offline" looked identical to
+        # "the bots are running" at a glance.
+        try:
+            await _to_thread(proc.wait, 15)
+        except subprocess.TimeoutExpired:
+            print(f"Bot process {proc.pid} ignored SIGTERM; sending SIGKILL")
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                proc.kill()
+            await _to_thread(proc.wait)
+
         self.errors = None
         self.state = BotState.STOPPED
         self.process = None
