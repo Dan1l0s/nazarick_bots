@@ -145,11 +145,33 @@ Exact versions live in [requirements.txt](requirements.txt) (runtime) and
 You can execute the [setup file](setup.sh), which will install python and all required
 libraries via pip from `requirements.txt`. Also, for linux users it will install FFmpeg.
 
+On **Linux/macOS** (and Git Bash):
+
 ```bash
 bash setup.sh                 # runtime deps, system Python (what the VPS deploy runs)
 bash setup.sh --dev --venv    # recommended for local development
 bash setup.sh --help          # all options
 ```
+
+On **Windows**, use the PowerShell script instead - it creates the virtualenv,
+installs the test dependencies, checks ffmpeg and runs the suite to prove the
+environment works:
+
+```powershell
+.\tools\dev-setup.ps1                 # add -InstallHook for the pre-commit hook
+.\tools\dev-setup.ps1 -Runtime        # runtime dependencies only
+```
+
+If PowerShell blocks the script, run it as
+`powershell -ExecutionPolicy Bypass -File .\tools\dev-setup.ps1`.
+
+> Do **not** run `bash setup.sh` from PowerShell. `bash` there is normally
+> `C:\Windows\System32\bash.exe`, the WSL launcher - which fails with
+> `execvpe(/bin/bash) failed` if no WSL distro is installed, and if one *is*
+> installed does something worse: `setup.sh` takes its Linux branch and installs
+> the packages and ffmpeg inside WSL, not on Windows. To use `setup.sh` on
+> Windows anyway, call Git Bash explicitly:
+> `& "C:\Program Files\Git\bin\bash.exe" setup.sh --dev --venv`
 
 `--dev` adds the test dependencies; `--venv` creates and installs into `.venv`
 instead of the system Python, which is also the fix if pip refuses with

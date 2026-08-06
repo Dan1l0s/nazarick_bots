@@ -3,6 +3,15 @@
 # Installs Python (Windows/Git Bash only), the project's Python dependencies,
 # and FFmpeg (Linux only).
 #
+# WINDOWS USERS: run tools/dev-setup.ps1 from PowerShell instead. This script
+# needs Git Bash - it only detects Windows via $OSTYPE = "msys". Invoking
+# `bash setup.sh` from PowerShell picks up whichever bash is first on PATH,
+# usually C:\Windows\System32\bash.exe (the WSL launcher), which either fails
+# with "execvpe(/bin/bash) failed" when no distro is installed, or - worse, when
+# one is - takes the Linux branch below and installs packages and ffmpeg inside
+# WSL, a different machine from the one running your bots. To force Git Bash:
+#     & "C:\Program Files\Git\bin\bash.exe" setup.sh --dev --venv
+#
 # Change from the original: dependencies now come from requirements.txt rather
 # than a hardcoded list of `pip install --upgrade <pkg>` calls, so the runtime
 # set has a single source of truth and version floors are respected. Pass

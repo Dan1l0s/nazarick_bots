@@ -82,6 +82,35 @@ async def _to_thread(func, *args, **kwargs):
     return await asyncio.to_thread(func, *args, **kwargs)
 
 
+def _stop_process_tree(proc, force: bool = False) -> None:
+    """Stops the bot process and the ffmpeg children it spawned.
+
+    POSIX: main.py is started with start_new_session=True, so it leads its own
+    process group and a single killpg reaches every ffmpeg under it. This is what
+    replaced `pkill -f <pid>`, which matched that number anywhere in any command
+    line and could kill unrelated processes.
+
+    Windows: os.killpg and os.getpgid do not exist, and neither does SIGKILL.
+    Popen.terminate()/kill() map to TerminateProcess, which stops only this
+    process - stray ffmpeg children may outlive it. Accepted deliberately:
+    Windows is a development platform for this project, not where the bots are
+    hosted. Without this branch stop() raised AttributeError on Windows and the
+    bots could not be stopped at all.
+    """
+    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+        try:
+            os.killpg(os.getpgid(proc.pid),
+                      signal.SIGKILL if force else signal.SIGTERM)
+            return
+        except (ProcessLookupError, PermissionError, OSError):
+            # Already gone, or not permitted - fall through to the single process.
+            pass
+    if force:
+        proc.kill()
+    else:
+        proc.terminate()
+
+
 async def _pip_install_ytdlp():
     """Shared by run_ytdlp_upgrade and the deferred path, which had drifted into
     two copies of the same subprocess call (and the same `python` bug)."""
@@ -197,6 +226,12 @@ class Host:
         try:
             self.listener_socket.bind(('', port))
         except OSError as ex:
+            # NOTE: this catches the case on Linux, which is what the VPS runs.
+            # On Windows SO_REUSEADDR permits a second socket to bind the same
+            # port outright, so the bind succeeds and this never fires. Windows
+            # would need SO_EXCLUSIVEADDRUSE to behave the same way - not worth
+            # it, since the double-supervisor problem is a hosting problem.
+            #
             # Two supervisors fighting over one bot process is the worst failure
             # mode this program has: each starts and stops main.py behind the
             # other's back. Refuse to be the second one, and say so clearly -
@@ -529,6 +564,8 @@ class Host:
         # start_new_session puts the bots in their own process group, so stop()
         # can signal the group and take their ffmpeg children with them. Without
         # it, killpg would target the supervisor's own group - i.e. itself.
+        # POSIX-only; subprocess ignores it on Windows, where _stop_process_tree
+        # falls back to terminating just this process.
         self.process = subprocess.Popen(
             [sys.executable, "../main.py"], close_fds=True, start_new_session=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
@@ -557,10 +594,7 @@ class Host:
         # main.py is now started in its own session (start_new_session=True), so
         # signalling the process group takes the bots and every ffmpeg they
         # spawned down together, and nothing else.
-        try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-        except (ProcessLookupError, PermissionError, OSError):
-            proc.terminate()
+        _stop_process_tree(proc)
 
         # BUGFIX: nothing ever reaped the child. terminate() only asks it to
         # exit; without a wait() it stays a <defunct> zombie for as long as the
@@ -570,11 +604,8 @@ class Host:
         try:
             await _to_thread(proc.wait, 15)
         except subprocess.TimeoutExpired:
-            print(f"Bot process {proc.pid} ignored SIGTERM; sending SIGKILL")
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError):
-                proc.kill()
+            print(f"Bot process {proc.pid} ignored the stop request; forcing")
+            _stop_process_tree(proc, force=True)
             await _to_thread(proc.wait)
 
         self.errors = None

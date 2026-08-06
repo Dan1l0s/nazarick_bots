@@ -900,7 +900,17 @@ def test_closing_the_listener_does_not_wake_the_accept_loop():
         finally:
             task.cancel()
 
-    assert asyncio.run(scenario()) == "still hanging"
+    outcome = asyncio.run(scenario())
+
+    # Platform-dependent, and that is exactly the point: nothing may rely on it.
+    # Linux (the deployment platform) leaves the future pending; Windows wakes
+    # the accept. Asserted per-platform so the Linux guarantee stays pinned.
+    assert outcome in ("loop exited", "still hanging")
+    if os.name != "nt":
+        assert outcome == "still hanging", (
+            "Linux used to leave sock_accept pending forever after the listener "
+            "closed. If that changed, re-read the shutdown path - but the "
+            "explicit force_exit() must remain either way.")
 
 
 # --------------------------------------------------------------------------- #
@@ -937,13 +947,39 @@ def _stop_host(proc):
     return host
 
 
+# os.killpg/os.getpgid/SIGKILL are POSIX-only; on Windows _stop_process_tree
+# falls back to Popen.terminate()/kill(). These tests assert the same contract on
+# both, so they run everywhere rather than only on the deployment platform.
+HAS_PROCESS_GROUPS = hasattr(os, "killpg") and hasattr(os, "getpgid")
+
+
+def _patch_group_signals(monkeypatch, sink):
+    """Intercepts whichever mechanism this platform actually uses."""
+    if HAS_PROCESS_GROUPS:
+        monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid,
+                            raising=False)
+        monkeypatch.setattr(server_manager.os, "killpg",
+                            lambda pgid, sig: sink.append(sig), raising=False)
+
+
+def _stop_signals(sink, proc):
+    """Normalises 'what did we send' across platforms: on POSIX read the
+    intercepted signals, on Windows read which Popen methods were called."""
+    if HAS_PROCESS_GROUPS:
+        return list(sink)
+    calls = []
+    if proc.terminated:
+        calls.append("terminate")
+    if proc.killed:
+        calls.append("kill")
+    return calls
+
+
 def test_stop_reaps_the_child(monkeypatch):
     """Without a wait() the child lingers as <defunct> for the supervisor's whole
     life. `ps -ax` on the VPS showed one zombie per stop."""
     sent = []
-    monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid)
-    monkeypatch.setattr(server_manager.os, "killpg",
-                        lambda pgid, sig: sent.append((pgid, sig)))
+    _patch_group_signals(monkeypatch, sent)
     monkeypatch.setattr(server_manager.status_module, "clear_status",
                         lambda *a, **k: None)
 
@@ -952,30 +988,31 @@ def test_stop_reaps_the_child(monkeypatch):
     asyncio.run(server_manager.Host.stop(host))
 
     assert proc.waited >= 1, "child was never reaped - it becomes a zombie"
-    assert sent == [(4242, signal.SIGTERM)]
+    expected = [signal.SIGTERM] if HAS_PROCESS_GROUPS else ["terminate"]
+    assert _stop_signals(sent, proc) == expected
     assert host.state is server_manager.BotState.STOPPED
 
 
-def test_stop_escalates_to_sigkill(monkeypatch):
+def test_stop_escalates_when_the_child_ignores_the_first_request(monkeypatch):
     sent = []
-    monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid)
-    monkeypatch.setattr(server_manager.os, "killpg",
-                        lambda pgid, sig: sent.append((pgid, sig)))
+    _patch_group_signals(monkeypatch, sent)
     monkeypatch.setattr(server_manager.status_module, "clear_status",
                         lambda *a, **k: None)
 
     proc = FakeProc(stubborn=True)
     asyncio.run(server_manager.Host.stop(_stop_host(proc)))
 
-    assert [s for _, s in sent] == [signal.SIGTERM, signal.SIGKILL]
-    assert proc.waited == 2
+    if HAS_PROCESS_GROUPS:
+        assert _stop_signals(sent, proc) == [signal.SIGTERM, signal.SIGKILL]
+    else:
+        assert _stop_signals(sent, proc) == ["terminate", "kill"]
+    assert proc.waited == 2, "the forced kill must also be reaped"
 
 
 def test_stop_never_shells_out_to_pkill(monkeypatch):
     """`pkill -f <pid>` matched that number anywhere in any command line, so it
     could kill unrelated processes."""
-    monkeypatch.setattr(server_manager.os, "getpgid", lambda pid: pid)
-    monkeypatch.setattr(server_manager.os, "killpg", lambda pgid, sig: None)
+    _patch_group_signals(monkeypatch, [])
     monkeypatch.setattr(server_manager.status_module, "clear_status",
                         lambda *a, **k: None)
     calls = []
@@ -986,6 +1023,24 @@ def test_stop_never_shells_out_to_pkill(monkeypatch):
     assert not any("pkill" in c for c in calls), calls
 
 
+def test_stop_works_without_process_groups(monkeypatch):
+    """Explicitly exercises the Windows branch even on Linux: os.killpg missing
+    used to raise AttributeError, so the bots could not be stopped at all."""
+    monkeypatch.delattr(server_manager.os, "killpg", raising=False)
+    monkeypatch.delattr(server_manager.os, "getpgid", raising=False)
+    monkeypatch.setattr(server_manager.status_module, "clear_status",
+                        lambda *a, **k: None)
+
+    proc = FakeProc()
+    asyncio.run(server_manager.Host.stop(_stop_host(proc)))
+    assert proc.terminated is True
+    assert proc.waited >= 1
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="On Windows SO_REUSEADDR permits a second bind to the same port, so "
+           "the guard cannot fire. Linux is the deployment platform.")
 def test_second_supervisor_refuses_to_start():
     """Two supervisors would start and stop main.py behind each other's backs."""
     first = socket.socket()
