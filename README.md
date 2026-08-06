@@ -144,7 +144,21 @@ Exact versions live in [requirements.txt](requirements.txt) (runtime) and
 
 You can execute the [setup file](setup.sh), which will install python and all required
 libraries via pip from `requirements.txt`. Also, for linux users it will install FFmpeg.
-Pass `--dev` (`bash setup.sh --dev`) to include the test dependencies.
+
+```bash
+bash setup.sh                 # runtime deps, system Python (what the VPS deploy runs)
+bash setup.sh --dev --venv    # recommended for local development
+bash setup.sh --help          # all options
+```
+
+`--dev` adds the test dependencies; `--venv` creates and installs into `.venv`
+instead of the system Python, which is also the fix if pip refuses with
+`externally-managed-environment` (Debian 12+, Ubuntu 23.04+ - see PEP 668).
+
+> **If you use `--venv` on a server**, point `ExecStart=` in
+> `hosting/nazarick.service` at `<repo>/.venv/bin/python`. The supervisor launches
+> the bots with `sys.executable`, so an interpreter mismatch means the bots start
+> under the system Python and fail to import disnake.
 
 ### Keeping yt-dlp current
 
@@ -196,9 +210,30 @@ channel, admin list and ranks - plus all user XP - would appear wiped.
 ### Running the tests
 
 ```bash
-pip install -r requirements-dev.txt
-python -m pytest tests/ -v
+bash setup.sh --dev --venv    # or: pip install -r requirements-dev.txt
+python -m pytest -q           # exactly what CI runs
 ```
+
+Coverage is on by default, including a `--cov-fail-under` ratchet - so the command
+can exit non-zero with every test passing, if coverage dropped. `--no-cov` is
+roughly four times faster for an edit-run loop:
+
+```bash
+python -m pytest -q --no-cov              # whole suite, fast
+python -m pytest tests/test_antispam.py -q --no-cov
+python -m pytest -k invite -q --no-cov    # by name
+python -m pytest --lf -q --no-cov         # only what failed last time
+```
+
+`htmlcov/index.html` holds the line-by-line coverage report after a full run.
+To run the suite automatically before every commit:
+
+```bash
+cp tools/pre-commit .git/hooks/pre-commit
+```
+
+It aborts the commit if anything fails; `git commit --no-verify` bypasses it.
+On Windows use `copy tools\pre-commit .git\hooks\pre-commit`.
 
 The suite covers the helper layer, the music playback state machine, the leveling
 system, the moderation filters, the anti-spam scoring, and the startup wiring.

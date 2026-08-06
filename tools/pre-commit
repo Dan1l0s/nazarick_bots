@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Runs the test suite before every commit, exactly as CI does.
+#
+# Install (from the repo root):
+#     cp tools/pre-commit .git/hooks/pre-commit
+#     git update-index --chmod=+x tools/pre-commit   # once, if needed
+#
+# On Windows this works as-is: Git for Windows runs hooks through its bundled
+# bash, so no extra setup is required.
+#
+# Bypass for a work-in-progress commit:  git commit --no-verify
+#
+# NOTE: this tests your WORKING TREE, not the staged snapshot. If you have staged
+# some changes but not others, a green hook does not prove the committed state
+# passes. `git stash -k` before committing if that matters to you.
+set -u
+
+# Prefer the repo venv, then whatever `python` means here. Windows has no
+# `python3`; Debian has no `python`. Try both rather than guessing.
+if [ -x ".venv/bin/python" ]; then
+    PY=".venv/bin/python"
+elif [ -x ".venv/Scripts/python.exe" ]; then
+    PY=".venv/Scripts/python.exe"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+else
+    echo "pre-commit: no python found; skipping tests" >&2
+    exit 0
+fi
+
+echo "pre-commit: running the test suite with ${PY}..."
+if ! "${PY}" -m pytest -q; then
+    echo >&2
+    echo "pre-commit: tests failed - commit aborted." >&2
+    echo "            Fix them, or bypass with: git commit --no-verify" >&2
+    exit 1
+fi

@@ -10,11 +10,57 @@
 
 platform="None"
 requirements="requirements.txt"
+use_venv=0
+venv_dir=".venv"
 
-if [ "$1" = "--dev" ]
-then
-    requirements="requirements-dev.txt"
-fi
+usage() {
+    cat <<'USAGE'
+Usage: bash setup.sh [--dev] [--venv [DIR]]
+
+  --dev         also install the test dependencies (requirements-dev.txt)
+  --venv [DIR]  create/use a virtualenv (default .venv) and install into it,
+                instead of installing into the system Python
+  -h, --help    show this
+
+Examples:
+  bash setup.sh                      # what the VPS deploy runs: system Python
+  bash setup.sh --dev --venv         # recommended for local development
+
+IMPORTANT if you use --venv on the SERVER: the systemd unit
+(hosting/nazarick.service) pins an absolute interpreter, and the supervisor
+launches the bots with sys.executable - so the unit and the venv must agree.
+Point ExecStart at <repo>/.venv/bin/python, or the bots will start under the
+system Python and fail to import disnake. hosting/deploy.sh already prefers
+.venv/bin/python when one exists.
+USAGE
+}
+
+# Parse every argument, not just $1: the original only looked at "$1", so
+# `--venv --dev` silently ignored --dev.
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dev)
+            requirements="requirements-dev.txt"
+            ;;
+        --venv)
+            use_venv=1
+            # Optional directory argument, but don't swallow the next flag.
+            case "${2:-}" in
+                ""|--*) ;;
+                *) venv_dir="$2"; shift ;;
+            esac
+            ;;
+        -h|--help)
+            usage; exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 function detect_platform  {
     echo "Cheking platform..."
@@ -87,12 +133,58 @@ function check_pip {
     fi
     echo "Pip checked"
 }
+function create_venv {
+    if [ $use_venv = 0 ]
+    then
+        return 0
+    fi
+    if [ -x "$venv_dir/bin/python" ]
+    then
+        python="$venv_dir/bin/python"
+    elif [ -x "$venv_dir/Scripts/python.exe" ]
+    then
+        python="$venv_dir/Scripts/python.exe"
+    else
+        echo "Creating virtualenv in $venv_dir..."
+        eval "$python -m venv \"$venv_dir\""
+        if [ $? != 0 ]
+        then
+            echo "Failed to create a virtualenv in $venv_dir."
+            echo "On Debian/Ubuntu the venv module ships separately:"
+            echo "    sudo apt install python3-venv"
+            exit 1
+        fi
+        # Windows layout differs from POSIX; pick whichever exists.
+        if [ -x "$venv_dir/bin/python" ]
+        then
+            python="$venv_dir/bin/python"
+        else
+            python="$venv_dir/Scripts/python.exe"
+        fi
+    fi
+    echo "Using interpreter: $python"
+}
+
 function install_requirements {
     echo "Installing dependencies from $requirements..."
     eval "$python -m pip install --upgrade -r $requirements"
     if [ $? != 0 ]
     then
+        # PEP 668: Debian 12+ and Ubuntu 23.04+ mark the system Python as
+        # "externally managed" and refuse a plain pip install. A venv is the
+        # correct fix; --break-system-packages is the escape hatch, and is what
+        # the existing VPS install effectively relies on.
+        echo
         echo "Failed to install dependencies from $requirements"
+        if [ $use_venv = 0 ]
+        then
+            echo
+            echo "If the error above mentions 'externally-managed-environment',"
+            echo "this Python refuses system-wide installs. Either:"
+            echo "    bash setup.sh --venv ${requirements#requirements}   # recommended"
+            echo "  or re-run pip yourself with --break-system-packages."
+            echo "See --help for the systemd caveat before using --venv on a server."
+        fi
         exit 1
     fi
 }
@@ -123,6 +215,22 @@ function install_ffmpeg {
 
 detect_platform
 check_python
+create_venv
 # check_pip
 install_requirements
 check_ffmpeg
+
+if [ $use_venv = 1 ]
+then
+    echo
+    echo "Done. Activate the environment with:"
+    if [ -x "$venv_dir/bin/activate" ] || [ -f "$venv_dir/bin/activate" ]
+    then
+        echo "    source $venv_dir/bin/activate"
+    else
+        echo "    $venv_dir\\Scripts\\Activate.ps1      (PowerShell)"
+        echo "    source $venv_dir/Scripts/activate     (Git Bash)"
+    fi
+    echo
+    echo "Run the tests with:  $python -m pytest -q"
+fi

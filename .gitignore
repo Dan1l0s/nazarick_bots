@@ -6,6 +6,13 @@ __pycache__/
 db/
 bots/notification_bot.py
 bots/clear_bot_commands.py
+# Virtualenvs. .venv is the name hosting/deploy.sh looks for when resolving an
+# interpreter, so keep it if you make one. Without this line `git add -A` stages
+# the entire environment.
+.venv/
+venv/
+env/
+
 htmlcov/
 .coverage
 .coverage.*
