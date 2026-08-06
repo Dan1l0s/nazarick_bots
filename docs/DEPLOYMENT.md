@@ -400,6 +400,38 @@ tail -f /nazarick_bots/logs/$(date +%d-%m-%Y).txt
 `DEPLOY_KNOWN_HOSTS` matches the current host key (it changes if you rebuild the
 VPS — re-run `setup_cicd.sh` to get the new one).
 
+### Reading an SSH failure
+
+The exact wording tells you which layer failed, and they have completely
+different causes. Check this before touching keys or secrets:
+
+| ssh says | What happened | Where to look |
+| --- | --- | --- |
+| `Connection refused` | Host reachable, **nothing listening** on that port | `systemctl status ssh`; is sshd on the port `DEPLOY_PORT` says? |
+| `connect to host ... port 22: Connection timed out` | Packets **dropped** — not refused. Host down, or a firewall is silently discarding them | provider console; `ufw status`, `iptables -L -n`, `fail2ban-client status sshd` |
+| `Connection timed out during banner exchange` | TCP **connected**, sshd never answered. Loaded, wedged, or out of disk | `df -h`, `uptime`, `free -h`, `journalctl -u ssh -n 50` |
+| `Permission denied (publickey)` | Reached sshd, key rejected | `DEPLOY_SSH_KEY` completeness; `~/.ssh/authorized_keys` |
+| `Host key verification failed` | Reached sshd, host key changed | re-do `DEPLOY_KNOWN_HOSTS` |
+| exit 126 / `Permission denied` on deploy.sh | Authenticated fine; the forced command can't execute | `git update-index --chmod=+x`, and the `bash` prefix in `authorized_keys` |
+
+Refused vs. timed out is the most useful distinction: **refused means the host
+answered**, timed out means nothing came back at all.
+
+**Worth knowing about fail2ban.** A run of failed `publickey` attempts — say
+while you were getting `DEPLOY_SSH_KEY` right — can get the *runner's* IP banned.
+A ban DROPs packets, so the next workflow sees `Connection timed out` rather than
+anything about authentication, and it looks like the VPS died. Your own SSH keeps
+working, because your IP was never banned, which makes it more confusing still.
+
+```bash
+fail2ban-client status sshd          # look at "Banned IP list"
+fail2ban-client set sshd unbanip <ip>
+```
+
+GitHub runners have no stable IPs to allowlist. If this keeps happening, moving
+sshd to a non-standard port (and setting `DEPLOY_PORT`) cuts the background noise
+that trains those jails.
+
 **Connects but fails?** Try `ssh -i ... <user>@<vps> status` from your PC. If
 that works but Actions doesn't, it's almost always `DEPLOY_SSH_KEY` pasted
 incompletely — re-copy it with `-Raw` as shown in step 4.

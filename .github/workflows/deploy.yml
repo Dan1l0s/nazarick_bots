@@ -58,13 +58,84 @@ jobs:
             echo "::error title=Missing secrets::DEPLOY_HOST and DEPLOY_USER must both be set."
             exit 1
           fi
+          # ---- diagnostics -------------------------------------------------
+          # STRICTLY informational. None of this may fail the job: a probe that
+          # can block a deploy is worse than no probe. (Nearly learned the hard
+          # way - `getent ahostsv4` returns nothing for a bare IP literal in some
+          # environments, so failing on "does not resolve" would have blocked
+          # every deploy for an IP-based DEPLOY_HOST.) `|| true` throughout,
+          # despite set -e.
+          #
+          # This runner's public IP is the one fact that cannot be recovered
+          # afterwards - runner IPs are ephemeral - and it is what you need if the
+          # VPS turns out to be filtering by source address.
+          runner_ip="$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null || echo unknown)"
+          echo "Runner public IP: ${runner_ip}"
+
+          # TCP reachability on its own, before ssh, so the log separates "the
+          # port is unreachable from here" from "ssh negotiated badly". Note a
+          # pass here plus an ssh timeout would mean the port answers but sshd
+          # does not - the banner-exchange case.
+          if command -v nc >/dev/null 2>&1; then
+            if nc -z -w 10 "${DEPLOY_HOST}" "${DEPLOY_PORT:-22}" 2>/dev/null; then
+              echo "TCP probe: port ${DEPLOY_PORT:-22} accepted a connection"
+            else
+              echo "::warning title=TCP probe failed::Port ${DEPLOY_PORT:-22} did not accept a connection from ${runner_ip}. If your own SSH works from elsewhere, either something filters by source address or the host was briefly unreachable. Continuing anyway - the probe may simply be blocked."
+            fi
+          fi
+          # ---- end diagnostics ---------------------------------------------
+
           # The remote command is ignored by the forced command on the VPS;
           # `deploy` arrives as $SSH_ORIGINAL_COMMAND for deploy.sh to allowlist.
-          ssh -i ~/.ssh/deploy_key \
-              -p "${DEPLOY_PORT:-22}" \
-              -o BatchMode=yes \
-              -o ConnectTimeout=20 \
-              "${DEPLOY_USER}@${DEPLOY_HOST}" deploy
+          #
+          # Retried, because a single unlucky moment should not fail a deploy.
+          # ServerAliveInterval also keeps a long deploy from being dropped as
+          # idle while the VPS works.
+
+          attempt=1
+          max_attempts=3
+          # -4 forces IPv4. If DEPLOY_HOST ever gains an AAAA record, ssh may
+          # prefer it and hang until ConnectTimeout on a host whose IPv6 is not
+          # actually reachable - indistinguishable in the log from the host being
+          # down, and invisible from a PC that happens to use IPv4. Nothing here
+          # needs IPv6, so remove the ambiguity rather than debug it later.
+          #
+          # -v on the final attempt only: the handshake trace shows how far it
+          # got (TCP? banner? auth?), without cluttering the log when it works.
+          until { [ "${attempt}" -lt "${max_attempts}" ] && verbose="" || verbose="-v"; } && \
+                ssh ${verbose} -4 -i ~/.ssh/deploy_key \
+                    -p "${DEPLOY_PORT:-22}" \
+                    -o BatchMode=yes \
+                    -o ConnectTimeout=30 \
+                    -o ServerAliveInterval=30 \
+                    -o ServerAliveCountMax=20 \
+                    "${DEPLOY_USER}@${DEPLOY_HOST}" deploy
+          do
+            status=$?
+            # 255 is ssh's own transport failure (timeout, refused, dropped).
+            # Anything else came from the remote side - a refused verb, or the
+            # manager reporting a real problem - and retrying would just repeat
+            # it, so fail fast and show it.
+            if [ "${status}" -ne 255 ]; then
+              echo "::error title=Deploy rejected::deploy.sh or the manager returned ${status}; not a transport error, so not retrying."
+              exit "${status}"
+            fi
+            if [ "${attempt}" -ge "${max_attempts}" ]; then
+              echo "::error title=VPS unreachable::${max_attempts} attempts all failed at the SSH transport layer (exit 255)."
+              echo "This is not a key or workflow problem - authentication was never reached."
+              echo "Check from your own machine:"
+              echo "  ssh -v <user>@<host>            # does it even open?"
+              echo "  df -h                           # a full disk stops sshd creating sessions"
+              echo "  uptime; free -h                 # load or OOM starves sshd of workers"
+              echo "  systemctl status ssh nazarick"
+              echo "  journalctl -u ssh -n 50"
+              exit 255
+            fi
+            delay=$((attempt * 20))
+            echo "::warning title=SSH transport failed::Attempt ${attempt}/${max_attempts} failed (exit 255); retrying in ${delay}s."
+            sleep "${delay}"
+            attempt=$((attempt + 1))
+          done
 
       - name: Clean up key
         if: always()

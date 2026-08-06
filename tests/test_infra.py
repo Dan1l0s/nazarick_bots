@@ -365,3 +365,68 @@ def test_receive_all_reads_until_close():
 def test_client_manager_help_text_lists_every_command():
     for command in ["status", "run", "stop", "reboot", "backup", "update", "clear"]:
         assert command in client_manager.HELP_TEXT
+
+
+# --------------------------------------------------------------------------- #
+# FileWithDates: the dated logs were never pruned
+# --------------------------------------------------------------------------- #
+
+def test_old_dated_logs_are_pruned(tmp_path, monkeypatch):
+    """These accumulated one per day forever. A full disk is a nasty failure:
+    sshd can accept a connection and then fail to create a session, which looks
+    like "Connection timed out during banner exchange" and locks you out of the
+    machine you need in order to fix it."""
+    import time
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+
+    old = log_dir / "01-01-2020.txt"
+    old.write_text("ancient", encoding="utf-8")
+    recent = log_dir / "yesterday.txt"
+    recent.write_text("recent", encoding="utf-8")
+    keep = log_dir / "notalog.db"
+    keep.write_text("not a log", encoding="utf-8")
+
+    stale = time.time() - (server_manager.RETAIN_DAYS + 5) * 86400
+    os.utime(old, (stale, stale))
+    os.utime(keep, (stale, stale))
+
+    writer = server_manager.FileWithDates()
+    writer.file = open(log_dir / "today.txt", "a", encoding="utf-8")
+    writer.prune_old_logs(str(log_dir))
+    writer.file.close()
+
+    assert not old.exists(), "a log older than the retention window survived"
+    assert recent.exists(), "a recent log was deleted"
+    assert keep.exists(), "a non-.txt file was deleted"
+
+
+def test_pruning_runs_once_per_file(tmp_path):
+    """Guards against sweeping the directory on every write."""
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    writer = server_manager.FileWithDates()
+    writer.file = open(log_dir / "today.txt", "a", encoding="utf-8")
+
+    calls = []
+    real_listdir = os.listdir
+    try:
+        os.listdir = lambda p: calls.append(p) or real_listdir(p)
+        writer.prune_old_logs(str(log_dir))
+        writer.prune_old_logs(str(log_dir))
+        writer.prune_old_logs(str(log_dir))
+    finally:
+        os.listdir = real_listdir
+        writer.file.close()
+
+    assert len(calls) == 1, f"pruned {len(calls)} times; expected once"
+
+
+def test_pruning_failure_never_breaks_logging(tmp_path):
+    """Losing the ability to log is far worse than failing to prune."""
+    writer = server_manager.FileWithDates()
+    writer.file = open(tmp_path / "today.txt", "a", encoding="utf-8")
+    try:
+        writer.prune_old_logs(str(tmp_path / "does-not-exist"))
+    finally:
+        writer.file.close()

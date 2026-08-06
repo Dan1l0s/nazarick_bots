@@ -53,6 +53,12 @@ DEFERRED_POLL_INTERVAL = 20
 # bot stuck reporting "playing" can never block a deploy indefinitely.
 DEFERRED_FORCE_AFTER = 6 * 3600
 
+# How long to keep the supervisor's dated logs/<date>.txt files. They were never
+# pruned, so they grew for the lifetime of the deployment. Note the bot process
+# writes elsewhere - helpers/logging_setup.py rotates logs/nazarick.log at
+# 10 MB x 10 - so this only covers the supervisor's own stream.
+RETAIN_DAYS = 30
+
 # The noise list and the report-worthiness decision live in
 # helpers/log_filter.py, shared with bots/admin_bot.py so the two readers of
 # this stream cannot drift apart. Re-exported under the original names because
@@ -132,6 +138,9 @@ class FileWithDates:
     def __init__(self):
         self.file = None
         self.buffer = ""
+        # Which file we last pruned for, so the sweep happens once per day
+        # rather than on every single write.
+        self._pruned_for = None
 
     def check_filename(self) -> None:
         if not os.path.exists(f"../logs"):
@@ -141,6 +150,38 @@ class FileWithDates:
         rel_path = f"../logs/{file_name}"
         abs_path = os.path.join(script_dir, rel_path)
         self.file = open(abs_path, "a", encoding="utf-8")
+        self.prune_old_logs(os.path.dirname(abs_path))
+
+    def prune_old_logs(self, log_dir: str) -> None:
+        """Deletes dated log files beyond RETAIN_DAYS.
+
+        These files accumulated forever: one per day, for the life of the
+        deployment, with no rotation. On a small VPS that is a slow disk leak,
+        and a full disk is a genuinely nasty failure - sshd can accept a TCP
+        connection but then fail to create a session, which looks like
+        "Connection timed out during banner exchange" and locks you out of the
+        box that would let you fix it.
+
+        Only runs when the date rolls over, so this is once a day rather than on
+        every write. Deliberately silent: a failure to prune must never stop the
+        supervisor from logging, which is the one thing that explains outages.
+        """
+        if self._pruned_for == self.file.name:
+            return
+        self._pruned_for = self.file.name
+        cutoff = datetime.now().timestamp() - RETAIN_DAYS * 86400
+        try:
+            for name in os.listdir(log_dir):
+                if not name.endswith(".txt"):
+                    continue
+                path = os.path.join(log_dir, name)
+                # Compare on mtime, not the filename: the date format here is
+                # day-first, so lexical order is meaningless, and a partially
+                # written or renamed file should not confuse this.
+                if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                    os.remove(path)
+        except OSError:
+            pass
 
     def write(self, value) -> None:
         if len(value) == 0:
