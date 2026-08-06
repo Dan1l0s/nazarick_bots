@@ -357,11 +357,16 @@ def analyse(content: str, *, config: SpamConfig, mention_count: int = 0,
             verdict.add(config.flood_weight,
                         f"{recent} messages in {config.flood_window_seconds}s")
 
-        duplicates = history.count_duplicates(
-            user_id, content, config.duplicate_window_seconds, now)
-        if duplicates >= config.duplicate_messages:
-            verdict.add(config.duplicate_weight,
-                        f"same message {duplicates} times")
+        # Empty text is not a repeated message. Embed-only, attachment-only and
+        # sticker-only messages all normalize to "", so without this guard
+        # posting three images in a minute scores as spamming the same message
+        # three times.
+        if normalized:
+            duplicates = history.count_duplicates(
+                user_id, content, config.duplicate_window_seconds, now)
+            if duplicates >= config.duplicate_messages:
+                verdict.add(config.duplicate_weight,
+                            f"same message {duplicates} times")
 
     return verdict
 

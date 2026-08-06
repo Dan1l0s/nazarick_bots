@@ -44,10 +44,17 @@ fi
 verb="${SSH_ORIGINAL_COMMAND:-deploy}"
 verb="${verb%% *}"          # first word only; ignore anything appended
 
+# The timeout must cover the work the verb triggers, not just the round trip.
+# The manager replies only once the action is done, and `upgrade` shells out to
+# pip (download + build + install), which on a small VPS routinely exceeds the
+# 30 s default - that reply-side wait is what produced
+#   ERROR: could not reach the manager at 127.0.0.1:PORT: timed out
+# even after the supervisor stopped blocking its own event loop. `deploy` runs
+# git plus setup.sh, so it needs the same headroom.
 case "${verb}" in
-    deploy)         manager_command="update ${BRANCH} when-idle" ;;
-    upgrade-ytdlp)  manager_command="upgrade when-idle" ;;
-    status)         manager_command="status" ;;
+    deploy)         manager_command="update ${BRANCH} when-idle"; timeout=900 ;;
+    upgrade-ytdlp)  manager_command="upgrade when-idle";           timeout=900 ;;
+    status)         manager_command="status";                      timeout=30  ;;
     *)
         echo "refused: '${verb}' is not an allowed action" >&2
         echo "allowed: deploy | upgrade-ytdlp | status" >&2
@@ -61,4 +68,5 @@ echo "[deploy.sh] repo=${REPO_DIR} python=${PYTHON} action=${verb}"
 # password never leaves loopback. Only the SSH session crosses the internet.
 exec "${PYTHON}" "${REPO_DIR}/hosting/client_manager.py" \
     --host 127.0.0.1 \
+    --timeout "${timeout}" \
     --command "${manager_command}"

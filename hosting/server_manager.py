@@ -61,6 +61,35 @@ is_ignorable_error_line = log_filter.is_ignorable_error_line
 is_reportable = log_filter.is_reportable
 
 
+async def _to_thread(func, *args, **kwargs):
+    """Runs a blocking call in a worker thread.
+
+    Every long-running call in this module used to run directly on the event
+    loop. That loop is also the thing serving the control port, so a slow call
+    froze the supervisor: `sock_accept` never ran, and because the listener
+    socket stays bound with a 1600-deep backlog the kernel still completed the
+    TCP handshake for incoming clients. From the client's side the connection
+    "succeeded" and then hung, so client_manager hit its 30 s socket timeout and
+    reported `could not reach the manager at 127.0.0.1:PORT: timed out` - which
+    reads like the supervisor was dead when it was in fact alive and busy.
+
+    `pip install --upgrade yt-dlp` takes well over 30 s on a small VPS, so the
+    CI yt-dlp job hit this every time it had real work to do. Note the failure
+    is self-concealing: the upgrade still completes on the server, the client
+    just never hears about it and exits non-zero.
+    """
+    return await asyncio.to_thread(func, *args, **kwargs)
+
+
+async def _pip_install_ytdlp():
+    """Shared by run_ytdlp_upgrade and the deferred path, which had drifted into
+    two copies of the same subprocess call (and the same `python` bug)."""
+    return await _to_thread(
+        subprocess.run,
+        [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
+        capture_output=True, text=True, timeout=600)
+
+
 class FileWithDates:
     """A stdout/stderr replacement that timestamps every line and writes it to
     a per-day file under logs/.
@@ -303,10 +332,20 @@ class Host:
 # *_______Dependencies_______________________________________________________________________________________
 
     def get_ytdlp_version(self) -> str:
-        """Version of yt-dlp as the *bot* process would import it, or None."""
+        """Version of yt-dlp as the *bot* process would import it, or None.
+
+        BUGFIX: this used a literal "python", which does not exist on Debian
+        (only python3 is shipped; `python` needs python-is-python3). The
+        FileNotFoundError was swallowed by the except below, so `before` and
+        `after` in run_ytdlp_upgrade were both None, compared equal, and the
+        upgrade reported "already current (None); no restart needed" forever.
+        sys.executable also guarantees we read the version from the same
+        interpreter - and the same venv - the bots actually run under.
+        """
         try:
             result = subprocess.run(
-                ["python", "-c", "import yt_dlp; print(yt_dlp.version.__version__)"],
+                [sys.executable, "-c",
+                 "import yt_dlp; print(yt_dlp.version.__version__)"],
                 capture_output=True, text=True, timeout=60)
             return result.stdout.strip() or None
         except Exception:
@@ -318,11 +357,9 @@ class Host:
         Restarting on every check would be pointless churn; yt-dlp publishes
         frequently but most days there is nothing new.
         """
-        before = self.get_ytdlp_version()
+        before = await asyncio.to_thread(self.get_ytdlp_version)
         try:
-            result = subprocess.run(
-                ["python", "-m", "pip", "install", "--upgrade", "yt-dlp"],
-                capture_output=True, text=True, timeout=600)
+            result = await _pip_install_ytdlp()
         except Exception as ex:
             return f"yt-dlp upgrade failed to run: {ex}"
 
@@ -330,7 +367,7 @@ class Host:
             tail = (result.stderr or result.stdout or "").strip().splitlines()[-5:]
             return "yt-dlp upgrade failed:\n" + "\n".join(tail)
 
-        after = self.get_ytdlp_version()
+        after = await asyncio.to_thread(self.get_ytdlp_version)
         if before == after:
             return f"yt-dlp already current ({after}); no restart needed"
 
@@ -347,18 +384,16 @@ class Host:
         if not deferred:
             return await self.run_ytdlp_upgrade()
 
-        before = self.get_ytdlp_version()
+        before = await asyncio.to_thread(self.get_ytdlp_version)
         try:
-            result = subprocess.run(
-                ["python", "-m", "pip", "install", "--upgrade", "yt-dlp"],
-                capture_output=True, text=True, timeout=600)
+            result = await _pip_install_ytdlp()
         except Exception as ex:
             return f"yt-dlp upgrade failed to run: {ex}"
         if result.returncode != 0:
             tail = (result.stderr or result.stdout or "").strip().splitlines()[-5:]
             return "yt-dlp upgrade failed:\n" + "\n".join(tail)
 
-        after = self.get_ytdlp_version()
+        after = await asyncio.to_thread(self.get_ytdlp_version)
         if before == after:
             return f"yt-dlp already current ({after}); nothing queued"
         return (f"yt-dlp upgraded {before} -> {after}\n"
@@ -406,8 +441,8 @@ class Host:
         for file in (auto_backup_files, manual_backup_files)[manual]:
             # file[:-3] / file[-3:] split the ".db" extension off so the label
             # lands before it (e.g. bot_database_12pm.db).
-            cmd = f'curl -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
-            if os.system(cmd) != 0:
+            cmd = f'curl --max-time 300 -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
+            if await _to_thread(os.system, cmd) != 0:
                 ans += f"\nFailed to commit {file}"
         if ans == "":
             ans = "Backup successful"
@@ -513,14 +548,14 @@ class Host:
         if self.state == BotState.RUNNING:
             await self.stop()
             was_running = True
-        os.system("git -C .. stash")
-        if os.system(f"git -C .. fetch --depth=1") != 0:
-            os.system("git -C .. stash pop")
+        await _to_thread(os.system, "git -C .. stash")
+        if await _to_thread(os.system, "git -C .. fetch --depth=1") != 0:
+            await _to_thread(os.system, "git -C .. stash pop")
             return "Failed to fetch updates from origin"
-        os.system(f"git -C .. checkout --detach")
-        os.system(f"git -C .. branch -f -D {branch}")
-        os.system(f"git -C .. checkout {branch}")
-        os.system(f"git -C .. stash clear")
+        await _to_thread(os.system, "git -C .. checkout --detach")
+        await _to_thread(os.system, f"git -C .. branch -f -D {branch}")
+        await _to_thread(os.system, f"git -C .. checkout {branch}")
+        await _to_thread(os.system, "git -C .. stash clear")
 
         # BUGFIX: this ran `bash setup.sh`, but the working directory is
         # hosting/ while setup.sh lives at the repo root - so every update
@@ -528,7 +563,7 @@ class Host:
         # skipped the dependency install.
         setup_script = os.path.join("..", "setup.sh")
         if os.path.exists(setup_script):
-            os.system(f"bash {setup_script}")
+            await _to_thread(os.system, f"bash {setup_script}")
         else:
             print(f"Skipping dependency install: {setup_script} not found")
 

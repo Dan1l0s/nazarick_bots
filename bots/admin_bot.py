@@ -938,6 +938,25 @@ class AdminBot:
         """
         if not hasattr(message.author, "guild"):
             return False
+
+        # BUGFIX: bots and webhooks are exempt.
+        #
+        # on_message only consulted `.bot` when awarding XP, so every bot
+        # message was still scored. That was harmless under the old two-signal
+        # content check, because an embed-only message has empty `.content` and
+        # therefore matched nothing. The rate-based signals changed that: they
+        # count *messages*, not text. Our own log bot posts an embed per logged
+        # event - several per second while the status loop is running - which
+        # scores flood (40) plus duplicate (35, every embed-only message has the
+        # same empty content) = 75. That is past timeout_score, so the admin bot
+        # deleted each log embed the moment it appeared and then timed the log
+        # bot out for 27 days, which is why logging stopped entirely.
+        #
+        # Bots are moderated by who is allowed to invite them and what
+        # permissions they hold, not by content scoring.
+        if getattr(message.author, "bot", False) or getattr(message, "webhook_id", None):
+            return False
+
         if await helpers.is_admin(message.author):
             return False
         if helpers.is_pleiades(message.author):

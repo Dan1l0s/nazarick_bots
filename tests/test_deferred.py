@@ -723,3 +723,72 @@ def test_shell_scripts_are_executable_in_git():
     for line in out.stdout.strip().splitlines():
         mode, _, _, path = line.replace("\t", " ").split(maxsplit=3)
         assert mode == "100755", f"{path} is mode {mode}, needs 100755 to run on the VPS"
+
+
+# --------------------------------------------------------------------------- #
+# Regression: a slow upgrade must not freeze the control port
+# --------------------------------------------------------------------------- #
+
+def test_upgrade_does_not_block_the_event_loop(monkeypatch):
+    """The CI symptom was `could not reach the manager at 127.0.0.1:PORT:
+    timed out`. subprocess.run() called straight from the coroutine froze the
+    loop, so sock_accept never ran; the kernel still completed the handshake
+    from the listen() backlog, so the client connected and then hung until its
+    30 s timeout. Proven here by checking the loop keeps ticking."""
+    def slow_run(cmd, **kwargs):
+        time.sleep(0.30)
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+    monkeypatch.setattr(server_manager.subprocess, "run", slow_run)
+
+    ticks = 0
+
+    async def scenario():
+        nonlocal ticks
+
+        async def ticker():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.02)
+                ticks += 1
+
+        beat = asyncio.create_task(ticker())
+        host = UpgradeHost(["2024.1.1", "2026.7.4"])
+        message = await server_manager.Host.run_ytdlp_upgrade(host)
+        beat.cancel()
+        return message
+
+    message = asyncio.run(scenario())
+    assert "2024.1.1 -> 2026.7.4" in message
+    # Blocking the loop would leave this at 0.
+    assert ticks >= 5, f"event loop was blocked during the upgrade (ticks={ticks})"
+
+
+def test_upgrade_uses_the_running_interpreter(monkeypatch):
+    """A literal "python" does not exist on Debian, so pip never ran and
+    get_ytdlp_version always returned None - making before == after, which
+    reported "already current (None)" and skipped the restart forever."""
+    seen = []
+
+    def record(cmd, **kwargs):
+        seen.append(cmd)
+        return types.SimpleNamespace(returncode=0, stdout="2026.7.4\n", stderr="")
+    monkeypatch.setattr(server_manager.subprocess, "run", record)
+
+    host = UpgradeHost(["2024.1.1", "2026.7.4"])
+    asyncio.run(server_manager.Host.run_ytdlp_upgrade(host))
+    assert seen, "pip was never invoked"
+    for cmd in seen:
+        assert cmd[0] == sys.executable, f"expected sys.executable, got {cmd[0]!r}"
+
+
+def test_get_ytdlp_version_uses_the_running_interpreter(monkeypatch):
+    seen = []
+
+    def record(cmd, **kwargs):
+        seen.append(cmd)
+        return types.SimpleNamespace(returncode=0, stdout="2026.7.4\n", stderr="")
+    monkeypatch.setattr(server_manager.subprocess, "run", record)
+
+    host = object.__new__(server_manager.Host)
+    assert server_manager.Host.get_ytdlp_version(host) == "2026.7.4"
+    assert seen[0][0] == sys.executable

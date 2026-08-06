@@ -228,9 +228,17 @@ def test_untouchable_round_trip(db_path):
 # --------------------------------------------------------------------------- #
 
 class FakeAuthor:
-    def __init__(self, has_guild=True):
+    # A stable default id matters: check_message_content only feeds the flood /
+    # duplicate history when the author has an `id`, so without one the
+    # rate-based signals were unreachable from these tests entirely.
+    # 4242 deliberately avoids conftest's stub bot_ids {1, 2, 3}: is_pleiades()
+    # exempts anything in private_config.bot_ids, so an id of 1 made every
+    # author look like one of our own bots and silently skipped the whole check.
+    def __init__(self, has_guild=True, author_id=4242):
         if has_guild:
             self.guild = object()
+        self.id = author_id
+        self.bot = False
         self.actions = []
 
     async def send(self, *args, **kwargs):
@@ -396,3 +404,39 @@ def test_find_user_guild_skips_empty_channels():
 
 def test_find_user_guild_handles_no_bots():
     assert admin_bot.AdminBot.find_user_guild(None, [], 1) is None
+
+
+# --------------------------------------------------------------------------- #
+# Regression: bots and webhooks are exempt from anti-spam
+# --------------------------------------------------------------------------- #
+
+def test_bot_authors_are_exempt(non_admin):
+    """The log bot posts an embed per event. Scoring those tripped flood +
+    duplicate, so the admin bot deleted each log embed and timed the log bot
+    out - logging silently stopped."""
+    host = SpamHost()
+    msg = FakeMessage("")
+    msg.author.bot = True
+    for _ in range(20):
+        assert check(msg, host) is False
+    assert msg.deleted is False
+    assert msg.author.actions == []
+
+
+def test_webhook_messages_are_exempt(non_admin):
+    host = SpamHost()
+    msg = FakeMessage("free leaks at discord.gg/spam")
+    msg.webhook_id = 12345
+    assert check(msg, host) is False
+    assert msg.deleted is False
+
+
+def test_human_flood_still_punished(non_admin):
+    """The exemption must not disarm the rate signals for real users."""
+    host = SpamHost()
+    caught = False
+    for _ in range(10):
+        if check(FakeMessage("spam spam spam"), host):
+            caught = True
+            break
+    assert caught is True

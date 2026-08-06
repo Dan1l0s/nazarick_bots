@@ -126,10 +126,36 @@ def send_command(command: str, host: str = "127.0.0.1", port: int = None,
     sock.settimeout(timeout)
     try:
         sock.connect((socket.gethostbyname(host), int(port)))
+    except ConnectionRefusedError as exc:
+        # Nothing is bound. On loopback the kernel refuses instantly, so this is
+        # unambiguous: the supervisor is not running.
+        raise RuntimeError(
+            f"nothing is listening on {host}:{port} - the supervisor is not "
+            f"running. Start it with `systemctl start nazarick` "
+            f"(or check `systemctl status nazarick`)") from exc
+    except OSError as exc:
+        raise RuntimeError(
+            f"could not open a connection to {host}:{port}: {exc}") from exc
+
+    # Past this point the socket is connected, so a timeout means the supervisor
+    # accepted the work and has not answered yet - NOT that it is unreachable.
+    # Distinguishing the two matters: the original message said "could not reach
+    # the manager ... timed out" for a supervisor that was alive and mid-`pip
+    # install`, which sent the investigation after the network instead of the
+    # blocking call. Note the socket stays bound with a deep listen() backlog, so
+    # the kernel completes the handshake even while nothing calls accept().
+    try:
         sock.sendall(f"{server_manager_password} {command}".encode("utf8"))
         return receive_all(sock)
+    except socket.timeout as exc:
+        raise RuntimeError(
+            f"connected to {host}:{port} but got no reply within {timeout}s. "
+            f"The supervisor is running; '{command}' is either still working or "
+            f"its event loop is blocked. Check logs/ on the server and retry "
+            f"`status`, which is cheap") from exc
     except OSError as exc:
-        raise RuntimeError(f"could not reach the manager at {host}:{port}: {exc}") from exc
+        raise RuntimeError(
+            f"connected to {host}:{port} but the exchange failed: {exc}") from exc
     finally:
         sock.close()
 

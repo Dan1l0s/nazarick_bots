@@ -356,3 +356,40 @@ def test_defaults_reproduce_the_previous_behaviour():
     two = antispam.analyse("leaks at discord.gg/x", config=config)
     assert one.action(config) == "timeout"
     assert two.action(config) == "ban"
+
+
+# --------------------------------------------------------------------------- #
+# Regression: embed-only / attachment-only messages are not "duplicates"
+# --------------------------------------------------------------------------- #
+
+def test_empty_content_is_not_a_duplicate():
+    """Our log bot posts embeds, whose .content is "". Counting those as
+    repeats of each other scored duplicate(35) + flood(40) = timeout, which
+    deleted every log embed and timed the log bot out."""
+    config = antispam.SpamConfig()
+    history = antispam.MessageHistory()
+    for _ in range(10):
+        history.record(1, "")
+    verdict = antispam.analyse("", config=config, user_id=1, history=history)
+    assert "same message" not in verdict.summary()
+
+
+def test_empty_content_still_scores_flood():
+    """Flood is about rate, so it must still fire - the bot exemption in
+    admin_bot is what protects our own bots, not a hole in the scoring."""
+    config = antispam.SpamConfig()
+    history = antispam.MessageHistory()
+    for _ in range(config.flood_messages):
+        history.record(2, "")
+    verdict = antispam.analyse("", config=config, user_id=2, history=history)
+    assert "messages in" in verdict.summary()
+
+
+def test_repeated_real_text_is_still_a_duplicate():
+    config = antispam.SpamConfig()
+    history = antispam.MessageHistory()
+    for _ in range(config.duplicate_messages):
+        history.record(3, "buy my thing")
+    verdict = antispam.analyse("buy my thing", config=config,
+                               user_id=3, history=history)
+    assert "same message" in verdict.summary()
