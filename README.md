@@ -1,18 +1,21 @@
 # Nazarick Bots
 
-- ### [About this project](#about-this-project-1)
-- ### [Functionality](#functionality-1)
-
-  - #### [Music bots](#music-bots-1)
-  - #### [Logger bot](#logger-bot-1)
-  - #### [Admin bot](#admin-bot-1)
-
-- ### [How to install and launch](#how-to-install-and-launch-1)
-
-  - #### [Dependencies](#dependencies-1)
-  - #### [FFmpeg installation](#ffmpeg-installation-1)
-  - #### [How to launch code](#how-to-launch-code-1)
-  - #### [How to create a discord bot](#how-to-create-a-discord-bot-1)
+- [About this project](#about-this-project)
+- [Functionality](#functionality)
+    - [Music bots](#music-bots)
+    - [Logger bot](#logger-bot)
+    - [Admin bot](#admin-bot)
+- [How to install and launch](#how-to-install-and-launch)
+    - [Dependencies](#dependencies)
+    - [Keeping yt-dlp current](#keeping-yt-dlp-current)
+    - [Before the first run](#before-the-first-run)
+    - [Running the tests](#running-the-tests)
+    - [FFmpeg installation](#ffmpeg-installation)
+    - [How to launch code](#how-to-launch-code)
+    - [How to create a discord bot](#how-to-create-a-discord-bot)
+- [Deployment and operations](#deployment-and-operations)
+- [License](#license)
+    - [Third-party components](#third-party-components)
 
 ## About this project
 
@@ -76,14 +79,19 @@ Logger bot currently supports the following commands:
 Admin bot allows moderators to clear messages, fix voice channels bitrate and do other admin stuff. Also it allows all users to create temporary channels which they can manage by connecting to a certain channel:
 
 <p align="center">
-  <img src="https://github.com/Dan1l0s/discord_bots/assets/47472342/69d95c18-8422-43db-8ac7-2a055db34dd3" alt="Temporary channels demo"/>
+  <img src="https://github.com/Dan1l0s/nazarick_bots/assets/47472342/69d95c18-8422-43db-8ac7-2a055db34dd3" alt="Temporary channels demo"/>
 </p>
 
-In addition, admin bot has access to OpenAI API which allows users to interact ChatGPT using `/gpt` slash-command, replying to any message of this bot or just typing requests in bot's DM. This bot is useful as it parses ChatGPT's replies into chunks and, for example, decorates code into fine-looking blocks:
+There is also a ChatGPT integration: `/gpt`, replies to any of the bot's messages, or DMs. It splits long answers into chunks and decorates code into blocks:
 
 <p align="center">
   <img src="https://i.imgur.com/uWCU08k.png" alt="ChatGPT code decoration and interaction example"/>
 </p>
+
+> **Currently disabled.** The code lives in `bots/music_leader.py` (not the admin
+> bot) and is commented out, updated for the `openai>=1.0` SDK but not enabled.
+> `bots/music_leader.py` lists the exact lines to uncomment; you also need to add
+> `openai` to `requirements.txt` and set `openai_api_key` in `private_config.py`.
 
 Also, admin bot has leveling system which allows users to create their own ranks (roles) for each discord server and get voice and text xp during chatting, each rank requires an exact number of experience, the ranks are assigned automatically when user has enough experience:
 
@@ -101,6 +109,15 @@ Admin bot currently supports the following commands:
 - **/clear** - allows server admin to clear custom amount of messages in the text channel
 - **/help** - displays list of commands
 
+The admin bot also runs an anti-spam filter on every message: unsolicited Discord
+invites, known scam phrasing, mass mentions, flooding and duplicate spam are
+scored, and the total decides whether a message is deleted, the author timed out,
+or banned. Admins and other bots are exempt. Every threshold is tunable in the
+`antispam` dict in [public_config.py](configs/public_config.py) - including
+`allowed_invite_codes`, which you should set to your own server's vanity code so
+members are not punished for linking the server they are already in. See
+[docs/LOGGING_AND_ANTISPAM.md](docs/LOGGING_AND_ANTISPAM.md).
+
 ## How to install and launch
 
 ### Dependencies
@@ -108,20 +125,19 @@ Admin bot currently supports the following commands:
 This is the list of required dependencies:
 
 - General:
+    - Python 3.10 or higher (3.11+ recommended; `match` statements set the 3.10 floor)
+    - pip 23.2.1 or higher
+    - disnake 2.9 or higher
+    - aiosqlite 0.19 or higher (used by every bot - guild settings, XP and logs)
 
-  - Python 3.11 or higher
-  - pip 23.2.1 or higher
-  - Disnake 2.9 or higher
+- Music bots:
+    - FFmpeg 4.0 or higher (without live-video playback v3.5 is sufficient)
+    - yt-dlp 2024.1.1 or higher, and keep it updated - see below
+    - youtube-search 2.1.2 or higher
 
-- Music bot:
-
-  - FFmpeg 4.0 or higher (without live-video playback v3.5 is sufficient)
-  - yt-dlp 2023.7.6 or higher
-  - youtube-search 2.1.2 or higher
-
-- Admin bot:
-  - openai 0.27.9 or higher
-  - aiosqlite 0.19.0 or higher
+- Optional:
+    - openai 1.0 or higher, only if you re-enable the `/gpt` commands. They ship
+      commented out, so no OpenAI key is needed for a normal setup.
 
 Exact versions live in [requirements.txt](requirements.txt) (runtime) and
 [requirements-dev.txt](requirements-dev.txt) (adds the test suite).
@@ -145,7 +161,11 @@ pip install -U yt-dlp
 reboot
 ```
 
-Worth automating - e.g. a weekly cron entry:
+This is already automated for the VPS deployment: a GitHub Actions job runs
+daily, and the server restarts itself only if the version actually changed and
+no bot is currently playing. See
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). If you run the bots somewhere else, a
+weekly cron entry does the same job less carefully:
 
 ```
 0 5 * * 1 pip install -U yt-dlp && <restart command>
@@ -181,9 +201,14 @@ python -m pytest tests/ -v
 ```
 
 The suite covers the helper layer, the music playback state machine, the leveling
-system, the moderation filters, and the startup wiring. See
-[CHANGES.md](CHANGES.md) for what changed in the refactor and why, including an
-audit table of every behavioral difference from the original.
+system, the moderation filters, the anti-spam scoring, and the startup wiring.
+Coverage is enforced by a floor in `pyproject.toml`, so a change that drops it
+fails CI.
+
+Design notes for the parts that are least obvious from the code live in
+[docs/LOGGING_AND_ANTISPAM.md](docs/LOGGING_AND_ANTISPAM.md). The refactor
+rationale that used to be in `CHANGES.md` is in the git history -
+`git log --oneline` reads as a changelog, and each commit message explains why.
 
 ### FFmpeg installation
 
@@ -192,7 +217,7 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 
 #### 1st way: Add FFmpeg to PATH (recommended)
 
-1. Download [this archieve](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z) and unzip it to any folder you want (you mustn't uninstall ffmpeg during bot usage)
+1. Download [this archive](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z) and unzip it to any folder you want (you mustn't uninstall ffmpeg during bot usage)
 2. Press the "Start" button on the taskbar, search for "View advanced system settings," and open it. Proceed to the "Advanced" tab in the "System Properties" window and click on the "Environment Variables" button at the bottom
 3. Select the "Path" variable under the "System variables" or "User variables" to add FFmpeg to path for all users or current user accordingly
 4. Click on the "New" button, then type path to ffmpeg folder and subdirectory "bin", example: `C:\ffmpeg\bin`
@@ -200,8 +225,8 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 
 #### 2nd way: Add FFmpeg to working directory
 
-1. Download [this archieve](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z) and unzip its `bin` folder to any folder you want
-2. Proceed to `music_instance.py` and add to each `disnake.FFmpegPCMAudio` method `executable` parameter with absolute path to `ffmpeg.exe` file in the `bin` folder, example:
+1. Download [this archive](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z) and unzip its `bin` folder to any folder you want
+2. Proceed to [bots/music_instance.py](bots/music_instance.py) and add to each `disnake.FFmpegPCMAudio` method `executable` parameter with absolute path to `ffmpeg.exe` file in the `bin` folder, example:
    `state.voice.play(disnake.FFmpegPCMAudio(source=link, **public_config.FFMPEG_OPTIONS, executable="C:\\nazarick_bots\\bin\\ffmpeg.exe"))`
 
 ### How to launch code
@@ -211,7 +236,7 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 
 ```python
 # bots' specifications, value type: [[string, string, string], [string, string, string], ...]
-# bot_type can be one of a folowing values: MusicLeader, MusicInstance, Admin, Logger
+# bot_type can be one of the following values: MusicLeader, MusicInstance, Admin, Logger
 bots = [
     ["bot_name1", "bot_type1", "bot_token1"],
     ["bot_name1", "bot_type1", "bot_token1"],
@@ -228,8 +253,8 @@ bot_ids = {
 }
 ```
 
-4. To launch code just execute [main.py](main.py) file
-5. (Optional) Edit whatever you like in [public_config.py](configs/public_config.py), also you can add different ids to `private_config.py`, there are prompts to help you get started
+3. To launch code just execute [main.py](main.py) file
+4. (Optional) Edit whatever you like in [public_config.py](configs/public_config.py), also you can add different ids to `private_config.py`, there are prompts to help you get started
 
 ### How to create a discord bot
 
@@ -239,3 +264,57 @@ bot_ids = {
 4. To invite your bot go to the `OAuth2` tab, then tick the `bot` checkbox under `scopes`.
 5. Tick the permissions required for your bot to function under Bot Permissions ("Administrator" permission is recommended for these bots)
 6. Copy and paste the given URL into your browser, choose a server to invite the bot to, and click `Authorize`.
+
+## Deployment and operations
+
+Everything above is enough to run the bots locally. For a hosted setup there is a
+supervisor process, a control port, idle-aware restarts and a CI/CD pipeline:
+
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - step-by-step from a Windows PC to
+  a running VPS: SSH keys, the GitHub secrets the workflows need, autostart on
+  boot, and how deploys avoid touching your gitignored `private_config.py` and
+  `db/`. `hosting/setup_cicd.sh` does most of it for you.
+- **[docs/LOGGING_AND_ANTISPAM.md](docs/LOGGING_AND_ANTISPAM.md)** - what gets
+  written to `logs/`, what gets reported to you over Discord and why the
+  difference is decided at the point of logging, plus the anti-spam scoring model
+  and how to tune it.
+
+The moving parts, briefly:
+
+| Piece                       | Role                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `hosting/server_manager.py` | Supervisor. Owns the bot process, listens on a control port, uploads database backups, and defers restarts until nothing is playing. |
+| `hosting/client_manager.py` | Client for that port - `status`, `reboot`, `update`, `upgrade`, `backup`, `cancel`. Run it with no arguments for a REPL.             |
+| `hosting/deploy.sh`         | The only thing CI is allowed to run over SSH; accepts `deploy`, `upgrade-ytdlp` and `status` and nothing else.                       |
+| `.github/workflows/`        | Tests on every push; deploy on green master; a daily yt-dlp upgrade.                                                                 |
+| `tools/preflight.py`        | Pre-launch sanity check that contacts Discord at no point.                                                                           |
+
+## License
+
+Released under the [MIT License](LICENSE) — you may use, modify, self-host and
+redistribute this, including commercially, provided the copyright notice is kept.
+It comes with no warranty.
+
+### Third-party components
+
+This project depends on other people's work. None of it imposes copyleft
+obligations here, but the notices are theirs:
+
+| Component                                                       | License                                     |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| [disnake](https://github.com/DisnakeDev/disnake)                | MIT                                         |
+| [PyNaCl](https://github.com/pyca/pynacl) (via `disnake[voice]`) | Apache-2.0                                  |
+| [aiosqlite](https://github.com/omnilib/aiosqlite)               | MIT                                         |
+| [youtube-search](https://pypi.org/project/youtube-search/)      | MIT                                         |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp)                      | Unlicense (public domain)                   |
+| [FFmpeg](https://ffmpeg.org/)                                   | LGPL-2.1+ or GPL-2+, depending on the build |
+
+FFmpeg is invoked as a separate executable via `subprocess`, not linked into
+this program, so its copyleft terms do not extend to this codebase. If you
+redistribute a bundle that _includes_ an FFmpeg binary, its terms apply to that
+binary — check which one your build is, since GPL builds (those configured with
+`--enable-gpl`) carry stricter conditions than LGPL ones.
+
+The MIT license covers this source code only. It grants no rights to the
+_Overlord_ franchise names and characters referenced throughout the bots'
+messages and defaults; those belong to their respective rights holders.
