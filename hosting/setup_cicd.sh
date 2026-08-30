@@ -72,7 +72,8 @@ fi
 # --------------------------------------------------------------------------
 head2 "3. Python"
 PYTHON=""
-for candidate in "${REPO_DIR}/.venv/bin/python" "$(command -v python3 2>/dev/null || true)" \
+for candidate in "${DEPLOY_PYTHON:-}" "${REPO_DIR}/.venv/bin/python" \
+                 "$(command -v python3 2>/dev/null || true)" \
                  /usr/local/bin/python3 /usr/bin/python3; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then PYTHON="${candidate}"; break; fi
 done
@@ -81,6 +82,12 @@ if [ -z "${PYTHON}" ]; then
     fail "no python3 found"
 else
     green "python: ${PYTHON} ($(${PYTHON} --version 2>&1))"
+    if [ "${PYTHON}" != "${REPO_DIR}/.venv/bin/python" ] \
+       && [ -z "${DEPLOY_PYTHON:-}" ]; then
+        fail "project virtualenv is missing"
+        echo "         create it: cd ${REPO_DIR} && bash setup.sh --venv"
+        echo "         Ubuntu 24.04 protects system Python from pip installs (PEP 668)."
+    fi
     # deploy.sh searches this same list, so a match here means it will work
     # even under the bare PATH that SSH forced commands get.
     if [ "${PYTHON}" = "/usr/bin/python3" ] || [ "${PYTHON}" = "/usr/local/bin/python3" ] \
@@ -129,27 +136,48 @@ mkdir -p "${HOME}/.ssh" && chmod 700 "${HOME}/.ssh"
 # executable, which SSH reports only as "Permission denied" with exit 126.
 # The mode is now also fixed in git (100755), but a `bash` prefix means a future
 # checkout from a Windows machine cannot break deploys again either way.
-FORCED_PREFIX="command=\"${PY_PREFIX:-}bash ${DEPLOY_SH}\",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc"
+#
+# DEPLOY_SH is derived from this script's own location, so the line below always
+# describes the checkout you are running the script from - move the repo, re-run
+# this script, and the forced command follows it.
+FORCED_CMD="${PY_PREFIX:-}bash ${DEPLOY_SH}"
+FORCED_PREFIX="command=\"${FORCED_CMD}\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty,no-user-rc"
 
-# Repair an entry installed by an older version of this script, which pointed
-# the forced command straight at deploy.sh. If the exec bit is missing - which
-# is the default for a repo committed from Windows - sshd fails with
-# "Permission denied" and exit 126, and the deploy pipeline cannot deploy its own
-# fix. Rewriting the existing line to `bash <script>` breaks that deadlock.
+# sed replacement text: & means "the whole match", and | is our delimiter.
+FORCED_CMD_SED="$(printf '%s' "${FORCED_CMD}" | sed -e 's/[&|]/\\&/g')"
+
+# Re-point an existing forced command at THIS checkout. Two ways it goes stale:
+#
+#   1. the repo moved (e.g. /nazarick_bots -> /srv/apps/nazarick). sshd keeps
+#      running the old absolute path, which no longer exists, so every deploy
+#      fails - and because the key itself is still installed, the check further
+#      down would happily report "already installed" and change nothing.
+#   2. it was installed by an older version of this script, which pointed
+#      straight at deploy.sh with no `bash` prefix. With the exec bit missing -
+#      the default for a repo committed from Windows - sshd fails with
+#      "Permission denied" and exit 126, and the deploy pipeline cannot deploy
+#      its own fix.
+#
+# Either way the fix is the same: rewrite the command= value to the canonical
+# one for this machine, leaving the restriction flags and the key untouched. Any
+# DEPLOY_PYTHON= prefix is regenerated too, from section 3's detection rather
+# than carried over - the interpreter that was right on the old box need not be
+# right on this one.
+# [^"]* cannot run past the closing quote, so the key half of the line is safe.
 if [ -f "${AUTHORIZED_KEYS}" ] \
-   && grep -q "command=\"[^\"]*${DEPLOY_SH}\"" "${AUTHORIZED_KEYS}" \
-   && ! grep -q "command=\"[^\"]*bash ${DEPLOY_SH}\"" "${AUTHORIZED_KEYS}"; then
+   && grep -q 'command="[^"]*deploy\.sh"' "${AUTHORIZED_KEYS}" \
+   && ! grep -qF "command=\"${FORCED_CMD}\"" "${AUTHORIZED_KEYS}"; then
+    STALE="$(grep -o 'command="[^"]*deploy\.sh"' "${AUTHORIZED_KEYS}" | head -1)"
     cp -a "${AUTHORIZED_KEYS}" "${AUTHORIZED_KEYS}.bak.$(date +%s)"
-    # Insert `bash ` immediately before the script path, leaving any
-    # DEPLOY_PYTHON=... prefix and the key itself untouched.
-    sed -i "s|command=\"\\(\\([A-Za-z_]*=[^ ]* \\)*\\)${DEPLOY_SH}\"|command=\"\\1bash ${DEPLOY_SH}\"|" \
+    sed -i "s|command=\"[^\"]*deploy\.sh\"|command=\"${FORCED_CMD_SED}\"|g" \
         "${AUTHORIZED_KEYS}"
-    if grep -q "command=\"[^\"]*bash ${DEPLOY_SH}\"" "${AUTHORIZED_KEYS}"; then
-        green "repaired the existing forced command to use 'bash' (backup taken)"
-        echo "         this fixes 'Permission denied' / exit 126 without needing the exec bit"
+    if grep -qF "command=\"${FORCED_CMD}\"" "${AUTHORIZED_KEYS}"; then
+        green "re-pointed the existing forced command at this checkout (backup taken)"
+        echo "         was: ${STALE}"
+        echo "         now: command=\"${FORCED_CMD}\""
     else
         fail "could not rewrite the forced command - edit ${AUTHORIZED_KEYS} by hand"
-        echo "         put 'bash ' immediately before ${DEPLOY_SH}"
+        echo "         it must read: command=\"${FORCED_CMD}\""
     fi
 fi
 

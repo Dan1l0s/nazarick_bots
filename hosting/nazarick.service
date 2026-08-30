@@ -4,7 +4,7 @@
 # Install with:   bash hosting/setup_cicd.sh --install-service
 # or by hand:
 #   sudo cp hosting/nazarick.service /etc/systemd/system/
-#   sudo nano /etc/systemd/system/nazarick.service   # fix User/paths
+#   sudo nano /etc/systemd/system/nazarick.service   # fix User/paths/port
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now nazarick
 #
@@ -21,13 +21,23 @@ Documentation=https://github.com/Dan1l0s/nazarick_bots
 Wants=network-online.target
 After=network-online.target
 
+# Don't let a crash-loop hammer Discord's API: more than 5 restarts in 5
+# minutes and systemd gives up until someone intervenes.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 [Service]
 Type=simple
 
-# --- edit these three for your machine -------------------------------------
+# --- placeholders: setup_cicd.sh rewrites all three ------------------------
+# `bash hosting/setup_cicd.sh --install-service` substitutes the real user, the
+# repository's actual location (computed from the script's own path) and the
+# port from private_config.py before installing the unit, so the values below
+# are never used as-is. Replace /path/to/nazarick by hand ONLY if you install
+# this file yourself with `sudo cp`.
 User=root
-WorkingDirectory=/nazarick_bots/hosting
-ExecStart=/usr/bin/python3 /nazarick_bots/hosting/server_manager.py 10000 -r
+WorkingDirectory=/path/to/nazarick/hosting
+ExecStart=/usr/bin/python3 /path/to/nazarick/hosting/server_manager.py 10000 -r
 # ---------------------------------------------------------------------------
 
 # The supervisor spawns main.py as a child. KillMode=control-group (the default)
@@ -41,11 +51,6 @@ TimeoutStopSec=30
 Restart=always
 RestartSec=10
 
-# Don't let a crash-loop hammer Discord's API: more than 5 restarts in 5
-# minutes and systemd gives up until someone intervenes.
-StartLimitIntervalSec=300
-StartLimitBurst=5
-
 # server_manager.py redirects its own stdout/stderr into logs/<date>.txt, so
 # journald would otherwise only capture startup failures. Keeping it connected
 # means `systemctl status` shows why a failed start failed.
@@ -58,6 +63,24 @@ SyslogIdentifier=nazarick
 Environment=PYTHONUNBUFFERED=1
 # Uncomment for verbose logging (also shows routine try_function failures):
 #Environment=NAZARICK_LOG_LEVEL=DEBUG
+
+# Conservative sandboxing. The service still has network access and may write
+# inside /srv (its checkout, venv, sqlite databases and logs), but it cannot
+# gain privileges or alter the host's system configuration.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target

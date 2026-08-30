@@ -5,9 +5,9 @@
 
 ## First: what changes and what doesn't
 
-**Nothing about how you use `client_manager.py` today changes.** You keep
-running it on your PC, it keeps connecting to the VPS over the network, all the
-old commands still work. It just gains a few new ones.
+The manager is now an internal service: it listens only on `127.0.0.1` on the
+VPS. All old commands still work, but remote access goes through SSH rather
+than exposing the password-only protocol to the Internet.
 
 What's being added is a _second, separate_ way to reach the same supervisor:
 GitHub Actions SSHes into the VPS and runs one restricted script there.
@@ -17,7 +17,7 @@ GitHub Actions SSHes into the VPS and runs one restricted script there.
 | Thing                             | Runs on          | Talks to                | When                               |
 | --------------------------------- | ---------------- | ----------------------- | ---------------------------------- |
 | `server_manager.py`               | **VPS**          | starts/stops the bot    | always (you already run this)      |
-| `client_manager.py` (interactive) | **your PC**      | VPS over the network    | when you type commands (unchanged) |
+| `client_manager.py` (interactive) | PC or **VPS**    | loopback / SSH tunnel   | when you type commands             |
 | `main.py` (the bots)              | **VPS**          | Discord                 | started by the supervisor          |
 | `deploy.sh`                       | **VPS**          | supervisor on localhost | only when GitHub Actions SSHes in  |
 | Workflows                         | GitHub's servers | VPS over SSH            | on push / on schedule              |
@@ -34,7 +34,7 @@ you push to master
    -> if green, GitHub SSHes: ssh you@vps deploy
    -> SSH is locked to ONE script: hosting/deploy.sh
    -> deploy.sh tells the local supervisor: "update master when-idle"
-   -> supervisor waits until no bot is playing, then git pulls + restarts
+   -> supervisor waits until no bot is playing, then safely updates + restarts
 ```
 
 ---
@@ -132,16 +132,24 @@ Get-Content $env:USERPROFILE\.ssh\nazarick_ci.pub
 Paste the public key from step 1 into the command below:
 
 ```bash
-cd /nazarick_bots          # your repo path
+cd /path/to/nazarick       # wherever you cloned it
 git pull
+bash setup.sh --venv
+.venv/bin/python tools/preflight.py
 bash hosting/setup_cicd.sh --pubkey "ssh-ed25519 AAAA...paste-it-here... github-actions"
 ```
+
+> **The repo's location is never hardcoded.** `setup_cicd.sh` and `deploy.sh`
+> both derive it from their own path, so the repo can live anywhere -
+> `/srv/apps/nazarick`, `/opt/nazarick`, `/home/you/nazarick`. Nothing inside
+> the project needs to know. See [Moving the repo](#moving-the-repo) if you
+> relocate an existing install.
 
 That single command does all the VPS-side work:
 
 - checks `deploy.sh` has Unix line endings (a Windows checkout can break this)
 - creates `run/`, makes `deploy.sh` executable
-- finds your Python and warns if `deploy.sh` won't be able to
+- requires a project virtualenv (or an explicit DEPLOY_PYTHON) and verifies it
 - verifies `private_config.py` and `db/` are present
 - **installs the restricted key line** into `~/.ssh/authorized_keys`, without
   touching your existing keys, taking a backup first, and skipping if already
@@ -157,8 +165,11 @@ that terminal open.
 One line in `authorized_keys`:
 
 ```
-command="/nazarick_bots/hosting/deploy.sh",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc ssh-ed25519 AAAA...
+command="bash /path/to/nazarick/hosting/deploy.sh",no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty,no-user-rc ssh-ed25519 AAAA...
 ```
+
+sshd needs a concrete absolute path here - it has no notion of "the repo" - but
+you never type it: the script fills in the checkout it was run from.
 
 That `command=` prefix is the security boundary. The key can do exactly three
 things — `deploy`, `upgrade-ytdlp`, `status` — and nothing else. No shell, no
@@ -170,8 +181,8 @@ It's a long-running process, so it's still on the old code:
 
 ```bash
 pkill -f server_manager.py
-cd /nazarick_bots/hosting
-python3 server_manager.py <your-port> -r & disown
+cd /path/to/nazarick/hosting
+../.venv/bin/python server_manager.py <your-port> -r & disown
 ```
 
 Re-run the setup script to confirm — its final section does a live end-to-end check:
@@ -277,11 +288,10 @@ git push origin master
 ```
 
 Open the **Actions** tab. `tests` runs first; when green, `deploy` starts.
-Then check from your PC, exactly as you always have:
+Then check through the restricted SSH key:
 
 ```powershell
-python hosting/client_manager.py
-> status
+ssh -i $env:USERPROFILE\.ssh\nazarick_ci <user>@<vps-ip> status
 ```
 
 Two lines are new:
@@ -299,6 +309,223 @@ Queued action: update master (queued 42s ago; waiting because: 1 active play(s).
 ```
 
 It deploys by itself once the music stops.
+
+---
+
+## Migrating to a new VPS
+
+Moving to a different machine, rather than a different directory on the same
+one. The repo is path-independent, so nothing inside it needs editing - the work
+is in the state that does **not** live in git, and in the handful of places that
+name the old host.
+
+> **The one rule that matters: never run both machines at once.** The bots
+> authenticate with the same Discord tokens. Two supervisors up simultaneously
+> means every command gets answered twice and both instances fight over the
+> voice connections. Build the new box completely, then cut over.
+
+### What does not come from git
+
+`git clone` gives you the code and nothing else. These are gitignored and must
+be carried across by hand:
+
+| Path | Why it matters |
+| --- | --- |
+| `configs/private_config.py` | bot tokens, manager password/port and optional WebDAV credentials |
+| `db/bot_database.db` | per-guild settings and all XP history |
+
+`logs/` and `run/` are recreated automatically. **Do not** copy `.venv` - it
+bakes in absolute paths and the old machine's interpreter; build a fresh one.
+
+### Phase 1 - build the new box (bots stay down)
+
+```bash
+sudo apt update && sudo apt install -y git python3 python3-pip python3-venv ffmpeg
+
+sudo mkdir -p /srv/apps
+sudo chown "$(id -un)" /srv/apps
+git clone https://github.com/Dan1l0s/nazarick_bots /srv/apps/nazarick
+cd /srv/apps/nazarick
+bash setup.sh --venv
+.venv/bin/python tools/preflight.py
+```
+
+From the OLD VPS, send the two gitignored things across:
+
+```bash
+scp configs/private_config.py you@new-vps:/srv/apps/nazarick/configs/
+scp -r db you@new-vps:/srv/apps/nazarick/
+```
+
+Then install the CI key and the service - but do not start it yet:
+
+```bash
+bash hosting/setup_cicd.sh --pubkey "ssh-ed25519 AAAA...github-actions"
+bash hosting/setup_cicd.sh --install-service
+```
+
+Reusing the same `nazarick_ci.pub` from the old machine is deliberate: the
+private half is already in the `DEPLOY_SSH_KEY` secret, so that one secret never
+has to be touched. Generate a new pair only if you think the old one leaked.
+
+**Do not open the manager port in UFW.** The protocol has password
+authentication but no TLS, and it is not a public API. The supervisor binds
+only `127.0.0.1`; GitHub Actions reaches it through the restricted SSH command.
+The server firewall therefore stays exactly as prepared for the shared VPS:
+
+```bash
+sudo ufw status numbered
+# public: SSH, HTTP and HTTPS; no rule for hosting_port
+```
+
+For an interactive session from your PC, create a temporary tunnel with your
+normal SSH account and keep `hosting_ip = "127.0.0.1"` locally:
+
+```powershell
+ssh -N -L 10000:127.0.0.1:10000 dan-vps
+# in a second terminal:
+python hosting/client_manager.py
+```
+
+Replace `10000` on both sides if `hosting_port` differs. Closing SSH closes the
+tunnel; no permanent firewall exception is created.
+
+### Phase 2 - cut over
+
+On the **old** VPS - disable, not just stop, so a reboot cannot resurrect it:
+
+```bash
+sudo systemctl disable --now nazarick
+```
+
+Now re-copy the database, so nothing earned between phase 1 and the cutover is
+lost, and so sqlite is not copied mid-write:
+
+```bash
+scp db/bot_database.db you@new-vps:/srv/apps/nazarick/db/
+```
+
+On the **new** VPS:
+
+```bash
+sudo systemctl start nazarick
+```
+
+### Phase 3 - the things that name the old host
+
+GitHub -> Settings -> Secrets and variables -> Actions. Section 6 of
+`setup_cicd.sh` on the new box prints every value:
+
+| Secret | Action |
+| --- | --- |
+| `DEPLOY_HOST` | **update** - new IP or hostname |
+| `DEPLOY_KNOWN_HOSTS` | **update** - a new machine has a new host key; stale here fails as `Host key verification failed` |
+| `DEPLOY_USER` | update only if the account name differs |
+| `DEPLOY_PORT` | update if sshd is not on 22; delete the secret if it now is |
+| `DEPLOY_SSH_KEY` | leave alone, if you reused the same public key |
+
+On **your PC**, update the `dan-vps` entry in `~/.ssh/config` if its address
+changed. `hosting_ip` should remain `127.0.0.1` and is used through the SSH
+tunnel above. If you reused an IP, `known_hosts` may still contain the old
+machine's key; SSH will refuse the connection until that stale entry is removed.
+
+### Phase 4 - verify, in this order
+
+```powershell
+ssh -i $env:USERPROFILE\.ssh\nazarick_ci <user>@<new-ip> status   # expect the status printout
+ssh -i $env:USERPROFILE\.ssh\nazarick_ci <user>@<new-ip> "cat /etc/passwd"   # expect: refused
+ssh dan-vps "systemctl status nazarick --no-pager"                  # service is healthy
+ssh dan-vps "ss -ltn | grep ':10000 '"                              # must show 127.0.0.1 only
+git commit --allow-empty -m "ci: test deploy to new vps" && git push
+```
+
+The last one is the only check that exercises the GitHub secrets. Watch the
+Actions tab.
+
+### Before you delete the old machine
+
+Its `~/.ssh/authorized_keys` still contains the forced-command line for the CI
+key. While that box is alive and reachable, anyone holding `DEPLOY_SSH_KEY` can
+still trigger a deploy on it. Remove the line, or destroy the machine.
+
+Two more things worth a glance: `backup_url` in `private_config.py` still points
+at your WebDAV target and will now be written from the new host - confirm the
+backups arrive - and a fresh **fail2ban** on the new box can ban GitHub runner
+IPs during the first failed attempts, which shows up as `Connection timed out`
+rather than anything about authentication. See the fail2ban note near the end of
+this document.
+
+---
+
+## Moving the repo
+
+The project itself is path-independent: `deploy.sh`, `setup_cicd.sh` and the
+Python entry points all resolve the repository root from their own location, so
+the checkout can sit anywhere. Exactly **two** absolute paths live *outside* the
+repo and therefore do not move with it:
+
+| Where | What it holds | Fixed by |
+| --- | --- | --- |
+| `~/.ssh/authorized_keys` | the forced command sshd runs for the CI key | `bash hosting/setup_cicd.sh` |
+| `/etc/systemd/system/nazarick.service` | `WorkingDirectory` + `ExecStart` | `bash hosting/setup_cicd.sh --install-service` |
+
+Both are regenerated from wherever you run the script, so relocating is three
+commands. On the VPS:
+
+```bash
+sudo systemctl stop nazarick          # or: pkill -f server_manager.py
+sudo mkdir -p /srv/apps
+sudo mv /old/path/nazarick /srv/apps/nazarick
+sudo chown -R "$(id -un)" /srv/apps/nazarick
+
+cd /srv/apps/nazarick
+bash hosting/setup_cicd.sh --install-service    # rewrites BOTH of the above
+sudo systemctl start nazarick
+```
+
+`setup_cicd.sh` notices that the forced command still points at the old
+location and re-points it at the current checkout, taking a backup of
+`authorized_keys` first. It prints the old and new lines, so you can see the
+change:
+
+```
+  [ ok ] re-pointed the existing forced command at this checkout (backup taken)
+         was: command="bash /old/path/nazarick/hosting/deploy.sh"
+         now: command="bash /srv/apps/nazarick/hosting/deploy.sh"
+```
+
+Then verify from your PC - this is the one check that exercises the whole SSH
+path end to end:
+
+```powershell
+ssh -i $env:USERPROFILE\.ssh\nazarick_ci <user>@<vps-ip> status
+```
+
+Two things to watch out for:
+
+- **`.venv`, if you use one, does not survive a move.** The `bin/python`
+  symlink still resolves, but `activate` and every console script inside bake in
+  the old absolute path. Recreate it: `rm -rf .venv && bash setup.sh --venv`.
+- **`private_config.py` and `db/` are gitignored, not absent.** They live inside
+  the repo directory, so `mv` carries them along - but if you *re-clone* at the
+  new location instead of moving, copy those two across by hand or the bots
+  start with no tokens and an empty database.
+
+`DEPLOY_HOST`, `DEPLOY_USER` and the other GitHub secrets are unaffected: none
+of them mention a path.
+
+### A layout worth adopting
+
+Nothing below is required - the project runs from any directory - but if you are
+moving anyway, this keeps a VPS legible as it accumulates services:
+
+```
+/srv/
+├── apps/          plain applications        -> /srv/apps/nazarick
+├── compose/       docker compose projects
+└── backups/       backup data
+/var/www/          web static
+```
 
 ---
 
@@ -349,16 +576,17 @@ Three independent releases, so a crashed or wedged bot can never block deploys:
 
 ## Your config and database are safe
 
-`private_config.py` and `db/` are gitignored, and `git stash` / `git checkout`
-never touch ignored files — tested directly against a scratch repo:
+`private_config.py` and `db/` are gitignored, and the deploy checkout never
+touches ignored files. Tracked local edits on the VPS are not silently stashed
+or discarded: deployment refuses to proceed until you commit or revert them.
 
 ```
 before:  private_config=TOKENS_LIVE  db=REAL_DB
 after:   private_config=TOKENS_LIVE  db=REAL_DB
 ```
 
-The one command that _would_ delete them is `git clean -fdx`. Don't add it to
-the deploy path.
+The one command that _would_ delete ignored state is `git clean -fdx`. It is
+deliberately absent from the deploy path.
 
 ## Windows gotchas worth knowing
 
@@ -393,7 +621,7 @@ On the VPS, re-run the health check any time:
 
 ```bash
 bash hosting/setup_cicd.sh
-tail -f /nazarick_bots/logs/$(date +%d-%m-%Y).txt
+tail -f "$(git rev-parse --show-toplevel)/logs/$(date +%d-%m-%Y).txt"
 ```
 
 **Deploy workflow can't connect?** Check `DEPLOY_HOST` / `DEPLOY_PORT`, and that

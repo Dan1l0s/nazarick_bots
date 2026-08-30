@@ -19,9 +19,12 @@
 *.yaml text eol=lf
 *.toml text eol=lf
 *.cfg text eol=lf
+*.service text eol=lf
+requirements*.txt text eol=lf
 *.md text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf
+tools/pre-commit text eol=lf
 
 # Windows-only helpers keep CRLF so Notepad and cmd behave.
 *.bat text eol=crlf

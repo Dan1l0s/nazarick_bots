@@ -599,39 +599,44 @@ class UpdateHost:
 
 @pytest.fixture
 def captured_shell(monkeypatch):
-    """Intercepts os.system so update() can be exercised safely."""
-    calls = []
+    """Intercepts every update command so no git/pip process is run."""
+    class Calls(list):
+        deploy = []
+
+    calls = Calls()
+    calls.deploy = []
 
     def fake_system(cmd):
         calls.append(cmd)
         return 0
 
+    async def fake_deploy(args, timeout=900):
+        calls.deploy.append(args)
+        stdout = "disnake>=2.9,<3\n" if args[:2] == ["git", "show"] else ""
+        return types.SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
     monkeypatch.setattr(server_manager.os, "system", fake_system)
-    monkeypatch.setattr(server_manager.os.path, "exists", lambda p: True)
+    monkeypatch.setattr(server_manager, "_run_deploy_command", fake_deploy)
     return calls
 
 
-def test_update_looks_for_setup_sh_at_the_repo_root(captured_shell, monkeypatch):
-    """Regression: it ran `bash setup.sh` from hosting/, so every update printed
-    'bash: setup.sh: No such file or directory' and skipped the dependency
-    install entirely."""
+def test_update_installs_dependencies_into_the_running_interpreter(captured_shell, monkeypatch):
+    """Ubuntu 24.04 rejects writes to system Python; deploy must keep .venv."""
     monkeypatch.delenv("INVOCATION_ID", raising=False)
     host = UpdateHost()
     asyncio.run(server_manager.Host.update(host, "master"))
 
-    setup_calls = [c for c in captured_shell if "setup.sh" in c]
-    assert setup_calls, "setup.sh was never invoked"
-    assert all(os.path.join("..", "setup.sh") in c for c in setup_calls), setup_calls
+    pip_calls = [c for c in captured_shell.deploy
+                 if c[:4] == [sys.executable, "-m", "pip", "install"]]
+    assert pip_calls, captured_shell.deploy
+    assert not any("setup.sh" in " ".join(c) for c in captured_shell.deploy)
 
 
-def test_update_skips_setup_sh_when_absent(monkeypatch):
-    calls = []
-    monkeypatch.setattr(server_manager.os, "system", lambda c: calls.append(c) or 0)
-    monkeypatch.setattr(server_manager.os.path, "exists", lambda p: False)
+def test_update_fetches_only_the_requested_branch(captured_shell, monkeypatch):
     monkeypatch.delenv("INVOCATION_ID", raising=False)
-
-    asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
-    assert not [c for c in calls if "setup.sh" in c]
+    asyncio.run(server_manager.Host.update(UpdateHost(), "develop/test"))
+    assert ["git", "fetch", "--depth=1", "origin", "develop/test"] in captured_shell.deploy
+    assert ["git", "checkout", "-B", "develop/test", "FETCH_HEAD"] in captured_shell.deploy
 
 
 def test_update_does_not_use_the_dash_incompatible_disown(captured_shell, monkeypatch):
@@ -683,20 +688,44 @@ def test_update_under_systemd_exits_instead_of_respawning(captured_shell, monkey
     assert host.state == server_manager.BotState.SHUTDOWN
 
 
-def test_update_aborts_and_restores_on_fetch_failure(monkeypatch):
+def test_update_aborts_without_stopping_bots_on_fetch_failure(monkeypatch):
     calls = []
 
-    def fake_system(cmd):
-        calls.append(cmd)
-        return 1 if "fetch" in cmd else 0
+    async def fake_deploy(args, timeout=900):
+        calls.append(args)
+        failed = args[:2] == ["git", "fetch"]
+        return types.SimpleNamespace(
+            returncode=1 if failed else 0,
+            stdout="",
+            stderr="network down" if failed else "",
+        )
 
-    monkeypatch.setattr(server_manager.os, "system", fake_system)
+    monkeypatch.setattr(server_manager, "_run_deploy_command", fake_deploy)
     monkeypatch.delenv("INVOCATION_ID", raising=False)
 
-    result = asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
+    host = UpdateHost(state=server_manager.BotState.RUNNING)
+    result = asyncio.run(server_manager.Host.update(host, "master"))
     assert "Failed to fetch" in result
-    assert any("stash pop" in c for c in calls), "local changes were not restored"
-    assert not any("checkout" in c for c in calls), "checked out despite fetch failing"
+    assert "network down" in result
+    assert not any(c[:2] == ["git", "checkout"] for c in calls)
+    assert host.state == server_manager.BotState.RUNNING
+
+
+def test_update_refuses_tracked_local_changes(monkeypatch):
+    async def dirty_tree(args, timeout=900):
+        return types.SimpleNamespace(returncode=0, stdout=" M main.py\n", stderr="")
+
+    monkeypatch.setattr(server_manager, "_run_deploy_command", dirty_tree)
+    host = UpdateHost(state=server_manager.BotState.RUNNING)
+    result = asyncio.run(server_manager.Host.update(host, "master"))
+    assert "tracked local changes" in result
+    assert host.state == server_manager.BotState.RUNNING
+
+
+@pytest.mark.parametrize("branch", ["--help", "../main", "a..b", "a//b", "a@{b", "x.lock"])
+def test_update_rejects_unsafe_branch_names(branch):
+    result = asyncio.run(server_manager.Host.update(UpdateHost(), branch))
+    assert "invalid branch" in result
 
 
 def test_update_never_runs_git_clean(captured_shell, monkeypatch):
@@ -704,6 +733,7 @@ def test_update_never_runs_git_clean(captured_shell, monkeypatch):
     monkeypatch.delenv("INVOCATION_ID", raising=False)
     asyncio.run(server_manager.Host.update(UpdateHost(), "master"))
     assert not any("clean" in c for c in captured_shell), captured_shell
+    assert not any("clean" in c for command in captured_shell.deploy for c in command)
 
 
 # --------------------------------------------------------------------------- #
@@ -1055,6 +1085,42 @@ def test_second_supervisor_refuses_to_start():
         assert "grep server_manager" in str(excinfo.value)
     finally:
         first.close()
+
+
+def test_manager_binds_loopback_by_default():
+    """The password-only manager protocol must never be exposed publicly."""
+    host = server_manager.Host(0)
+    try:
+        address, _ = host.listener_socket.getsockname()
+        assert address == "127.0.0.1"
+    finally:
+        host.listener_socket.close()
+
+
+def test_backup_uses_argv_instead_of_a_shell(monkeypatch):
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(server_manager, "backup_url", "https://backup.invalid/")
+    monkeypatch.setattr(server_manager, "backup_login", "user;echo unsafe")
+    monkeypatch.setattr(server_manager, "backup_password", "secret $(unsafe)")
+    monkeypatch.setattr(server_manager, "auto_backup_files", ["db/test.db"])
+    monkeypatch.setattr(server_manager.subprocess, "run", fake_run)
+
+    result = asyncio.run(server_manager.Host.commit_backup(types.SimpleNamespace()))
+    assert result == "Backup successful"
+    assert isinstance(captured["args"], list)
+    assert captured["args"][0] == "curl"
+    assert "user;echo unsafe:secret $(unsafe)" in captured["args"]
+
+
+def test_backup_can_be_left_unconfigured(monkeypatch):
+    monkeypatch.setattr(server_manager, "backup_url", "")
+    result = asyncio.run(server_manager.Host.commit_backup(types.SimpleNamespace()))
+    assert "not configured" in result
 
 
 # --------------------------------------------------------------------------- #

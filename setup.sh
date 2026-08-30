@@ -32,15 +32,12 @@ Usage: bash setup.sh [--dev] [--venv [DIR]]
   -h, --help    show this
 
 Examples:
-  bash setup.sh                      # what the VPS deploy runs: system Python
-  bash setup.sh --dev --venv         # recommended for local development
+  bash setup.sh --venv               # recommended VPS/runtime setup
+  bash setup.sh --dev --venv         # recommended local development setup
 
-IMPORTANT if you use --venv on the SERVER: the systemd unit
-(hosting/nazarick.service) pins an absolute interpreter, and the supervisor
-launches the bots with sys.executable - so the unit and the venv must agree.
-Point ExecStart at <repo>/.venv/bin/python, or the bots will start under the
-system Python and fail to import disnake. hosting/deploy.sh already prefers
-.venv/bin/python when one exists.
+The systemd unit pins an absolute interpreter, and the supervisor launches the
+bots and deploy-time pip with sys.executable. hosting/setup_cicd.sh detects
+<repo>/.venv/bin/python and installs the matching unit automatically.
 USAGE
 }
 
@@ -98,23 +95,23 @@ function install_python {
         file="./setup_cache/python_installer.exe"
         if ! [ -f $file ]
         then
-            eval "mkdir setup_cache"
+            mkdir -p setup_cache
             echo "Downloading python installer..."
-            eval "curl -o setup_cache/python_installer.exe https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe"
+            curl -o setup_cache/python_installer.exe https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe
         fi
         echo "Openning python installer..."
-        eval "./setup_cache/python_installer.exe"
+        "${file}"
         check_python
     fi
 
 }
 function check_python {
     echo "Checking python..."
-    eval "command -v $python"
+    command -v "${python}"
     status=$?
     if [ $status = 0 ]
     then
-        eval "rm -rf ./setup_cache"
+        rm -rf ./setup_cache
         echo "Python is installed"
     else
         echo "Python is not installed"
@@ -123,17 +120,17 @@ function check_python {
 }
 function check_pip {
     echo "Checking pip..."
-    eval "$python -m pip --version"
+    "${python}" -m pip --version
     if [ $? = 0 ]
     then
-        eval "$python -m pip install --upgrade pip"
+        "${python}" -m pip install --upgrade pip
         if [ $? != 0 ]
         then
             echo "Failed to update pip"
             exit 1
         fi
     else
-        eval "$python -m ensurepip --default-pip"
+        "${python}" -m ensurepip --default-pip
         if [ $? != 0 ]
         then
             echo "Failed to install pip"
@@ -155,7 +152,7 @@ function create_venv {
         python="$venv_dir/Scripts/python.exe"
     else
         echo "Creating virtualenv in $venv_dir..."
-        eval "$python -m venv \"$venv_dir\""
+        "${python}" -m venv "${venv_dir}"
         if [ $? != 0 ]
         then
             echo "Failed to create a virtualenv in $venv_dir."
@@ -176,7 +173,7 @@ function create_venv {
 
 function install_requirements {
     echo "Installing dependencies from $requirements..."
-    eval "$python -m pip install --upgrade -r $requirements"
+    "${python}" -m pip install --upgrade -r "${requirements}"
     if [ $? != 0 ]
     then
         # PEP 668: Debian 12+ and Ubuntu 23.04+ mark the system Python as
@@ -190,7 +187,11 @@ function install_requirements {
             echo
             echo "If the error above mentions 'externally-managed-environment',"
             echo "this Python refuses system-wide installs. Either:"
-            echo "    bash setup.sh --venv ${requirements#requirements}   # recommended"
+            if [ "${requirements}" = "requirements-dev.txt" ]; then
+                echo "    bash setup.sh --dev --venv   # recommended"
+            else
+                echo "    bash setup.sh --venv         # recommended"
+            fi
             echo "  or re-run pip yourself with --break-system-packages."
             echo "See --help for the systemd caveat before using --venv on a server."
         fi
@@ -199,7 +200,7 @@ function install_requirements {
 }
 function check_ffmpeg {
     echo "Checking FFmpeg..."
-    eval "command -v ffmpeg"
+    command -v ffmpeg
     status=$?
     if [ $status = 0 ]
     then
@@ -213,7 +214,7 @@ function install_ffmpeg {
     if [ $platform = "Linux" ]
     then
         echo "Installing FFmpeg..."
-        eval "sudo apt install ffmpeg"
+        sudo apt install -y ffmpeg
         check_ffmpeg
     fi
     if [ $platform = "Windows" ]

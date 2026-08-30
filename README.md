@@ -148,7 +148,7 @@ libraries via pip from `requirements.txt`. Also, for linux users it will install
 On **Linux/macOS** (and Git Bash):
 
 ```bash
-bash setup.sh                 # runtime deps, system Python (what the VPS deploy runs)
+bash setup.sh --venv          # runtime deps; recommended for the VPS too
 bash setup.sh --dev --venv    # recommended for local development
 bash setup.sh --help          # all options
 ```
@@ -174,13 +174,12 @@ If PowerShell blocks the script, run it as
 > `& "C:\Program Files\Git\bin\bash.exe" setup.sh --dev --venv`
 
 `--dev` adds the test dependencies; `--venv` creates and installs into `.venv`
-instead of the system Python, which is also the fix if pip refuses with
-`externally-managed-environment` (Debian 12+, Ubuntu 23.04+ - see PEP 668).
+instead of the system Python. This is the supported VPS layout and avoids
+`externally-managed-environment` on Debian 12+ and Ubuntu 23.04+ (PEP 668).
 
-> **If you use `--venv` on a server**, point `ExecStart=` in
-> `hosting/nazarick.service` at `<repo>/.venv/bin/python`. The supervisor launches
-> the bots with `sys.executable`, so an interpreter mismatch means the bots start
-> under the system Python and fail to import disnake.
+`hosting/setup_cicd.sh --install-service` points `ExecStart=` at the detected
+`.venv/bin/python`. The supervisor also installs deploy-time dependencies into
+that same interpreter, so system Python is left untouched.
 
 ### Keeping yt-dlp current
 
@@ -284,7 +283,7 @@ Linux users will automatically get FFmpeg from the setup file, windows users wil
 
 1. Download [this archive](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z) and unzip its `bin` folder to any folder you want
 2. Proceed to [bots/music_instance.py](bots/music_instance.py) and add to each `disnake.FFmpegPCMAudio` method `executable` parameter with absolute path to `ffmpeg.exe` file in the `bin` folder, example:
-   `state.voice.play(disnake.FFmpegPCMAudio(source=link, **public_config.FFMPEG_OPTIONS, executable="C:\\nazarick_bots\\bin\\ffmpeg.exe"))`
+   `state.voice.play(disnake.FFmpegPCMAudio(source=link, **public_config.FFMPEG_OPTIONS, executable="C:\\ffmpeg\\bin\\ffmpeg.exe"))`
 
 ### How to launch code
 
@@ -340,7 +339,7 @@ The moving parts, briefly:
 
 | Piece                       | Role                                                                                                                                 |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `hosting/server_manager.py` | Supervisor. Owns the bot process, listens on a control port, uploads database backups, and defers restarts until nothing is playing. |
+| `hosting/server_manager.py` | Supervisor. Owns the bot process, listens on a loopback-only control port, uploads database backups, and defers restarts until nothing is playing. |
 | `hosting/client_manager.py` | Client for that port - `status`, `reboot`, `update`, `upgrade`, `backup`, `cancel`. Run it with no arguments for a REPL.             |
 | `hosting/deploy.sh`         | The only thing CI is allowed to run over SSH; accepts `deploy`, `upgrade-ytdlp` and `status` and nothing else.                       |
 | `.github/workflows/`        | Tests on every push; deploy on green master; a daily yt-dlp upgrade.                                                                 |

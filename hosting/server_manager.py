@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -34,13 +36,20 @@ from hosting import status as status_module  # noqa: E402
 from helpers import log_filter  # noqa: E402
 
 try:
-    from configs.private_config import hosting_port, backup_login, backup_password, backup_url, server_manager_password
-    from configs.public_config import auto_backup_files, manual_backup_files
+    from configs import private_config as _private_config
 except Exception:
-    # Matches the original's tolerance for a missing/partial private_config:
-    # the port can still be supplied via argv, and backup/auth commands will
-    # fail at call time instead of at import time.
-    pass
+    _private_config = None
+
+from configs.public_config import auto_backup_files, manual_backup_files
+
+# Hosting is optional for a local main.py run, and WebDAV is optional even when
+# the supervisor is used. Importing all fields in one statement made one absent
+# backup setting erase the otherwise valid port and manager password too.
+hosting_port = getattr(_private_config, "hosting_port", None)
+server_manager_password = getattr(_private_config, "server_manager_password", None)
+backup_url = getattr(_private_config, "backup_url", "")
+backup_login = getattr(_private_config, "backup_login", "")
+backup_password = getattr(_private_config, "backup_password", "")
 
 # This process runs with hosting/ as its working directory; the bot process
 # runs from the repo root, so the shared status file needs the ".." prefix here.
@@ -52,6 +61,16 @@ DEFERRED_POLL_INTERVAL = 20
 # A deferred action gives up waiting and executes anyway after this long, so a
 # bot stuck reporting "playing" can never block a deploy indefinitely.
 DEFERRED_FORCE_AFTER = 6 * 3600
+
+# The manager protocol contains a reusable password but no transport encryption.
+# It is an internal control plane, so keep it off every public/private network
+# interface. Remote administration goes through SSH (deploy.sh or a tunnel).
+MANAGER_BIND_HOST = "127.0.0.1"
+
+# Branch names arrive over the manager protocol. Git receives them as argv (not
+# shell text), and this conservative validation also prevents option-like or
+# path-like values from being interpreted in surprising ways.
+SAFE_BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 
 # How long to keep the supervisor's dated logs/<date>.txt files. They were never
 # pruned, so they grew for the lifetime of the deployment. Note the bot process
@@ -124,6 +143,65 @@ async def _pip_install_ytdlp():
         subprocess.run,
         [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
         capture_output=True, text=True, timeout=600)
+
+
+def _valid_branch_name(branch: str) -> bool:
+    return bool(
+        SAFE_BRANCH_RE.fullmatch(branch or "")
+        and ".." not in branch
+        and "//" not in branch
+        and "@{" not in branch
+        and not branch.endswith(("/", ".", ".lock"))
+    )
+
+
+def _command_error(result) -> str:
+    output = (result.stderr or result.stdout or "").strip().splitlines()
+    return "\n".join(output[-10:]) or f"command exited with {result.returncode}"
+
+
+async def _run_deploy_command(args, timeout=900):
+    """Run one deployment command without invoking a shell."""
+    return await _to_thread(
+        subprocess.run,
+        args,
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+async def _install_fetched_requirements(ref="FETCH_HEAD"):
+    """Install the fetched revision's dependencies into this interpreter.
+
+    The VPS runs the supervisor from ``.venv``. Calling ``setup.sh`` from an
+    update used to select the system ``python3`` again, which Ubuntu 24.04
+    refuses to modify (PEP 668). Reading requirements from the fetched commit
+    lets dependency installation finish before the live checkout is changed.
+    """
+    shown = await _run_deploy_command(
+        ["git", "show", f"{ref}:requirements.txt"], timeout=60)
+    if shown.returncode != 0:
+        return shown
+
+    requirements_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", suffix="-nazarick-requirements.txt",
+                delete=False) as handle:
+            handle.write(shown.stdout)
+            requirements_path = handle.name
+        return await _run_deploy_command([
+            sys.executable, "-m", "pip", "install", "--upgrade",
+            "-r", requirements_path,
+        ])
+    finally:
+        if requirements_path:
+            try:
+                os.remove(requirements_path)
+            except OSError:
+                pass
 
 
 class FileWithDates:
@@ -253,7 +331,7 @@ class PendingAction:
 
 class Host:
 
-    def __init__(self, port):
+    def __init__(self, port, bind_host=MANAGER_BIND_HOST):
         self.state = BotState.STOPPED
         self.errors = None
         self.errors_cnt = 0
@@ -265,7 +343,7 @@ class Host:
         self.listener_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            self.listener_socket.bind(('', port))
+            self.listener_socket.bind((bind_host, port))
         except OSError as ex:
             # NOTE: this catches the case on Linux, which is what the VPS runs.
             # On Windows SO_REUSEADDR permits a second socket to bind the same
@@ -286,7 +364,7 @@ class Host:
             ) from ex
         self.listener_socket.listen(1600)
         self.listener_socket.setblocking(False)
-        print("Host started")
+        print(f"Host started on {bind_host}:{self.listener_socket.getsockname()[1]}")
 
     async def pull_errors(self):
         """Tails the child's stderr, echoes it back into the child's stdin (so
@@ -322,7 +400,7 @@ class Host:
         print(f"Processing command {args[1:] if len(args) > 1 else '(empty)'}")
         if len(args) < 2:
             return None
-        if args[0] != server_manager_password:
+        if not server_manager_password or args[0] != server_manager_password:
             return "Unauthorized access"
         args[1] = args[1].lower()
 
@@ -558,12 +636,30 @@ class Host:
             await asyncio.sleep(50)
 
     async def commit_backup(self, manual=False):
+        if not backup_url:
+            return "Backup is not configured (set backup_url/login/password)"
         ans = ""
         for file in (auto_backup_files, manual_backup_files)[manual]:
             # file[:-3] / file[-3:] split the ".db" extension off so the label
             # lands before it (e.g. bot_database_12pm.db).
-            cmd = f'curl --max-time 300 -T ../{file} --user "{backup_login}:{backup_password}" {backup_url}{file[:-3]}_{"manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"}{file[-3:]}'
-            if await _to_thread(os.system, cmd) != 0:
+            label = "manual" if manual else "12pm" if datetime.now().hour == 12 else "12am"
+            remote_url = f"{backup_url}{file[:-3]}_{label}{file[-3:]}"
+            local_path = os.path.join("..", file)
+            try:
+                result = await _to_thread(
+                    subprocess.run,
+                    ["curl", "--fail", "--silent", "--show-error",
+                     "--max-time", "300", "-T", local_path,
+                     "--user", f"{backup_login}:{backup_password}", remote_url],
+                    capture_output=True, text=True, timeout=330,
+                )
+            except (OSError, subprocess.TimeoutExpired) as ex:
+                print(f"Backup upload failed for {file}: {ex}")
+                ans += f"\nFailed to commit {file}"
+                continue
+            if result.returncode != 0:
+                error = (result.stderr or result.stdout or "unknown curl error").strip()
+                print(f"Backup upload failed for {file}: {error}")
                 ans += f"\nFailed to commit {file}"
         if ans == "":
             ans = "Backup successful"
@@ -704,28 +800,40 @@ class Host:
         """Pulls the selected branch, reinstalls dependencies, then hands over to
         a fresh copy of this supervisor (a running process can't swap out its own
         code in place)."""
-        was_running = False
-        if self.state == BotState.RUNNING:
-            await self.stop()
-            was_running = True
-        await _to_thread(os.system, "git -C .. stash")
-        if await _to_thread(os.system, "git -C .. fetch --depth=1") != 0:
-            await _to_thread(os.system, "git -C .. stash pop")
-            return "Failed to fetch updates from origin"
-        await _to_thread(os.system, "git -C .. checkout --detach")
-        await _to_thread(os.system, f"git -C .. branch -f -D {branch}")
-        await _to_thread(os.system, f"git -C .. checkout {branch}")
-        await _to_thread(os.system, "git -C .. stash clear")
+        if not _valid_branch_name(branch):
+            return f"Refused invalid branch name: {branch!r}"
 
-        # BUGFIX: this ran `bash setup.sh`, but the working directory is
-        # hosting/ while setup.sh lives at the repo root - so every update
-        # printed "bash: setup.sh: No such file or directory" and silently
-        # skipped the dependency install.
-        setup_script = os.path.join("..", "setup.sh")
-        if os.path.exists(setup_script):
-            await _to_thread(os.system, f"bash {setup_script}")
-        else:
-            print(f"Skipping dependency install: {setup_script} not found")
+        # Production should be immutable apart from gitignored state
+        # (private_config.py, db/, logs/, run/). Silently stashing tracked edits
+        # and then clearing every stash could destroy an operator's work.
+        status = await _run_deploy_command(
+            ["git", "status", "--porcelain", "--untracked-files=no"], timeout=60)
+        if status.returncode != 0:
+            return "Failed to inspect the working tree:\n" + _command_error(status)
+        if status.stdout.strip():
+            return ("Refused to deploy over tracked local changes. Commit or "
+                    "revert them on the VPS first:\n" + status.stdout.strip())
+
+        fetch = await _run_deploy_command(
+            ["git", "fetch", "--depth=1", "origin", branch])
+        if fetch.returncode != 0:
+            return "Failed to fetch updates from origin:\n" + _command_error(fetch)
+
+        # Install into the interpreter that is actually running the service.
+        # Do this before changing the checkout or stopping the live bots: a
+        # transient package-index failure therefore leaves production running.
+        dependencies = await _install_fetched_requirements()
+        if dependencies.returncode != 0:
+            return "Failed to install runtime dependencies:\n" + _command_error(dependencies)
+
+        checkout = await _run_deploy_command(
+            ["git", "checkout", "-B", branch, "FETCH_HEAD"], timeout=120)
+        if checkout.returncode != 0:
+            return "Failed to switch to the fetched revision:\n" + _command_error(checkout)
+
+        was_running = self.state == BotState.RUNNING
+        if was_running:
+            await self.stop()
 
         self.state = BotState.SHUTDOWN
         self.listener_socket.close()
@@ -809,10 +917,14 @@ class Host:
 
 
 async def main():
-    try:
-        port = hosting_port
-    except Exception:
+    port = hosting_port
+    if port is None and len(sys.argv) > 1:
         port = int(sys.argv[1])
+    if port is None:
+        raise SystemExit(
+            "Manager port is not configured. Set hosting_port in "
+            "configs/private_config.py or pass it as the first argument."
+        )
 
     h = Host(port)
 

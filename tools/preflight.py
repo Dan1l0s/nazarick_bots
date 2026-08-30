@@ -131,7 +131,25 @@ def check_private_config():
     for field in OPTIONAL_CONFIG_FIELDS:
         if not hasattr(private_config, field):
             warn(f"optional field not set: {field}",
-                 "only needed for the hosting/backup scripts or the GPT feature")
+                  "only needed for the hosting/backup scripts or the GPT feature")
+
+    if os.name == "posix" and os.stat(path).st_mode & 0o077:
+        warn("private_config.py is readable by group/other users",
+             "lock it down on the VPS: chmod 600 configs/private_config.py")
+
+    port = getattr(private_config, "hosting_port", None)
+    if port is not None and (not isinstance(port, int) or not 1024 <= port <= 65535):
+        fail("hosting_port must be an integer between 1024 and 65535")
+
+    manager_password = getattr(private_config, "server_manager_password", "")
+    if manager_password and (len(manager_password) < 24 or "replace" in manager_password.lower()):
+        fail("server_manager_password is still a placeholder or too short",
+             "python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
+
+    hosting_address = getattr(private_config, "hosting_ip", "127.0.0.1")
+    if hosting_address not in ("127.0.0.1", "localhost", "::1"):
+        warn(f"hosting_ip points at {hosting_address!r}",
+             "the manager is loopback-only; use 127.0.0.1 through an SSH tunnel")
 
     bots = getattr(private_config, "bots", [])
     if not bots:
