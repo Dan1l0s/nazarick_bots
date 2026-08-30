@@ -28,6 +28,11 @@ test_guilds = [your_discord_guild_id]
 hosting_ip = "127.0.0.1"
 hosting_port = 10000
 
+# Optional SSH config alias used by the interactive client on your PC. When
+# set, `python hosting/client_manager.py` creates and owns a temporary local
+# tunnel automatically. Omit it on machines that connect to a local supervisor.
+manager_ssh_host = "Dan1l0s-VPS"
+
 # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
 server_manager_password = "replace-with-a-long-random-value"
 

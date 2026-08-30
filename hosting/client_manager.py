@@ -11,13 +11,20 @@ reused.
 from __future__ import annotations
 
 import os
+import shutil
 import socket
+import subprocess
 import sys
+import time
 
 try:
     os.chdir(os.path.dirname(__file__))
     sys.path.append("..")
-    from configs.private_config import hosting_ip, hosting_port, server_manager_password
+    from configs import private_config as _private_config
+    hosting_ip = _private_config.hosting_ip
+    hosting_port = _private_config.hosting_port
+    server_manager_password = _private_config.server_manager_password
+    manager_ssh_host = getattr(_private_config, "manager_ssh_host", None)
 except Exception:
     # Without private_config the REPL falls back to prompting for host/port
     # (see main()); the password reference will then fail, which is the
@@ -66,59 +73,146 @@ def receive_all(sock: socket.socket) -> str:
     return response
 
 
+def build_ssh_tunnel_command(ssh_executable: str, ssh_host: str,
+                             local_port: int, remote_port: int) -> list[str]:
+    """Builds the OpenSSH command used for the private manager connection."""
+    return [
+        ssh_executable,
+        "-T",
+        "-N",
+        "-o", "ExitOnForwardFailure=yes",
+        "-o", "ServerAliveInterval=30",
+        "-o", "ServerAliveCountMax=3",
+        "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}",
+        ssh_host,
+    ]
+
+
+class SshTunnel:
+    """Temporary loopback forwarding owned by the interactive client."""
+
+    def __init__(self, ssh_host: str, remote_port: int,
+                 startup_timeout: float = 15.0):
+        self.ssh_host = ssh_host
+        self.remote_port = int(remote_port)
+        self.startup_timeout = startup_timeout
+        self.local_port = None
+        self.process = None
+
+    def start(self) -> int:
+        ssh_executable = shutil.which("ssh")
+        if not ssh_executable:
+            raise RuntimeError(
+                "OpenSSH client was not found in PATH. Install the Windows "
+                "OpenSSH Client optional feature, then reopen the terminal.")
+
+        # Let the OS choose an unused local port. This still works when 10000
+        # is occupied by a local development supervisor.
+        reservation = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        reservation.bind(("127.0.0.1", 0))
+        self.local_port = reservation.getsockname()[1]
+        reservation.close()
+
+        command = build_ssh_tunnel_command(
+            ssh_executable, self.ssh_host, self.local_port, self.remote_port)
+        try:
+            # Inherit the terminal so host-key confirmation and key-passphrase
+            # prompts remain interactive on first use.
+            self.process = subprocess.Popen(command)
+        except OSError as exc:
+            raise RuntimeError(f"failed to start SSH: {exc}") from exc
+
+        deadline = time.monotonic() + self.startup_timeout
+        while time.monotonic() < deadline:
+            return_code = self.process.poll()
+            if return_code is not None:
+                self.close()
+                raise RuntimeError(
+                    f"SSH to {self.ssh_host} exited with code {return_code}. "
+                    f"Check that `ssh {self.ssh_host}` works in this terminal.")
+            try:
+                probe = socket.create_connection(
+                    ("127.0.0.1", self.local_port), timeout=0.25)
+                probe.close()
+                return self.local_port
+            except OSError:
+                time.sleep(0.1)
+
+        self.close()
+        raise RuntimeError(
+            f"SSH tunnel to {self.ssh_host} did not become ready within "
+            f"{self.startup_timeout:g}s")
+
+    def close(self) -> None:
+        if not self.process or self.process.poll() is not None:
+            return
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
+
+
 def main():
-    while True:
-        sock = socket.socket(socket.AF_INET)
+    try:
+        host = hosting_ip
+    except Exception:
+        host = input('Input ADDRESS\n')
 
-        try:
-            host = hosting_ip
-        except Exception:
-            host = input('Input ADDRESS\n')
+    try:
+        port = int(hosting_port)
+    except Exception:
+        port = int(input('Input PORT\n'))
 
-        try:
-            port = hosting_port
-        except Exception:
-            port = input('Input PORT\n')
+    tunnel = None
+    try:
+        ssh_host = globals().get("manager_ssh_host")
+        if ssh_host:
+            print(f"Opening SSH tunnel through {ssh_host}...")
+            tunnel = SshTunnel(ssh_host, port)
+            port = tunnel.start()
+            host = "127.0.0.1"
+            print(f"SSH tunnel is ready on 127.0.0.1:{port}\n")
 
-        print("Connecting...")
-        try:
-            sock.connect((socket.gethostbyname(host), int(port)))
-        except Exception:
-            print(f"Failed to connect to {host}:{port}\n")
-            continue
-        print(f"Connected to {host}:{port}\n")
+        while True:
+            print("Connecting...")
+            try:
+                response = send_command("status", host, port)
+            except RuntimeError as exc:
+                print(f"Failed to connect: {exc}\n")
+                if tunnel:
+                    return 1
+                continue
+            print(f"Connected to {host}:{port}\n")
+            print(f'{response}\n')
+            break
 
-        sock.sendall(f"{server_manager_password} status".encode("utf8"))
-        response = receive_all(sock)
-        sock.close()
-        print(f'{response}\n')
-        break
+        while True:
+            cmd = input('Input your command (type "help" to get commands list) or type "exit" to exit the program\n')
 
-    while True:
-        cmd = input('Input your command (type "help" to get commands list) or type "exit" to exit the program\n')
+            if len(cmd) == 0:
+                continue
 
-        if len(cmd) == 0:
-            continue
+            if cmd.lower() == 'exit':
+                return 0
 
-        if cmd.lower() == 'exit':
-            return 0
+            if cmd.lower() == 'help':
+                print(HELP_TEXT)
+                continue
 
-        if cmd.lower() == 'help':
-            print(HELP_TEXT)
-            continue
-
-        try:
-            sock = socket.socket(socket.AF_INET)
-            sock.connect((socket.gethostbyname(host), int(port)))
-        except Exception:
-            print(f"Failed to connect to {host}:{port}\n")
-            continue
-        cmd = server_manager_password + " " + cmd
-        sock.sendall(cmd.encode('utf8'))
-
-        response = receive_all(sock)
-        sock.close()
-        print(f'{response}\n')
+            try:
+                response = send_command(cmd, host, port)
+            except RuntimeError as exc:
+                print(f"Failed to connect: {exc}\n")
+                continue
+            print(f'{response}\n')
+    except RuntimeError as exc:
+        print(f"Failed to open SSH tunnel: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if tunnel:
+            tunnel.close()
 
 
 def send_command(command: str, host: str = "127.0.0.1", port: int = None,

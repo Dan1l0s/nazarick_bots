@@ -340,7 +340,7 @@ The moving parts, briefly:
 | Piece                       | Role                                                                                                                                 |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `hosting/server_manager.py` | Supervisor. Owns the bot process, listens on a loopback-only control port, uploads database backups, and defers restarts until nothing is playing. |
-| `hosting/client_manager.py` | Client for that port - `status`, `reboot`, `update`, `upgrade`, `backup`, `cancel`. Run it with no arguments for a REPL.             |
+| `hosting/client_manager.py` | Client for that port - `status`, `reboot`, `update`, `upgrade`, `backup`, `cancel`. The REPL can open its own SSH tunnel from `manager_ssh_host`. |
 | `hosting/deploy.sh`         | The only thing CI is allowed to run over SSH; accepts `deploy`, `upgrade-ytdlp` and `status` and nothing else.                       |
 | `.github/workflows/`        | Tests on every push; deploy on green master; a daily yt-dlp upgrade.                                                                 |
 | `tools/preflight.py`        | Pre-launch sanity check that contacts Discord at no point.                                                                           |

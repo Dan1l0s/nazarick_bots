@@ -378,17 +378,26 @@ sudo ufw status numbered
 # public: SSH, HTTP and HTTPS; no rule for hosting_port
 ```
 
-For an interactive session from your PC, create a temporary tunnel with your
-normal SSH account and keep `hosting_ip = "127.0.0.1"` locally:
+For an interactive session from your PC, keep the manager on loopback and put
+your normal OpenSSH config alias in the local, gitignored `private_config.py`:
+
+```python
+hosting_ip = "127.0.0.1"
+hosting_port = 10000
+manager_ssh_host = "Dan1l0s-VPS"
+```
+
+The interactive client now creates a temporary tunnel by itself, using a free
+local port, and closes SSH when the client exits:
 
 ```powershell
-ssh -N -L 10000:127.0.0.1:10000 dan-vps
-# in a second terminal:
 python hosting/client_manager.py
 ```
 
-Replace `10000` on both sides if `hosting_port` differs. Closing SSH closes the
-tunnel; no permanent firewall exception is created.
+The alias must already work with `ssh Dan1l0s-VPS`. First-use host-key or key
+passphrase prompts appear in the same terminal. No permanent firewall exception
+or manually managed second terminal is created. Omit `manager_ssh_host` only
+when the client and supervisor run on the same machine.
 
 ### Phase 2 - cut over
 

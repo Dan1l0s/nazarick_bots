@@ -25,3 +25,62 @@ def test_bound_but_silent_says_no_reply():
     srv.close()
     msg = str(e.value)
     assert "no reply" in msg and "is running" in msg
+
+
+def test_ssh_tunnel_command_uses_config_alias_and_loopback_only():
+    command = client_manager.build_ssh_tunnel_command(
+        "ssh", "Dan1l0s-VPS", 54321, 10000)
+
+    assert command[-1] == "Dan1l0s-VPS"
+    assert "127.0.0.1:54321:127.0.0.1:10000" in command
+    assert "ExitOnForwardFailure=yes" in command
+    assert "-N" in command
+
+
+def test_ssh_tunnel_starts_on_ephemeral_port_and_closes(monkeypatch):
+    captured = {}
+
+    class FakeReservation:
+        def bind(self, address):
+            assert address == ("127.0.0.1", 0)
+
+        def getsockname(self):
+            return "127.0.0.1", 54321
+
+        def close(self):
+            pass
+
+    class FakeProbe:
+        def close(self):
+            pass
+
+    class FakeProcess:
+        def __init__(self):
+            self.terminated = False
+
+        def poll(self):
+            return 0 if self.terminated else None
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    process = FakeProcess()
+    monkeypatch.setattr(client_manager.shutil, "which", lambda name: "ssh.exe")
+    monkeypatch.setattr(client_manager.socket, "socket", lambda *args: FakeReservation())
+    monkeypatch.setattr(client_manager.socket, "create_connection", lambda *args, **kwargs: FakeProbe())
+
+    def fake_popen(command):
+        captured["command"] = command
+        return process
+
+    monkeypatch.setattr(client_manager.subprocess, "Popen", fake_popen)
+
+    tunnel = client_manager.SshTunnel("Dan1l0s-VPS", 10000)
+    assert tunnel.start() == 54321
+    assert captured["command"][-1] == "Dan1l0s-VPS"
+
+    tunnel.close()
+    assert process.terminated is True
