@@ -1,4 +1,7 @@
 private_config.py
+# Exported browser sessions are credentials and must never enter Git.
+configs/*cookies*.txt
+configs/youtube.env
 **/tempCodeRunnerFile.py
 logs/
 __pycache__/

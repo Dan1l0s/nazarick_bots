@@ -10,6 +10,8 @@ out are deliberately excluded (usually because they're objects that don't
 render usefully as a string, e.g. `icon`, `overwrites`, `applied_tags`).
 """
 
+import os
+
 # ---------------- RANDOM DICTS
 
 # emojis used by bots
@@ -76,6 +78,26 @@ YTDL_OPTIONS = {
     'format': 'bestaudio/best', 'noplaylist': False,
     'simulate': True, 'quiet': True, 'no_warnings': True
 }
+
+# Optional authenticated YouTube session for hosts whose public IP is blocked.
+# Keep the Netscape-format cookie file outside Git and point the service at it
+# with NAZARICK_YTDLP_COOKIE_FILE. With no variable, playback remains anonymous.
+YTDL_COOKIE_FILE = os.environ.get('NAZARICK_YTDLP_COOKIE_FILE')
+if YTDL_COOKIE_FILE:
+    YTDL_OPTIONS['cookiefile'] = YTDL_COOKIE_FILE
+
+# Safer alternative to account cookies for a logged-out YouTube session.  A
+# PO-token provider needs this visitor binding when YouTube blocks the initial
+# webpage before yt-dlp can discover it itself.
+YTDL_VISITOR_DATA = os.environ.get('NAZARICK_YTDLP_VISITOR_DATA')
+if YTDL_VISITOR_DATA:
+    YTDL_OPTIONS['extractor_args'] = {
+        'youtube': {
+            'player_skip': ['webpage', 'configs'],
+            'visitor_data': [YTDL_VISITOR_DATA],
+        },
+        'youtubetab': {'skip': ['webpage']},
+    }
 
 # ffmpeg configuration for disnake.FFmpegPCMAudio.
 #

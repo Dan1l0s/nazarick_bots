@@ -20,7 +20,9 @@ aiosqlite>=0.19,<1
 # "bot stopped playing music" outages. Update it on a schedule:
 #     pip install -U yt-dlp
 # (see README "Keeping yt-dlp current").
-yt-dlp>=2024.1.1
+yt-dlp[default]>=2024.1.1
+# Must match the separately running bgutil provider image on the VPS.
+bgutil-ytdlp-pot-provider==1.3.2
 
 # Text-query search used by /play when the input isn't a URL.
 youtube-search>=2.1.2,<3
