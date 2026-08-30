@@ -597,10 +597,11 @@ def song_selections(author, songs):
     cnt = 0
     for song in songs:
         cnt += 1
-        suffix = song['url_suffix'][:song['url_suffix'].find("&")]
+        suffix = song['url_suffix'].split('&', 1)[0]
+        url = helpers.normalize_ytdl_url(suffix)
         if song['duration'] == 0:
             song['duration'] = "Live"
-        selection_field.append(f'**{cnt}.** {public_config.emojis["blue_diamond"]} **[{song["title"]}](https://www.youtube.com/{suffix})** ({song["duration"]})')
+        selection_field.append(f'**{cnt}.** {public_config.emojis["blue_diamond"]} **[{song["title"]}]({url})** ({song["duration"]})')
     return create_embed(color_tag="songs", author_name="Song selection. Select the song number to continue.", author_icon_url=author.avatar.url,
                         footer_text=f"This timeouts in {public_config.music_settings['SelectionPanelTimeout']} seconds", footer_icon_url=author.avatar.url, fields=[EmbedField(value='\n'.join(selection_field))])
 

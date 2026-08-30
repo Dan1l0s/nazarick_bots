@@ -59,6 +59,19 @@ def test_split_into_chunks_short_message_single_chunk():
     assert helpers.split_into_chunks("hello world") == ["hello world\n"]
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("watch?v=3mIWkRv7GrM", "https://www.youtube.com/watch?v=3mIWkRv7GrM"),
+        ("/watch?v=3mIWkRv7GrM", "https://www.youtube.com/watch?v=3mIWkRv7GrM"),
+        ("3mIWkRv7GrM", "https://www.youtube.com/watch?v=3mIWkRv7GrM"),
+        ("https://youtu.be/3mIWkRv7GrM", "https://youtu.be/3mIWkRv7GrM"),
+    ],
+)
+def test_normalize_ytdl_url(value, expected):
+    assert helpers.normalize_ytdl_url(value) == expected
+
+
 def test_parse_key():
     assert helpers.parse_key("self_deaf") == "Self deaf "
     assert helpers.parse_key("name") == "Name "

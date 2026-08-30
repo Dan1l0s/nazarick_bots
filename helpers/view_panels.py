@@ -32,7 +32,8 @@ class SongSelection(disnake.ui.View):
         self.bot = bot
         self.value = False
         for song in songs:
-            url = f"https://www.youtube.com/{song['url_suffix'][:song['url_suffix'].find('&')]}"
+            suffix = song['url_suffix'].split('&', 1)[0]
+            url = helpers.normalize_ytdl_url(suffix)
             self.url_list.append(url)
 
         super().__init__(timeout=public_config.music_settings["SelectionPanelTimeout"])

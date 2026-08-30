@@ -252,6 +252,36 @@ def sort_ranks(ranks: list, reverse: bool = False) -> list:
 # from the music bots so these blocking calls never run on the event loop)
 # --------------------------------------------------------------------------- #
 
+_YOUTUBE_VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def normalize_ytdl_url(url):
+    """Turn flat YouTube entries into absolute video URLs.
+
+    Depending on the extractor/version, a flat playlist entry may expose its
+    target as an absolute URL, ``watch?v=...``, ``/watch?v=...``, or a bare
+    11-character video id. Passing a relative form back to yt-dlp selects the
+    generic extractor and can produce misleading HTTP errors.
+    """
+    if not isinstance(url, str):
+        return url
+
+    normalized = url.strip()
+    if normalized.startswith("//"):
+        return f"https:{normalized}"
+    if normalized.startswith("/watch?"):
+        return f"https://www.youtube.com{normalized}"
+    if normalized.startswith("watch?"):
+        return f"https://www.youtube.com/{normalized}"
+    if normalized.startswith(("youtube.com/", "www.youtube.com/")):
+        return f"https://{normalized}"
+    if normalized.startswith("youtu.be/"):
+        return f"https://{normalized}"
+    if _YOUTUBE_VIDEO_ID_RE.fullmatch(normalized):
+        return f"https://www.youtube.com/watch?v={normalized}"
+    return normalized
+
+
 def ytdl_extract_info(url, download: bool = False):
     # Imported lazily (rather than at module top-level as in the original) so
     # helpers.py stays importable on a machine without the music-only
@@ -259,6 +289,7 @@ def ytdl_extract_info(url, download: bool = False):
     # test suite. Python caches modules in sys.modules, so the repeat cost per
     # call is a dict lookup.
     from yt_dlp import YoutubeDL
+    url = normalize_ytdl_url(url)
     try:
         with YoutubeDL(public_config.YTDL_OPTIONS) as ytdl:
             return ytdl.extract_info(url, download=download)

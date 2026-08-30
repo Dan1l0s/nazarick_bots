@@ -92,8 +92,8 @@ def test_song_selection_builds_urls_and_strips_tracking_params():
 
     panel = asyncio.run(scenario())
     assert panel.url_list == [
-        "https://www.youtube.com//watch?v=aaa",
-        "https://www.youtube.com//watch?v=bbb",
+        "https://www.youtube.com/watch?v=aaa",
+        "https://www.youtube.com/watch?v=bbb",
     ]
     assert panel.value is False
 
