@@ -1,6 +1,6 @@
 name: tests
 
-# Runs on every push to master and on every pull request.
+# Runs on pull requests; local pre-commit checks cover direct pushes.
 #
 # SECURITY: this workflow deliberately uses no secrets. `pull_request` from a
 # fork runs with a read-only token and no access to repository secrets, so it
