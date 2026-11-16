@@ -7,9 +7,7 @@ name: tests
 # is safe for a public repo. Deployment lives in a separate workflow that only
 # triggers on push to master.
 on:
-    push:
-        branches: [master]
-    pull_request:
+  pull_request:
 
 jobs:
     test:

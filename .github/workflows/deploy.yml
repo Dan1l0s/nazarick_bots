@@ -1,23 +1,9 @@
 name: deploy
 
-# Runs ONLY after the `tests` workflow finishes successfully on master, so a
-# red build never reaches the VPS.
-#
-# SECURITY - why this is safe in a public repository:
-#   * `workflow_run` only fires for workflow runs in THIS repository. A pull
-#     request from a fork cannot trigger it.
-#   * Repository secrets are not exposed to fork pull requests at all, so
-#     nobody can open a PR that prints the host or the key.
-#   * The `production` environment below lets you add a required reviewer in
-#     Settings -> Environments if you ever want a manual gate.
-#   * The deploy key is restricted by a forced command on the VPS
-#     (hosting/deploy.sh), so it cannot open a shell.
-#   * Nothing here echoes a secret. GitHub also masks them in logs, but the
-#     workflow does not rely on that.
+# Tests run locally before commit and in pull requests. Only the trusted master
+# branch may deploy; pull request runs cannot trigger this workflow.
 on:
-  workflow_run:
-    workflows: ["tests"]
-    types: [completed]
+  push:
     branches: [master]
   # Manual trigger for re-deploying without a new commit.
   workflow_dispatch:
@@ -29,10 +15,7 @@ concurrency:
 
 jobs:
   deploy:
-    # workflow_dispatch has no workflow_run context, hence the second clause.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: production
 

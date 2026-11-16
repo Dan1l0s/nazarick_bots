@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+for interpreter in .venv/bin/python .venv/Scripts/python.exe venv/bin/python venv/Scripts/python.exe; do
+  if [ -x "$interpreter" ]; then
+    exec "$interpreter" scripts/check_local.py
+  fi
+done
+echo 'Install the project development environment before committing.' >&2
+exit 1

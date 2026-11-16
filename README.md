@@ -374,3 +374,11 @@ binary — check which one your build is, since GPL builds (those configured wit
 The MIT license covers this source code only. It grants no rights to the
 _Overlord_ franchise names and characters referenced throughout the bots'
 messages and defaults; those belong to their respective rights holders.
+
+
+## Локальные проверки перед коммитом
+
+GitHub Actions запускает тесты только для pull request.
+После клонирования выполните `git config core.hooksPath .githooks`.
+Hook запускает `python scripts/check_local.py` и блокирует коммит при ошибке
+или отсутствии подготовленного окружения. Проверки не отправляют запросы в рабочие сервисы.
